@@ -1,13 +1,15 @@
-use eframe::egui;
+use eframe::egui::{self, Button};
 use std::time::{Duration, Instant};
 
 use mantle::Manager;
+
+const SIZE: [f32; 2] = [320.0, 800.0];
 
 fn main() -> eframe::Result {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size(SIZE),
         ..Default::default()
     };
 
@@ -46,6 +48,13 @@ impl eframe::App for MantleApp {
                 let bulbs = bulbs.values();
                 for bulb in bulbs {
                     ui.label(format!("{:?}", bulb));
+                    ui.separator();
+                    let size_btn = egui::vec2(1.0, 1.0);
+                    if ui.add_sized(size_btn, Button::new("Toggle")).clicked() {
+                        let result = self.mgr.toggle(&bulb);
+                        println!("Toggled bulb {:?} {:?}", bulb.name, result);
+                        // bulb.power_level.update(0);
+                    }
                 }
             }
         });

@@ -2,7 +2,7 @@ use crate::bulb_info::BulbInfo;
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
-use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service};
+use lifx_core::{get_product_info, BuildOptions, Message, PowerLevel, RawMessage, Service};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};
@@ -140,6 +140,14 @@ impl Manager {
                     v[index as usize + 7] = Some(color7);
                 }
             }
+            Message::Acknowledgement { seq } => {
+                if raw.frame_addr.ack_required {
+                    println!("Received ack for sequence {}", seq);
+                }
+            }
+            Message::LightStatePower { level } => {
+                bulb.power_level.update(level);
+            }
             unknown => {
                 println!("Received, but ignored {:?}", unknown);
             }
@@ -217,5 +225,34 @@ impl Manager {
                 bulb.query_for_missing_info(&self.sock).unwrap();
             }
         }
+    }
+
+    pub fn toggle(&self, bulb: &&BulbInfo) -> Result<usize, std::io::Error> {
+        let target = bulb.addr;
+        let opts = BuildOptions {
+            target: Some(bulb.target),
+            source: bulb.source,
+            ack_required: true,
+            res_required: true,
+            sequence: 0,
+            ..Default::default()
+        };
+        let power_level = if bulb.power_level.data.unwrap() > 0 {
+            0
+        } else {
+            65535
+        };
+        let raw = RawMessage::build(
+            &opts,
+            Message::LightSetPower {
+                level: power_level,
+                duration: 100,
+            },
+        )
+        .unwrap();
+        let bytes = raw.pack().unwrap();
+        let result = self.sock.send_to(&bytes, &target);
+
+        result
     }
 }
