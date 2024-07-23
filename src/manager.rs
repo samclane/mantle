@@ -2,7 +2,7 @@ use crate::bulb_info::BulbInfo;
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
-use lifx_core::{get_product_info, BuildOptions, Message, PowerLevel, RawMessage, Service};
+use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};

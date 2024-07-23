@@ -43,20 +43,20 @@ impl eframe::App for MantleApp {
         self.mgr.refresh();
         egui::CentralPanel::default().show(_ctx, |ui| {
             ui.heading("Bulbs");
-            let bulbs = self.mgr.bulbs.lock();
-            if let Ok(bulbs) = bulbs {
-                let bulbs = bulbs.values();
-                for bulb in bulbs {
-                    ui.label(format!("{:?}", bulb));
-                    ui.separator();
-                    let size_btn = egui::vec2(1.0, 1.0);
-                    if ui.add_sized(size_btn, Button::new("Toggle")).clicked() {
-                        let result = self.mgr.toggle(&bulb);
-                        println!("Toggled bulb {:?} {:?}", bulb.name, result);
-                        // bulb.power_level.update(0);
+            ui.vertical(|ui| {
+                let bulbs = self.mgr.bulbs.lock();
+                if let Ok(bulbs) = bulbs {
+                    let bulbs = bulbs.values();
+                    for bulb in bulbs {
+                        ui.label(format!("{:?}", bulb));
+                        if ui.add(Button::new("Toggle")).clicked() {
+                            let result = self.mgr.toggle(&bulb);
+                            println!("Toggled bulb {:?} {:?}", bulb.name, result);
+                        }
+                        ui.separator();
                     }
                 }
-            }
+            });
         });
     }
 }
