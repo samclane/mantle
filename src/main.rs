@@ -37,12 +37,12 @@ impl Default for MantleApp {
 
 impl eframe::App for MantleApp {
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(300) {
+        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(3) {
             self.mgr.discover().unwrap();
         }
         self.mgr.refresh();
         egui::CentralPanel::default().show(_ctx, |ui| {
-            ui.heading("Bulbs");
+            ui.heading("Devices");
             ui.vertical(|ui| {
                 let bulbs = self.mgr.bulbs.lock();
                 if let Ok(bulbs) = bulbs {
@@ -50,8 +50,11 @@ impl eframe::App for MantleApp {
                     for bulb in bulbs {
                         ui.label(format!("{:?}", bulb));
                         if ui.add(Button::new("Toggle")).clicked() {
-                            let result = self.mgr.toggle(&bulb);
-                            println!("Toggled bulb {:?} {:?}", bulb.name, result);
+                            if let Err(e) = self.mgr.toggle(&bulb) {
+                                println!("Error toggling bulb: {}", e);
+                            } else {
+                                println!("Toggled bulb {:?}", bulb.name);
+                            }
                         }
                         ui.separator();
                     }
