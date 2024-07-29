@@ -255,4 +255,24 @@ impl Manager {
 
         result
     }
+
+    pub fn set_brightness(
+        &self,
+        bulb: &&BulbInfo,
+        brightness: u16,
+    ) -> Result<usize, std::io::Error> {
+        let target = bulb.addr;
+        let opts = BuildOptions {
+            target: Some(bulb.target),
+            source: bulb.source,
+            ack_required: true,
+            res_required: true,
+            sequence: 0,
+            ..Default::default()
+        };
+        let raw = RawMessage::build(&opts, Message::LightStatePower { level: brightness }).unwrap();
+        let bytes = raw.pack().unwrap();
+        let result = self.sock.send_to(&bytes, &target);
+        result
+    }
 }

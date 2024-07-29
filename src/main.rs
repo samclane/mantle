@@ -37,7 +37,7 @@ impl Default for MantleApp {
 
 impl eframe::App for MantleApp {
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(3) {
+        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(10) {
             self.mgr.discover().unwrap();
         }
         self.mgr.refresh();
