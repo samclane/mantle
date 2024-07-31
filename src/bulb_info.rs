@@ -82,6 +82,13 @@ impl BulbInfo {
 
         Ok(())
     }
+
+    pub fn get_color(&self) -> Option<&HSBK> {
+        match self.color {
+            Color::Single(ref data) => data.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Debug for BulbInfo {

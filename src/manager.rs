@@ -2,7 +2,7 @@ use crate::bulb_info::BulbInfo;
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
-use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service};
+use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service, HSBK};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};
@@ -256,11 +256,7 @@ impl Manager {
         result
     }
 
-    pub fn set_brightness(
-        &self,
-        bulb: &&BulbInfo,
-        brightness: u16,
-    ) -> Result<usize, std::io::Error> {
+    pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
         let target = bulb.addr;
         let opts = BuildOptions {
             target: Some(bulb.target),
@@ -270,7 +266,15 @@ impl Manager {
             sequence: 0,
             ..Default::default()
         };
-        let raw = RawMessage::build(&opts, Message::LightStatePower { level: brightness }).unwrap();
+        let raw = RawMessage::build(
+            &opts,
+            Message::LightSetColor {
+                reserved: 0,
+                color,
+                duration: 100,
+            },
+        )
+        .unwrap();
         let bytes = raw.pack().unwrap();
         let result = self.sock.send_to(&bytes, &target);
         result

@@ -1,4 +1,5 @@
 use eframe::egui::{self, Button};
+use lifx_core::HSBK;
 use std::time::{Duration, Instant};
 
 use mantle::Manager;
@@ -54,6 +55,40 @@ impl eframe::App for MantleApp {
                                 println!("Error toggling bulb: {}", e);
                             } else {
                                 println!("Toggled bulb {:?}", bulb.name);
+                            }
+                        }
+                        if let Some(color) = bulb.get_color() {
+                            let mut hue = color.hue;
+                            ui.add(
+                                egui::Slider::new(&mut hue, 0.0 as u16..=65535.0 as u16)
+                                    .text("Hue"),
+                            );
+                            let mut saturation = color.saturation;
+                            ui.add(
+                                egui::Slider::new(&mut saturation, 0.0 as u16..=65535.0 as u16)
+                                    .text("Saturation"),
+                            );
+                            let mut brightness = color.brightness;
+                            ui.add(
+                                egui::Slider::new(&mut brightness, 0.0 as u16..=65535.0 as u16)
+                                    .text("Brightness"),
+                            );
+                            let mut kelvin = color.kelvin;
+                            ui.add(
+                                egui::Slider::new(&mut kelvin, 2500.0 as u16..=9000.0 as u16)
+                                    .text("Kelvin"),
+                            );
+                            match self.mgr.set_color(
+                                &bulb,
+                                HSBK {
+                                    hue,
+                                    saturation,
+                                    brightness,
+                                    kelvin,
+                                },
+                            ) {
+                                Ok(_) => (),
+                                Err(e) => println!("Error setting brightness: {}", e),
                             }
                         }
                         ui.separator();
