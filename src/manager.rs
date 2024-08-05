@@ -240,13 +240,13 @@ impl Manager {
         let power_level = if bulb.power_level.data.unwrap() > 0 {
             0
         } else {
-            65535
+            u16::MAX
         };
         let raw = RawMessage::build(
             &opts,
             Message::LightSetPower {
                 level: power_level,
-                duration: 100,
+                duration: 0,
             },
         )
         .unwrap();
@@ -271,7 +271,7 @@ impl Manager {
             Message::LightSetColor {
                 reserved: 0,
                 color,
-                duration: 100,
+                duration: 0,
             },
         )
         .unwrap();

@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use mantle::Manager;
 
 const SIZE: [f32; 2] = [320.0, 800.0];
+const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 
 fn main() -> eframe::Result {
     env_logger::init();
@@ -49,7 +50,10 @@ impl eframe::App for MantleApp {
                 if let Ok(bulbs) = bulbs {
                     let bulbs = bulbs.values();
                     for bulb in bulbs {
-                        ui.label(format!("{:?}", bulb));
+                        if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
+                            ui.label(s);
+                        }
+
                         if ui.add(Button::new("Toggle")).clicked() {
                             if let Err(e) = self.mgr.toggle(&bulb) {
                                 println!("Error toggling bulb: {}", e);
@@ -64,17 +68,12 @@ impl eframe::App for MantleApp {
                                 mut brightness,
                                 mut kelvin,
                             } = color;
+                            ui.add(egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
                             ui.add(
-                                egui::Slider::new(&mut hue, 0.0 as u16..=65535.0 as u16)
-                                    .text("Hue"),
+                                egui::Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"),
                             );
                             ui.add(
-                                egui::Slider::new(&mut saturation, 0.0 as u16..=65535.0 as u16)
-                                    .text("Saturation"),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut brightness, 0.0 as u16..=65535.0 as u16)
-                                    .text("Brightness"),
+                                egui::Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"),
                             );
                             if let Some(range) = bulb.features.temperature_range.as_ref() {
                                 if range.min != range.max {
