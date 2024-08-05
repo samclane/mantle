@@ -31,7 +31,7 @@ impl TemperatureRange {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Features {
     pub color: Option<bool>,
     pub chain: Option<bool>,
@@ -44,33 +44,17 @@ pub struct Features {
     pub buttons: Option<bool>,
 }
 
-impl Default for Features {
-    fn default() -> Self {
-        Features {
-            color: None,
-            chain: None,
-            matrix: None,
-            infrared: None,
-            multizone: None,
-            temperature_range: None,
-            hev: None,
-            relays: None,
-            buttons: None,
-        }
-    }
-}
-
 impl Features {
     pub fn get_features(model: Option<&(u32, u32)>) -> Features {
         let products = get_products();
         if let Some((_, product)) = model {
-            if let Some(info) = products.get(&product) {
-                return info.features.clone();
+            if let Some(info) = products.get(product) {
+                info.features.clone()
             } else {
-                return Features::default();
+                Features::default()
             }
         } else {
-            return Features::default();
+            Features::default()
         }
     }
 

@@ -209,7 +209,7 @@ impl Manager {
                 }
                 let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
                 println!("Discovering bulbs on LAN {:?}", addr);
-                self.sock.send_to(&bytes, &addr)?;
+                self.sock.send_to(&bytes, addr)?;
             }
         }
 
@@ -235,7 +235,6 @@ impl Manager {
             ack_required: true,
             res_required: true,
             sequence: 0,
-            ..Default::default()
         };
         let power_level = if bulb.power_level.data.unwrap() > 0 {
             0
@@ -251,9 +250,7 @@ impl Manager {
         )
         .unwrap();
         let bytes = raw.pack().unwrap();
-        let result = self.sock.send_to(&bytes, &target);
-
-        result
+        self.sock.send_to(&bytes, target)
     }
 
     pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
@@ -264,7 +261,6 @@ impl Manager {
             ack_required: true,
             res_required: true,
             sequence: 0,
-            ..Default::default()
         };
         let raw = RawMessage::build(
             &opts,
@@ -276,7 +272,6 @@ impl Manager {
         )
         .unwrap();
         let bytes = raw.pack().unwrap();
-        let result = self.sock.send_to(&bytes, &target);
-        result
+        self.sock.send_to(&bytes, target)
     }
 }
