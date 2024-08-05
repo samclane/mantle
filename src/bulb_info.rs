@@ -1,3 +1,4 @@
+use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
 use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, HSBK};
 use std::ffi::CString;
@@ -18,6 +19,7 @@ pub struct BulbInfo {
     pub wifi_firmware: RefreshableData<(u16, u16)>,
     pub power_level: RefreshableData<u16>,
     pub color: Color,
+    pub features: Features,
 }
 
 #[derive(Debug)]
@@ -41,6 +43,7 @@ impl BulbInfo {
             wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
             power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
             color: Color::Unknown,
+            features: Features::default(),
         }
     }
 
@@ -67,7 +70,7 @@ impl BulbInfo {
         Ok(())
     }
 
-    pub fn query_for_missing_info(&self, sock: &UdpSocket) -> Result<(), failure::Error> {
+    pub fn query_for_missing_info(&mut self, sock: &UdpSocket) -> Result<(), failure::Error> {
         self.refresh_if_needed(sock, &self.name)?;
         self.refresh_if_needed(sock, &self.model)?;
         self.refresh_if_needed(sock, &self.location)?;
@@ -79,6 +82,7 @@ impl BulbInfo {
             Color::Single(d) => self.refresh_if_needed(sock, d)?,
             Color::Multi(d) => self.refresh_if_needed(sock, d)?,
         }
+        self.features = Features::get_features(self.model.as_ref());
 
         Ok(())
     }
@@ -148,6 +152,9 @@ impl std::fmt::Debug for BulbInfo {
             } else {
                 write!(f, "  Powered Off")?;
             }
+        }
+        if let Some(features) = self.features.as_ref() {
+            write!(f, "  Features: {:?}", features)?;
         }
         write!(f, ")")
     }

@@ -58,26 +58,32 @@ impl eframe::App for MantleApp {
                             }
                         }
                         if let Some(color) = bulb.get_color() {
-                            let mut hue = color.hue;
+                            let HSBK {
+                                mut hue,
+                                mut saturation,
+                                mut brightness,
+                                mut kelvin,
+                            } = color;
                             ui.add(
                                 egui::Slider::new(&mut hue, 0.0 as u16..=65535.0 as u16)
                                     .text("Hue"),
                             );
-                            let mut saturation = color.saturation;
                             ui.add(
                                 egui::Slider::new(&mut saturation, 0.0 as u16..=65535.0 as u16)
                                     .text("Saturation"),
                             );
-                            let mut brightness = color.brightness;
                             ui.add(
                                 egui::Slider::new(&mut brightness, 0.0 as u16..=65535.0 as u16)
                                     .text("Brightness"),
                             );
-                            let mut kelvin = color.kelvin;
-                            ui.add(
-                                egui::Slider::new(&mut kelvin, 2500.0 as u16..=9000.0 as u16)
-                                    .text("Kelvin"),
-                            );
+                            if let Some(range) = bulb.features.temperature_range.as_ref() {
+                                if range.min != range.max {
+                                    ui.add(
+                                        egui::Slider::new(&mut kelvin, range.to_range_u16())
+                                            .text("Kelvin"),
+                                    );
+                                }
+                            }
                             match self.mgr.set_color(
                                 &bulb,
                                 HSBK {

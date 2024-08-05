@@ -219,8 +219,8 @@ impl Manager {
     }
 
     pub fn refresh(&self) {
-        if let Ok(bulbs) = self.bulbs.lock() {
-            let bulbs = bulbs.values();
+        if let Ok(mut bulbs) = self.bulbs.lock() {
+            let bulbs = bulbs.values_mut();
             for bulb in bulbs {
                 bulb.query_for_missing_info(&self.sock).unwrap();
             }
