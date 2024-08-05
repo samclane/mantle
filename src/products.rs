@@ -47,15 +47,10 @@ pub struct Features {
 impl Features {
     pub fn get_features(model: Option<&(u32, u32)>) -> Features {
         let products = get_products();
-        if let Some((_, product)) = model {
-            if let Some(info) = products.get(product) {
-                info.features.clone()
-            } else {
-                Features::default()
-            }
-        } else {
-            Features::default()
-        }
+        model
+            .and_then(|(_, product)| products.get(product))
+            .map(|info| info.features.clone())
+            .unwrap_or_default()
     }
 
     pub fn as_ref(&self) -> Option<Features> {

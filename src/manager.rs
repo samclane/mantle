@@ -227,7 +227,7 @@ impl Manager {
         }
     }
 
-    pub fn toggle(&self, bulb: &&BulbInfo) -> Result<usize, std::io::Error> {
+    fn send_message(&self, bulb: &&BulbInfo, message: Message) -> Result<usize, std::io::Error> {
         let target = bulb.addr;
         let opts = BuildOptions {
             target: Some(bulb.target),
@@ -236,42 +236,34 @@ impl Manager {
             res_required: true,
             sequence: 0,
         };
+        let raw = RawMessage::build(&opts, message).unwrap();
+        let bytes = raw.pack().unwrap();
+        self.sock.send_to(&bytes, target)
+    }
+
+    pub fn toggle(&self, bulb: &&BulbInfo) -> Result<usize, std::io::Error> {
         let power_level = if bulb.power_level.data.unwrap() > 0 {
             0
         } else {
             u16::MAX
         };
-        let raw = RawMessage::build(
-            &opts,
+        self.send_message(
+            bulb,
             Message::LightSetPower {
                 level: power_level,
                 duration: 0,
             },
         )
-        .unwrap();
-        let bytes = raw.pack().unwrap();
-        self.sock.send_to(&bytes, target)
     }
 
     pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
-        let target = bulb.addr;
-        let opts = BuildOptions {
-            target: Some(bulb.target),
-            source: bulb.source,
-            ack_required: true,
-            res_required: true,
-            sequence: 0,
-        };
-        let raw = RawMessage::build(
-            &opts,
+        self.send_message(
+            bulb,
             Message::LightSetColor {
                 reserved: 0,
                 color,
                 duration: 0,
             },
         )
-        .unwrap();
-        let bytes = raw.pack().unwrap();
-        self.sock.send_to(&bytes, target)
     }
 }
