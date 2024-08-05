@@ -9,7 +9,7 @@ edition = "2021"
 lifx-core = "0.4.0"
 get_if_addrs = "0.5.3"
 failure = "0.1.8"
-eframe = "0.28.1"
+eframe = { version = "0.28.1", features = ["persistence"] }
 egui_extras = { version = "0.28.1", features = ["default", "image"] }
 env_logger = { version = "0.11.3", features = ["auto-color", "humantime"] }
 serde = { version = "1.0.204", features = ["derive"] }

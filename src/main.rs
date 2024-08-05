@@ -1,17 +1,21 @@
 use eframe::egui::{self, Button};
 use lifx_core::HSBK;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 use mantle::Manager;
 
 const SIZE: [f32; 2] = [320.0, 800.0];
+const MIN_SIZE: [f32; 2] = [300.0, 220.0];
 const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 
 fn main() -> eframe::Result {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size(SIZE),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(SIZE)
+            .with_min_inner_size(MIN_SIZE),
         ..Default::default()
     };
 
@@ -20,13 +24,15 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-
-            Ok(Box::<MantleApp>::default())
+            Ok(Box::new(MantleApp::new(cc)))
         }),
     )
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(default)]
 struct MantleApp {
+    #[serde(skip)]
     mgr: Manager,
 }
 
@@ -37,7 +43,20 @@ impl Default for MantleApp {
     }
 }
 
+impl MantleApp {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        if let Some(storage) = cc.storage {
+            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        }
+        Default::default()
+    }
+}
+
 impl eframe::App for MantleApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if Instant::now() - self.mgr.last_discovery > Duration::from_secs(10) {
             self.mgr.discover().unwrap();
