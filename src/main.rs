@@ -76,6 +76,14 @@ impl eframe::App for MantleApp {
                             if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
                                 ui.label(s);
                             }
+                            if let Some(g) = bulb
+                                .group
+                                .data
+                                .as_ref()
+                                .and_then(|g| g.label.cstr().to_str().ok())
+                            {
+                                ui.label(format!("Group: {}", g));
+                            }
 
                             ui.horizontal(|ui| {
                                 display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);

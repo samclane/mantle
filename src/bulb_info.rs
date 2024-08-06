@@ -1,11 +1,17 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
-use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, HSBK};
+use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
 use std::ffi::CString;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
+
+pub struct Group {
+    pub group: LifxIdent,
+    pub label: LifxString,
+    pub updated_at: u64,
+}
 
 pub struct BulbInfo {
     pub last_seen: Instant,
@@ -20,6 +26,7 @@ pub struct BulbInfo {
     pub power_level: RefreshableData<u16>,
     pub color: Color,
     pub features: Features,
+    pub group: RefreshableData<Group>,
 }
 
 #[derive(Debug)]
@@ -44,6 +51,7 @@ impl BulbInfo {
             power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
             color: Color::Unknown,
             features: Features::default(),
+            group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
         }
     }
 
@@ -77,13 +85,13 @@ impl BulbInfo {
         self.refresh_if_needed(sock, &self.host_firmware)?;
         self.refresh_if_needed(sock, &self.wifi_firmware)?;
         self.refresh_if_needed(sock, &self.power_level)?;
+        self.refresh_if_needed(sock, &self.group)?;
         match &self.color {
             Color::Unknown => (), // we'll need to wait to get info about this bulb's model, so we'll know if it's multizone or not
             Color::Single(d) => self.refresh_if_needed(sock, d)?,
             Color::Multi(d) => self.refresh_if_needed(sock, d)?,
         }
         self.features = Features::get_features(self.model.as_ref());
-
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-use crate::bulb_info::BulbInfo;
+use crate::bulb_info::{BulbInfo, Group};
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
@@ -147,6 +147,17 @@ impl Manager {
             }
             Message::LightStatePower { level } => {
                 bulb.power_level.update(level);
+            }
+            Message::StateGroup {
+                group,
+                label,
+                updated_at,
+            } => {
+                bulb.group.update(Group {
+                    group,
+                    label,
+                    updated_at,
+                });
             }
             unknown => {
                 println!("Received, but ignored {:?}", unknown);
