@@ -75,7 +75,7 @@ impl eframe::App for MantleApp {
                             }
 
                             ui.horizontal(|ui| {
-                                paint_color(ui, &bulb);
+                                paint_color(ui, bulb);
 
                                 ui.vertical(|ui| {
                                     if ui.add(Button::new("Toggle")).clicked() {
@@ -86,7 +86,7 @@ impl eframe::App for MantleApp {
                                         }
                                     }
                                     if let Some(color) = bulb.get_color() {
-                                        build_sliders(ui, &bulb, *color);
+                                        build_sliders(ui, bulb, *color);
                                         match self.mgr.set_color(&bulb, *color) {
                                             Ok(_) => (),
                                             Err(e) => println!("Error setting brightness: {}", e),
