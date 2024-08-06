@@ -1,5 +1,5 @@
 use eframe::{
-    egui::{self, Button, Color32, Pos2, Sense, Shape, Vec2},
+    egui::{self, Button, Color32, Pos2, Sense, Shape, Slider, Stroke, Ui, Vec2},
     epaint::CubicBezierShape,
 };
 use lifx_core::HSBK;
@@ -23,7 +23,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "mantle",
+        "Mantle",
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -78,7 +78,7 @@ impl eframe::App for MantleApp {
                             }
 
                             ui.horizontal(|ui| {
-                                display_color_circle(ui, bulb);
+                                display_color_circle(ui, bulb, Vec2 { x: 50.0, y: 50.0 }, 8.0);
 
                                 ui.vertical(|ui| {
                                     if ui.add(Button::new("Toggle")).clicked() {
@@ -96,15 +96,13 @@ impl eframe::App for MantleApp {
                                                 mut brightness,
                                                 mut kelvin,
                                             } = color;
+                                            ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
                                             ui.add(
-                                                egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"),
-                                            );
-                                            ui.add(
-                                                egui::Slider::new(&mut saturation, LIFX_RANGE)
+                                                Slider::new(&mut saturation, LIFX_RANGE)
                                                     .text("Saturation"),
                                             );
                                             ui.add(
-                                                egui::Slider::new(&mut brightness, LIFX_RANGE)
+                                                Slider::new(&mut brightness, LIFX_RANGE)
                                                     .text("Brightness"),
                                             );
                                             if let Some(range) =
@@ -112,12 +110,14 @@ impl eframe::App for MantleApp {
                                             {
                                                 if range.min != range.max {
                                                     ui.add(
-                                                        egui::Slider::new(
+                                                        Slider::new(
                                                             &mut kelvin,
                                                             range.to_range_u16(),
                                                         )
                                                         .text("Kelvin"),
                                                     );
+                                                } else {
+                                                    ui.label(format!("Kelvin: {:?}", range.min));
                                                 }
                                             }
                                             match self.mgr.set_color(
@@ -147,40 +147,45 @@ impl eframe::App for MantleApp {
     }
 }
 
-fn display_color_circle(ui: &mut egui::Ui, bulb: &BulbInfo) {
+fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, radius_scale: f32) {
     if let Some(color) = bulb.get_color() {
         let (r, g, b) = hsbk_to_rgb(*color);
-        let (response, painter) =
-            ui.allocate_painter(egui::Vec2 { x: 50.0, y: 50.0 }, Sense::hover());
+        let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
         let center = response.rect.center();
-        let radius = response.rect.width() / 8.0;
-        let stroke = egui::Stroke::new(3.0, egui::Color32::from_rgb(r, g, b));
+        let radius = response.rect.width() / radius_scale;
+        let inner_stroke = Stroke::new(radius / 2.0, Color32::from_rgb(r, g, b));
+        let outer_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(64));
+        let off_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(32));
         let start_angle: f32 = 0.0;
         let end_angle: f32 = (2.0 * std::f32::consts::PI)
             * (bulb.get_color().unwrap().brightness as f32 / u16::MAX as f32);
+        if bulb.power_level.data.unwrap() != 0.0 as u16 {
+            painter.circle(center, radius, Color32::TRANSPARENT, outer_stroke);
+            painter.extend(AngleIter::new(start_angle, end_angle).map(
+                |(start_angle, end_angle)| {
+                    let xc = center.x;
+                    let yc = center.y;
+                    let p1 = center + radius * Vec2::new(start_angle.cos(), -start_angle.sin());
+                    let p4 = center + radius * Vec2::new(end_angle.cos(), -end_angle.sin());
+                    let a = p1 - center;
+                    let b = p4 - center;
+                    let q1 = a.length_sq();
+                    let q2 = q1 + a.dot(b);
+                    let k2 = (4.0 / 3.0) * ((2.0 * q1 * q2).sqrt() - q2) / (a.x * b.y - a.y * b.x);
 
-        painter.extend(
-            AngleIter::new(start_angle, end_angle).map(|(start_angle, end_angle)| {
-                let xc = center.x;
-                let yc = center.y;
-                let p1 = center + radius * Vec2::new(start_angle.cos(), -start_angle.sin());
-                let p4 = center + radius * Vec2::new(end_angle.cos(), -end_angle.sin());
-                let a = p1 - center;
-                let b = p4 - center;
-                let q1 = a.length_sq();
-                let q2 = q1 + a.dot(b);
-                let k2 = (4.0 / 3.0) * ((2.0 * q1 * q2).sqrt() - q2) / (a.x * b.y - a.y * b.x);
+                    let p2 = Pos2::new(xc + a.x - k2 * a.y, yc + a.y + k2 * a.x);
+                    let p3 = Pos2::new(xc + b.x + k2 * b.y, yc + b.y - k2 * b.x);
 
-                let p2 = Pos2::new(xc + a.x - k2 * a.y, yc + a.y + k2 * a.x);
-                let p3 = Pos2::new(xc + b.x + k2 * b.y, yc + b.y - k2 * b.x);
-
-                Shape::CubicBezier(CubicBezierShape::from_points_stroke(
-                    [p1, p2, p3, p4],
-                    false,
-                    Color32::TRANSPARENT,
-                    stroke,
-                ))
-            }),
-        );
+                    Shape::CubicBezier(CubicBezierShape::from_points_stroke(
+                        [p1, p2, p3, p4],
+                        false,
+                        Color32::TRANSPARENT,
+                        inner_stroke,
+                    ))
+                },
+            ));
+        } else {
+            painter.circle(center, radius, Color32::TRANSPARENT, off_stroke);
+        }
     }
 }
