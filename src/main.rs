@@ -1,4 +1,4 @@
-use eframe::egui::{self, Slider, Ui, Vec2};
+use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
@@ -146,6 +146,41 @@ impl MantleApp {
             }
         });
     }
+
+    fn file_menu_button(&self, ui: &mut Ui) {
+        let close_shortcut = egui::KeyboardShortcut::new(Modifiers::CTRL, egui::Key::Q);
+        let refresh_shortcut = egui::KeyboardShortcut::new(Modifiers::NONE, egui::Key::F5);
+        if ui.input_mut(|i| i.consume_shortcut(&close_shortcut)) {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        if ui.input_mut(|i| i.consume_shortcut(&refresh_shortcut)) {
+            self.mgr.refresh();
+        }
+
+        ui.menu_button("File", |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            if ui
+                .add(
+                    egui::Button::new("Refresh")
+                        .shortcut_text(ui.ctx().format_shortcut(&refresh_shortcut)),
+                )
+                .clicked()
+            {
+                self.mgr.refresh();
+                ui.close_menu();
+            }
+            if ui
+                .add(
+                    egui::Button::new("Quit")
+                        .shortcut_text(ui.ctx().format_shortcut(&close_shortcut)),
+                )
+                .clicked()
+            {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                ui.close_menu();
+            }
+        });
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -158,6 +193,11 @@ impl eframe::App for MantleApp {
             self.mgr.discover().unwrap();
         }
         self.mgr.refresh();
+        egui::TopBottomPanel::top("menu_bar").show(_ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                self.file_menu_button(ui);
+            });
+        });
         egui::CentralPanel::default().show(_ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Devices");
