@@ -6,7 +6,7 @@ use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
-use mantle::{hsbk_to_rgb, AngleIter, BulbInfo, Manager};
+use mantle::{AngleIter, BulbInfo, Manager, RGB};
 
 const SIZE: [f32; 2] = [320.0, 800.0];
 const MIN_SIZE: [f32; 2] = [300.0, 220.0];
@@ -156,11 +156,11 @@ fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, scale:
     let desired_size = ui.spacing().interact_size * desired_size;
     // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
     if let Some(color) = bulb.get_color() {
-        let (r, g, b) = hsbk_to_rgb(*color);
+        let rgb = RGB::from(*color);
         let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
         let center = response.rect.center();
         let radius = response.rect.width() / scale;
-        let inner_stroke = Stroke::new(radius / 2.0, Color32::from_rgb(r, g, b));
+        let inner_stroke = Stroke::new(radius / 2.0, Color32::from(rgb));
         let outer_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(64));
         let off_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(32));
         let start_angle: f32 = 0.0;

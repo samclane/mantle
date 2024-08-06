@@ -6,7 +6,7 @@ pub mod products;
 pub mod refreshable_data;
 
 pub use bulb_info::{BulbInfo, Color};
-pub use color::{hsbk_to_rgb, kelvin_to_rgb};
+pub use color::RGB;
 pub use helpers::AngleIter;
 pub use manager::Manager;
 pub use products::{get_products, Product};
