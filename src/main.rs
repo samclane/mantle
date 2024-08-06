@@ -1,5 +1,5 @@
 use eframe::{
-    egui::{self, Button, Color32, Pos2, Sense, Shape, Slider, Stroke, Ui, Vec2},
+    egui::{self, Color32, Pos2, Sense, Shape, Slider, Stroke, Ui, Vec2, WidgetInfo, WidgetType},
     epaint::CubicBezierShape,
 };
 use lifx_core::HSBK;
@@ -78,16 +78,13 @@ impl eframe::App for MantleApp {
                             }
 
                             ui.horizontal(|ui| {
-                                display_color_circle(ui, bulb, Vec2 { x: 50.0, y: 50.0 }, 8.0);
+                                display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);
 
                                 ui.vertical(|ui| {
-                                    if ui.add(Button::new("Toggle")).clicked() {
-                                        if let Err(e) = self.mgr.toggle(&bulb) {
-                                            println!("Error toggling bulb: {}", e);
-                                        } else {
-                                            println!("Toggled bulb {:?}", bulb.name);
-                                        }
-                                    }
+                                    ui.horizontal(|ui| {
+                                        ui.label("Power");
+                                        toggle_button(ui, &self.mgr, bulb, Vec2::new(1.0, 1.0));
+                                    });
                                     if let Some(color) = bulb.get_color() {
                                         ui.vertical(|ui| {
                                             let HSBK {
@@ -147,12 +144,14 @@ impl eframe::App for MantleApp {
     }
 }
 
-fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, radius_scale: f32) {
+fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, scale: f32) {
+    let desired_size = ui.spacing().interact_size * desired_size;
+    // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
     if let Some(color) = bulb.get_color() {
         let (r, g, b) = hsbk_to_rgb(*color);
         let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
         let center = response.rect.center();
-        let radius = response.rect.width() / radius_scale;
+        let radius = response.rect.width() / scale;
         let inner_stroke = Stroke::new(radius / 2.0, Color32::from_rgb(r, g, b));
         let outer_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(64));
         let off_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(32));
@@ -188,4 +187,36 @@ fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, radius
             painter.circle(center, radius, Color32::TRANSPARENT, off_stroke);
         }
     }
+}
+
+fn toggle_button(ui: &mut Ui, mgr: &Manager, bulb: &BulbInfo, scale: Vec2) -> egui::Response {
+    let desired_size = ui.spacing().interact_size * scale;
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
+    ui.horizontal(|ui| {
+        if response.clicked() {
+            if let Err(e) = mgr.toggle(&bulb) {
+                println!("Error toggling bulb: {}", e);
+            } else {
+                println!("Toggled bulb {:?}", bulb.name);
+            }
+            response.mark_changed();
+        }
+        let on = bulb.power_level.data.unwrap_or(0.0 as u16) > 0;
+        response.widget_info(|| {
+            WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle")
+        });
+        if ui.is_rect_visible(rect) {
+            let how_on = ui.ctx().animate_bool_responsive(response.id, on);
+            let visuals = ui.style().interact_selectable(&response, on);
+            let rect = rect.expand(visuals.expansion);
+            let radius = 0.5 * rect.height();
+            ui.painter()
+                .rect(rect, radius, visuals.bg_fill, visuals.bg_stroke);
+            let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
+            let center = egui::pos2(circle_x, rect.center().y);
+            ui.painter()
+                .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
+        }
+    });
+    response
 }
