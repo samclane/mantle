@@ -1,6 +1,58 @@
 // From https://github.com/samclane/LIFX-Control-Panel/blob/master/lifx_control_panel/utilities/utils.py
 use lifx_core::HSBK;
 
+const DEFAULT_KELVIN: u16 = 3500;
+
+// RGB struct that's iterable
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RGB {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub temperature: Option<u16>,
+}
+
+impl RGB {
+    pub fn new(red: u8, green: u8, blue: u8, temperature: Option<u16>) -> RGB {
+        RGB {
+            red,
+            green,
+            blue,
+            temperature,
+        }
+    }
+
+    pub fn iter(&self) -> std::array::IntoIter<u8, 3> {
+        [self.red, self.green, self.blue].into_iter()
+    }
+}
+
+// HSBK conversion
+impl From<HSBK> for RGB {
+    fn from(hsbk: HSBK) -> RGB {
+        let (red, green, blue) = hsbk_to_rgb(hsbk);
+        RGB {
+            red,
+            green,
+            blue,
+            temperature: Some(hsbk.kelvin),
+        }
+    }
+}
+
+// RGB conversion
+impl From<RGB> for HSBK {
+    fn from(rgb: RGB) -> HSBK {
+        let (hue, saturation, brightness, kelvin) = rgb_to_hsbk(rgb);
+        HSBK {
+            hue,
+            saturation,
+            brightness,
+            kelvin,
+        }
+    }
+}
+
 pub fn hsbk_to_rgb(hsbk: HSBK) -> (u8, u8, u8) {
     let HSBK {
         hue,
@@ -8,10 +60,10 @@ pub fn hsbk_to_rgb(hsbk: HSBK) -> (u8, u8, u8) {
         brightness,
         kelvin,
     } = hsbk;
-    let saturation_ratio = (100.0 * saturation as f64 / 65535.0) / 100.0;
-    let brightness_ratio = (100.0 * brightness as f64 / 65535.0) / 100.0;
+    let saturation_ratio = (100.0 * saturation as f64 / u16::MAX as f64) / 100.0;
+    let brightness_ratio = (100.0 * brightness as f64 / u16::MAX as f64) / 100.0;
     let chroma = brightness_ratio * saturation_ratio;
-    let hue_prime = (360.0 * hue as f64 / 65535.0) / 60.0;
+    let hue_prime = (360.0 * hue as f64 / u16::MAX as f64) / 60.0;
     let mut temp = hue_prime;
 
     while temp >= 2.0 {
@@ -40,7 +92,7 @@ pub fn hsbk_to_rgb(hsbk: HSBK) -> (u8, u8, u8) {
     );
 
     let rgb_k = kelvin_to_rgb(kelvin);
-    let a = saturation as f64 / 65535.0;
+    let a = saturation as f64 / u16::MAX as f64;
     let b = (1.0 - a) / 255.0;
 
     let x = (rgb_hsb.0 as f64 * (a + rgb_k.0 as f64 * b)).round() as u8;
@@ -73,4 +125,44 @@ pub fn kelvin_to_rgb(temperature: u16) -> (u8, u8, u8) {
     };
 
     (red as u8, green as u8, blue as u8)
+}
+
+pub fn rgb_to_hsbk(color: RGB) -> (u16, u16, u16, u16) {
+    let cmax = *[color.red, color.green, color.blue].iter().max().unwrap() as f32;
+    let cmin = *[color.red, color.green, color.blue].iter().min().unwrap() as f32;
+    let cdel = cmax - cmin;
+
+    let brightness = ((cmax / 255.0) * u16::MAX as f32) as u16;
+
+    let (saturation, hue) = if cdel != 0.0 {
+        let saturation = ((cdel / cmax) * u16::MAX as f32) as u16;
+
+        let redc = (cmax - color.red as f32) / cdel;
+        let greenc = (cmax - color.green as f32) / cdel;
+        let bluec = (cmax - color.blue as f32) / cdel;
+
+        let mut hue = if color.red as f32 == cmax {
+            bluec - greenc
+        } else if color.green as f32 == cmax {
+            2.0 + redc - bluec
+        } else {
+            4.0 + greenc - redc
+        };
+
+        hue /= 6.0;
+        if hue < 0.0 {
+            hue += 1.0;
+        }
+
+        (saturation, (hue * u16::MAX as f32) as u16)
+    } else {
+        (0, 0)
+    };
+
+    (
+        hue,
+        saturation,
+        brightness,
+        color.temperature.unwrap_or(DEFAULT_KELVIN),
+    )
 }
