@@ -1,3 +1,4 @@
+// From https://github.com/samclane/LIFX-Control-Panel/blob/master/lifx_control_panel/utilities/utils.py
 use lifx_core::HSBK;
 
 pub fn hsbk_to_rgb(hsbk: HSBK) -> (u8, u8, u8) {
@@ -49,30 +50,27 @@ pub fn hsbk_to_rgb(hsbk: HSBK) -> (u8, u8, u8) {
     (x, y, z)
 }
 
-pub fn kelvin_to_rgb(mut temperature: u16) -> (u8, u8, u8) {
-    temperature /= 100;
-    let mut red;
-    let mut green;
-    let mut blue;
+pub fn kelvin_to_rgb(temperature: u16) -> (u8, u8, u8) {
+    let p_temp = temperature / 100;
+    let red;
+    let green;
 
-    if temperature <= 66 {
+    if p_temp <= 66 {
         red = 255.;
-        green = 99.4708025861 * (temperature as f64 + 0.0000000001).ln() - 161.1195681661;
+        green = (99.4708025861 * (p_temp as f64 + 0.0000000001).ln() - 161.1195681661)
+            .clamp(0.0, 255.0);
     } else {
-        red = 329.698727466 * ((temperature - 60) as f64).powf(-0.1332047592);
-        red = red.max(0.0).min(255.0);
-        green = 288.1221695283 * ((temperature - 60) as f64).powf(-0.0755148492);
+        red = 329.698727466 * ((p_temp - 60) as f64).powf(-0.1332047592).clamp(0.0, 255.0);
+        green = (288.1221695283 * ((p_temp - 60) as f64).powf(-0.0755148492)).clamp(0.0, 255.0);
     }
-    green = green.max(0.0).min(255.0);
 
-    blue = if temperature >= 66 {
+    let blue = if p_temp >= 66 {
         255.0
-    } else if temperature <= 19 {
+    } else if p_temp <= 19 {
         0.0
     } else {
-        138.5177312231 * ((temperature - 10) as f64).ln() - 305.0447927307
+        (138.5177312231 * ((p_temp - 10) as f64).ln() - 305.0447927307).clamp(0.0, 255.0)
     };
-    blue = blue.max(0.0).min(255.0);
 
     (red as u8, green as u8, blue as u8)
 }

@@ -65,8 +65,8 @@ impl eframe::App for MantleApp {
         egui::CentralPanel::default().show(_ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Devices");
+                let bulbs = self.mgr.bulbs.lock();
                 ui.vertical(|ui| {
-                    let bulbs = self.mgr.bulbs.lock();
                     if let Ok(bulbs) = bulbs {
                         let bulbs = bulbs.values();
                         for bulb in bulbs {
@@ -86,11 +86,52 @@ impl eframe::App for MantleApp {
                                         }
                                     }
                                     if let Some(color) = bulb.get_color() {
-                                        build_sliders(ui, bulb, *color);
-                                        match self.mgr.set_color(&bulb, *color) {
-                                            Ok(_) => (),
-                                            Err(e) => println!("Error setting brightness: {}", e),
-                                        }
+                                        ui.vertical(|ui| {
+                                            let HSBK {
+                                                mut hue,
+                                                mut saturation,
+                                                mut brightness,
+                                                mut kelvin,
+                                            } = color;
+                                            ui.add(
+                                                egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"),
+                                            );
+                                            ui.add(
+                                                egui::Slider::new(&mut saturation, LIFX_RANGE)
+                                                    .text("Saturation"),
+                                            );
+                                            ui.add(
+                                                egui::Slider::new(&mut brightness, LIFX_RANGE)
+                                                    .text("Brightness"),
+                                            );
+                                            if let Some(range) =
+                                                bulb.features.temperature_range.as_ref()
+                                            {
+                                                if range.min != range.max {
+                                                    ui.add(
+                                                        egui::Slider::new(
+                                                            &mut kelvin,
+                                                            range.to_range_u16(),
+                                                        )
+                                                        .text("Kelvin"),
+                                                    );
+                                                }
+                                            }
+                                            match self.mgr.set_color(
+                                                &bulb,
+                                                HSBK {
+                                                    hue,
+                                                    saturation,
+                                                    brightness,
+                                                    kelvin,
+                                                },
+                                            ) {
+                                                Ok(_) => (),
+                                                Err(e) => {
+                                                    println!("Error setting brightness: {}", e)
+                                                }
+                                            }
+                                        });
                                     }
                                 });
                             });
@@ -101,25 +142,6 @@ impl eframe::App for MantleApp {
             });
         });
     }
-}
-
-fn build_sliders(ui: &mut egui::Ui, bulb: &BulbInfo, color: HSBK) {
-    ui.vertical(|ui| {
-        let HSBK {
-            mut hue,
-            mut saturation,
-            mut brightness,
-            mut kelvin,
-        } = color;
-        ui.add(egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
-        ui.add(egui::Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"));
-        ui.add(egui::Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"));
-        if let Some(range) = bulb.features.temperature_range.as_ref() {
-            if range.min != range.max {
-                ui.add(egui::Slider::new(&mut kelvin, range.to_range_u16()).text("Kelvin"));
-            }
-        }
-    });
 }
 
 fn paint_color(ui: &mut egui::Ui, bulb: &BulbInfo) {
