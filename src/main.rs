@@ -4,7 +4,10 @@ use eframe::{
 };
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    cmp::Ordering,
+    time::{Duration, Instant},
+};
 
 use mantle::{AngleIter, BulbInfo, Manager, RGB};
 
@@ -71,7 +74,31 @@ impl eframe::App for MantleApp {
                 let bulbs = self.mgr.bulbs.lock();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
-                        let bulbs = bulbs.values();
+                        let mut bulbs: Vec<&BulbInfo> = bulbs.values().collect();
+                        bulbs.sort_by(|a, b| {
+                            let group_a = a
+                                .group
+                                .data
+                                .as_ref()
+                                .and_then(|g| g.label.cstr().to_str().ok());
+                            let group_b = b
+                                .group
+                                .data
+                                .as_ref()
+                                .and_then(|g| g.label.cstr().to_str().ok());
+                            let name_a = a.name.data.as_ref().and_then(|s| s.to_str().ok());
+                            let name_b = b.name.data.as_ref().and_then(|s| s.to_str().ok());
+                            match (group_a, group_b) {
+                                (Some(group_a), Some(group_b)) => match group_a.cmp(group_b) {
+                                    Ordering::Equal => match (name_a, name_b) {
+                                        (Some(name_a), Some(name_b)) => name_a.cmp(name_b),
+                                        _ => Ordering::Equal,
+                                    },
+                                    other => other,
+                                },
+                                _ => Ordering::Equal,
+                            }
+                        });
                         for bulb in bulbs {
                             if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
                                 ui.label(s);
