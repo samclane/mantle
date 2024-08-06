@@ -63,61 +63,65 @@ impl eframe::App for MantleApp {
         }
         self.mgr.refresh();
         egui::CentralPanel::default().show(_ctx, |ui| {
-            ui.heading("Devices");
-            ui.vertical(|ui| {
-                let bulbs = self.mgr.bulbs.lock();
-                if let Ok(bulbs) = bulbs {
-                    let bulbs = bulbs.values();
-                    for bulb in bulbs {
-                        if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                            ui.label(s);
-                        }
-
-                        if ui.add(Button::new("Toggle")).clicked() {
-                            if let Err(e) = self.mgr.toggle(&bulb) {
-                                println!("Error toggling bulb: {}", e);
-                            } else {
-                                println!("Toggled bulb {:?}", bulb.name);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.heading("Devices");
+                ui.vertical(|ui| {
+                    let bulbs = self.mgr.bulbs.lock();
+                    if let Ok(bulbs) = bulbs {
+                        let bulbs = bulbs.values();
+                        for bulb in bulbs {
+                            if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
+                                ui.label(s);
                             }
-                        }
-                        if let Some(color) = bulb.get_color() {
-                            let HSBK {
-                                mut hue,
-                                mut saturation,
-                                mut brightness,
-                                mut kelvin,
-                            } = color;
-                            ui.add(egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
-                            ui.add(
-                                egui::Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"),
-                            );
-                            if let Some(range) = bulb.features.temperature_range.as_ref() {
-                                if range.min != range.max {
-                                    ui.add(
-                                        egui::Slider::new(&mut kelvin, range.to_range_u16())
-                                            .text("Kelvin"),
-                                    );
+
+                            if ui.add(Button::new("Toggle")).clicked() {
+                                if let Err(e) = self.mgr.toggle(&bulb) {
+                                    println!("Error toggling bulb: {}", e);
+                                } else {
+                                    println!("Toggled bulb {:?}", bulb.name);
                                 }
                             }
-                            match self.mgr.set_color(
-                                &bulb,
-                                HSBK {
-                                    hue,
-                                    saturation,
-                                    brightness,
-                                    kelvin,
-                                },
-                            ) {
-                                Ok(_) => (),
-                                Err(e) => println!("Error setting brightness: {}", e),
+                            if let Some(color) = bulb.get_color() {
+                                let HSBK {
+                                    mut hue,
+                                    mut saturation,
+                                    mut brightness,
+                                    mut kelvin,
+                                } = color;
+                                ui.add(egui::Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
+                                ui.add(
+                                    egui::Slider::new(&mut saturation, LIFX_RANGE)
+                                        .text("Saturation"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut brightness, LIFX_RANGE)
+                                        .text("Brightness"),
+                                );
+                                if let Some(range) = bulb.features.temperature_range.as_ref() {
+                                    if range.min != range.max {
+                                        ui.add(
+                                            egui::Slider::new(&mut kelvin, range.to_range_u16())
+                                                .text("Kelvin"),
+                                        );
+                                    }
+                                }
+                                match self.mgr.set_color(
+                                    &bulb,
+                                    HSBK {
+                                        hue,
+                                        saturation,
+                                        brightness,
+                                        kelvin,
+                                    },
+                                ) {
+                                    Ok(_) => (),
+                                    Err(e) => println!("Error setting brightness: {}", e),
+                                }
                             }
+                            ui.separator();
                         }
-                        ui.separator();
                     }
-                }
+                });
             });
         });
     }
