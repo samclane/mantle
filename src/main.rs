@@ -4,10 +4,7 @@ use eframe::{
 };
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use mantle::{AngleIter, BulbInfo, Manager, RGB};
 
@@ -56,6 +53,102 @@ impl MantleApp {
         }
         Default::default()
     }
+
+    fn sort_bulbs<'a>(&self, mut bulbs: Vec<&'a BulbInfo>) -> Vec<&'a BulbInfo> {
+        bulbs.sort_by(|a, b| {
+            let group_a = a
+                .group
+                .data
+                .as_ref()
+                .and_then(|g| g.label.cstr().to_str().ok())
+                .unwrap_or_default();
+            let group_b = b
+                .group
+                .data
+                .as_ref()
+                .and_then(|g| g.label.cstr().to_str().ok())
+                .unwrap_or_default();
+            let name_a = a
+                .name
+                .data
+                .as_ref()
+                .and_then(|s| s.to_str().ok())
+                .unwrap_or_default();
+            let name_b = b
+                .name
+                .data
+                .as_ref()
+                .and_then(|s| s.to_str().ok())
+                .unwrap_or_default();
+
+            group_a.cmp(group_b).then(name_a.cmp(name_b))
+        });
+        bulbs
+    }
+
+    fn display_bulb(&self, ui: &mut Ui, bulb: &BulbInfo) {
+        if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
+            ui.label(s);
+        }
+        if let Some(g) = bulb
+            .group
+            .data
+            .as_ref()
+            .and_then(|g| g.label.cstr().to_str().ok())
+        {
+            ui.label(format!("Group: {}", g));
+        }
+
+        ui.horizontal(|ui| {
+            display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);
+
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Power");
+                    toggle_button(ui, &self.mgr, bulb, Vec2::new(1.0, 1.0));
+                });
+                if let Some(color) = bulb.get_color() {
+                    self.display_color_controls(ui, bulb, *color);
+                }
+            });
+        });
+        ui.separator();
+    }
+
+    fn display_color_controls(&self, ui: &mut Ui, bulb: &BulbInfo, color: HSBK) {
+        ui.vertical(|ui| {
+            let HSBK {
+                mut hue,
+                mut saturation,
+                mut brightness,
+                mut kelvin,
+            } = color;
+            ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
+            ui.add(Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"));
+            ui.add(Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"));
+            if let Some(range) = bulb.features.temperature_range.as_ref() {
+                if range.min != range.max {
+                    ui.add(Slider::new(&mut kelvin, range.to_range_u16()).text("Kelvin"));
+                } else {
+                    ui.label(format!("Kelvin: {:?}", range.min));
+                }
+            }
+            match self.mgr.set_color(
+                &bulb,
+                HSBK {
+                    hue,
+                    saturation,
+                    brightness,
+                    kelvin,
+                },
+            ) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error setting brightness: {}", e)
+                }
+            }
+        });
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -74,103 +167,9 @@ impl eframe::App for MantleApp {
                 let bulbs = self.mgr.bulbs.lock();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
-                        let mut bulbs: Vec<&BulbInfo> = bulbs.values().collect();
-                        bulbs.sort_by(|a, b| {
-                            let group_a = a
-                                .group
-                                .data
-                                .as_ref()
-                                .and_then(|g| g.label.cstr().to_str().ok());
-                            let group_b = b
-                                .group
-                                .data
-                                .as_ref()
-                                .and_then(|g| g.label.cstr().to_str().ok());
-                            let name_a = a.name.data.as_ref().and_then(|s| s.to_str().ok());
-                            let name_b = b.name.data.as_ref().and_then(|s| s.to_str().ok());
-                            match (group_a, group_b) {
-                                (Some(group_a), Some(group_b)) => match group_a.cmp(group_b) {
-                                    Ordering::Equal => match (name_a, name_b) {
-                                        (Some(name_a), Some(name_b)) => name_a.cmp(name_b),
-                                        _ => Ordering::Equal,
-                                    },
-                                    other => other,
-                                },
-                                _ => Ordering::Equal,
-                            }
-                        });
-                        for bulb in bulbs {
-                            if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                                ui.label(s);
-                            }
-                            if let Some(g) = bulb
-                                .group
-                                .data
-                                .as_ref()
-                                .and_then(|g| g.label.cstr().to_str().ok())
-                            {
-                                ui.label(format!("Group: {}", g));
-                            }
-
-                            ui.horizontal(|ui| {
-                                display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);
-
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label("Power");
-                                        toggle_button(ui, &self.mgr, bulb, Vec2::new(1.0, 1.0));
-                                    });
-                                    if let Some(color) = bulb.get_color() {
-                                        ui.vertical(|ui| {
-                                            let HSBK {
-                                                mut hue,
-                                                mut saturation,
-                                                mut brightness,
-                                                mut kelvin,
-                                            } = color;
-                                            ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
-                                            ui.add(
-                                                Slider::new(&mut saturation, LIFX_RANGE)
-                                                    .text("Saturation"),
-                                            );
-                                            ui.add(
-                                                Slider::new(&mut brightness, LIFX_RANGE)
-                                                    .text("Brightness"),
-                                            );
-                                            if let Some(range) =
-                                                bulb.features.temperature_range.as_ref()
-                                            {
-                                                if range.min != range.max {
-                                                    ui.add(
-                                                        Slider::new(
-                                                            &mut kelvin,
-                                                            range.to_range_u16(),
-                                                        )
-                                                        .text("Kelvin"),
-                                                    );
-                                                } else {
-                                                    ui.label(format!("Kelvin: {:?}", range.min));
-                                                }
-                                            }
-                                            match self.mgr.set_color(
-                                                &bulb,
-                                                HSBK {
-                                                    hue,
-                                                    saturation,
-                                                    brightness,
-                                                    kelvin,
-                                                },
-                                            ) {
-                                                Ok(_) => (),
-                                                Err(e) => {
-                                                    println!("Error setting brightness: {}", e)
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-                            });
-                            ui.separator();
+                        let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
+                        for bulb in sorted_bulbs {
+                            self.display_bulb(ui, bulb);
                         }
                     }
                 });
