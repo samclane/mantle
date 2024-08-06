@@ -1,9 +1,12 @@
-use eframe::egui::{self, Button, Sense, Shape};
+use eframe::{
+    egui::{self, Button, Color32, Pos2, Sense, Shape, Vec2},
+    epaint::CubicBezierShape,
+};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
-use mantle::{hsbk_to_rgb, BulbInfo, Manager};
+use mantle::{hsbk_to_rgb, AngleIter, BulbInfo, Manager};
 
 const SIZE: [f32; 2] = [320.0, 800.0];
 const MIN_SIZE: [f32; 2] = [300.0, 220.0];
@@ -75,7 +78,7 @@ impl eframe::App for MantleApp {
                             }
 
                             ui.horizontal(|ui| {
-                                paint_color(ui, bulb);
+                                display_color_circle(ui, bulb);
 
                                 ui.vertical(|ui| {
                                     if ui.add(Button::new("Toggle")).clicked() {
@@ -144,7 +147,7 @@ impl eframe::App for MantleApp {
     }
 }
 
-fn paint_color(ui: &mut egui::Ui, bulb: &BulbInfo) {
+fn display_color_circle(ui: &mut egui::Ui, bulb: &BulbInfo) {
     if let Some(color) = bulb.get_color() {
         let (r, g, b) = hsbk_to_rgb(*color);
         let (response, painter) =
@@ -152,6 +155,32 @@ fn paint_color(ui: &mut egui::Ui, bulb: &BulbInfo) {
         let center = response.rect.center();
         let radius = response.rect.width() / 8.0;
         let stroke = egui::Stroke::new(3.0, egui::Color32::from_rgb(r, g, b));
-        painter.add(Shape::circle_stroke(center, radius, stroke));
+        let start_angle: f32 = 0.0;
+        let end_angle: f32 = (2.0 * std::f32::consts::PI)
+            * (bulb.get_color().unwrap().brightness as f32 / u16::MAX as f32);
+
+        painter.extend(
+            AngleIter::new(start_angle, end_angle).map(|(start_angle, end_angle)| {
+                let xc = center.x;
+                let yc = center.y;
+                let p1 = center + radius * Vec2::new(start_angle.cos(), -start_angle.sin());
+                let p4 = center + radius * Vec2::new(end_angle.cos(), -end_angle.sin());
+                let a = p1 - center;
+                let b = p4 - center;
+                let q1 = a.length_sq();
+                let q2 = q1 + a.dot(b);
+                let k2 = (4.0 / 3.0) * ((2.0 * q1 * q2).sqrt() - q2) / (a.x * b.y - a.y * b.x);
+
+                let p2 = Pos2::new(xc + a.x - k2 * a.y, yc + a.y + k2 * a.x);
+                let p3 = Pos2::new(xc + b.x + k2 * b.y, yc + b.y - k2 * b.x);
+
+                Shape::CubicBezier(CubicBezierShape::from_points_stroke(
+                    [p1, p2, p3, p4],
+                    false,
+                    Color32::TRANSPARENT,
+                    stroke,
+                ))
+            }),
+        );
     }
 }

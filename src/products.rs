@@ -64,7 +64,7 @@ pub struct Products {
 }
 
 pub fn get_products() -> HashMap<u32, Product> {
-    let file = File::open("src/data/products.json").unwrap();
+    let file = File::open("data/products.json").unwrap();
     let reader = BufReader::new(file);
     let products: Products = serde_json::from_reader(reader).unwrap();
     let mut product_map = HashMap::new();
