@@ -277,4 +277,16 @@ impl Manager {
             },
         )
     }
+
+    pub fn get_groups(&self) -> Vec<Group> {
+        let mut groups = Vec::new();
+        if let Ok(bulbs) = self.bulbs.lock() {
+            for bulb in bulbs.values() {
+                if let Some(group) = &bulb.group.data {
+                    groups.push(group.clone());
+                }
+            }
+        }
+        groups
+    }
 }

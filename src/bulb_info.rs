@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
+#[derive(Clone)]
 pub struct Group {
     pub group: LifxIdent,
     pub label: LifxString,

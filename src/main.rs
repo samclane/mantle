@@ -1,9 +1,12 @@
 use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
-use mantle::{display_color_circle, toggle_button, BulbInfo, Manager};
+use mantle::{bulb_info::Group, display_color_circle, toggle_button, BulbInfo, Manager};
 
 const SIZE: [f32; 2] = [320.0, 800.0];
 const MIN_SIZE: [f32; 2] = [300.0, 220.0];
@@ -91,14 +94,6 @@ impl MantleApp {
         if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
             ui.label(s);
         }
-        if let Some(g) = bulb
-            .group
-            .data
-            .as_ref()
-            .and_then(|g| g.label.cstr().to_str().ok())
-        {
-            ui.label(format!("Group: {}", g));
-        }
 
         ui.horizontal(|ui| {
             display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);
@@ -114,6 +109,11 @@ impl MantleApp {
             });
         });
         ui.separator();
+    }
+
+    fn display_group(&self, ui: &mut Ui, group: Group) {
+        let group_name = group.label.cstr().to_str().unwrap_or_default();
+        ui.heading(group_name);
     }
 
     fn display_color_controls(&self, ui: &mut Ui, bulb: &BulbInfo, color: HSBK) {
@@ -203,7 +203,7 @@ impl eframe::App for MantleApp {
     }
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(10) {
+        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(3) {
             self.mgr.discover().unwrap();
         }
         self.mgr.refresh();
@@ -215,12 +215,19 @@ impl eframe::App for MantleApp {
         });
         egui::CentralPanel::default().show(_ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading("Devices");
                 let bulbs = self.mgr.bulbs.lock();
+                let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
                         let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
                         for bulb in sorted_bulbs {
+                            if let Some(group) = bulb.group.data.as_ref() {
+                                let group_name = group.label.cstr().to_str().unwrap_or_default();
+                                if !seen_groups.contains(group_name) {
+                                    seen_groups.insert(group_name.to_owned());
+                                    self.display_group(ui, group.clone());
+                                }
+                            }
                             self.display_bulb(ui, bulb);
                         }
                     }
