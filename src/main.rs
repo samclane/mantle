@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use mantle::{bulb_info::Group, display_color_circle, toggle_button, BulbInfo, Manager};
+use mantle::{bulb_info::GroupInfo, display_color_circle, toggle_button, BulbInfo, Manager};
 
 const SIZE: [f32; 2] = [320.0, 800.0];
 const MIN_SIZE: [f32; 2] = [300.0, 220.0];
@@ -104,19 +104,27 @@ impl MantleApp {
                     toggle_button(ui, &self.mgr, bulb, Vec2::new(1.0, 1.0));
                 });
                 if let Some(color) = bulb.get_color() {
-                    self.display_color_controls(ui, bulb, *color);
+                    self.display_color_controls(ui, bulb, *color, |bulb, color| {
+                        self.mgr.set_color(&bulb, color)
+                    });
                 }
             });
         });
         ui.separator();
     }
 
-    fn display_group(&self, ui: &mut Ui, group: Group) {
+    fn display_group(&self, ui: &mut Ui, group: GroupInfo) {
         let group_name = group.label.cstr().to_str().unwrap_or_default();
         ui.heading(group_name);
     }
 
-    fn display_color_controls(&self, ui: &mut Ui, bulb: &BulbInfo, color: HSBK) {
+    fn display_color_controls(
+        &self,
+        ui: &mut Ui,
+        bulb: &BulbInfo,
+        color: HSBK,
+        callback: impl Fn(&BulbInfo, HSBK) -> Result<usize, std::io::Error>,
+    ) {
         ui.vertical(|ui| {
             let HSBK {
                 mut hue,
@@ -134,8 +142,8 @@ impl MantleApp {
                     ui.label(format!("Kelvin: {:?}", range.min));
                 }
             }
-            match self.mgr.set_color(
-                &bulb,
+            match callback(
+                bulb,
                 HSBK {
                     hue,
                     saturation,

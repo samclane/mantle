@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Clone)]
-pub struct Group {
+pub struct GroupInfo {
     pub group: LifxIdent,
     pub label: LifxString,
     pub updated_at: u64,
@@ -27,7 +27,7 @@ pub struct BulbInfo {
     pub power_level: RefreshableData<u16>,
     pub color: Color,
     pub features: Features,
-    pub group: RefreshableData<Group>,
+    pub group: RefreshableData<GroupInfo>,
 }
 
 #[derive(Debug)]

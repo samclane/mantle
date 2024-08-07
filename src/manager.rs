@@ -1,4 +1,4 @@
-use crate::bulb_info::{BulbInfo, Group};
+use crate::bulb_info::{BulbInfo, GroupInfo};
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
@@ -153,7 +153,7 @@ impl Manager {
                 label,
                 updated_at,
             } => {
-                bulb.group.update(Group {
+                bulb.group.update(GroupInfo {
                     group,
                     label,
                     updated_at,
@@ -278,7 +278,7 @@ impl Manager {
         )
     }
 
-    pub fn get_groups(&self) -> Vec<Group> {
+    pub fn get_groups(&self) -> Vec<GroupInfo> {
         let mut groups = Vec::new();
         if let Ok(bulbs) = self.bulbs.lock() {
             for bulb in bulbs.values() {
@@ -288,5 +288,26 @@ impl Manager {
             }
         }
         groups
+    }
+
+    pub fn set_group_color(&self, group: &GroupInfo, color: HSBK) -> Result<usize, std::io::Error> {
+        if let Ok(bulbs) = self.bulbs.lock() {
+            let bulbs = bulbs.values().filter(|b| {
+                b.group
+                    .data
+                    .as_ref()
+                    .map(|g| g.group == group.group)
+                    .unwrap_or(false)
+            });
+            for bulb in bulbs {
+                self.set_color(&bulb, color)?;
+            }
+            Ok(0)
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to lock bulbs",
+            ))
+        }
     }
 }
