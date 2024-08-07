@@ -34,12 +34,16 @@ fn main() -> eframe::Result {
 struct MantleApp {
     #[serde(skip)]
     mgr: Manager,
+    show_about: bool,
 }
 
 impl Default for MantleApp {
     fn default() -> Self {
         let mgr = Manager::new().unwrap();
-        Self { mgr }
+        Self {
+            mgr,
+            show_about: false,
+        }
     }
 }
 
@@ -181,6 +185,16 @@ impl MantleApp {
             }
         });
     }
+
+    fn help_menu_button(&mut self, ui: &mut Ui) {
+        ui.menu_button("Help", |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            if ui.add(egui::Button::new("About")).clicked() {
+                self.show_about = true;
+                ui.close_menu();
+            }
+        });
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -196,6 +210,7 @@ impl eframe::App for MantleApp {
         egui::TopBottomPanel::top("menu_bar").show(_ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 self.file_menu_button(ui);
+                self.help_menu_button(ui);
             });
         });
         egui::CentralPanel::default().show(_ctx, |ui| {
@@ -212,5 +227,20 @@ impl eframe::App for MantleApp {
                 });
             });
         });
+        if self.show_about {
+            egui::Window::new("About")
+                .default_width(320.0)
+                .default_height(480.0)
+                .open(&mut self.show_about)
+                .resizable([true, false])
+                .show(_ctx, |ui| {
+                    ui.heading("Mantle");
+                    ui.add_space(8.0);
+                    ui.label("A LIFX manager");
+                    ui.label("Version: 0.1.0");
+                    ui.label("Author: Sawyer McLane");
+                    ui.hyperlink_to("Github", "https://github.com/samclane/mantle");
+                });
+        }
     }
 }
