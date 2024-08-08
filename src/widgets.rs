@@ -1,14 +1,34 @@
+use std::{collections::HashMap, sync::MutexGuard};
+
 use eframe::{
     egui::{self, Color32, Pos2, Sense, Shape, Stroke, Ui, Vec2, WidgetInfo, WidgetType},
     epaint::CubicBezierShape,
 };
+use lifx_core::HSBK;
 
-use crate::{AngleIter, BulbInfo, Manager, RGB};
+use crate::{bulb_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB};
 
-pub fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, scale: f32) {
+pub fn display_color_circle(ui: &mut Ui, device: &DeviceInfo, desired_size: Vec2, scale: f32) {
+    let color;
+    let power;
+    match device {
+        DeviceInfo::Bulb(bulb) => {
+            color = bulb.get_color();
+            power = bulb.power_level.data.unwrap_or(0);
+        }
+        DeviceInfo::Group(_group) => {
+            color = Some(&HSBK {
+                hue: 0,
+                saturation: 0,
+                brightness: 0,
+                kelvin: 0,
+            });
+            power = 0;
+        }
+    }
     let desired_size = ui.spacing().interact_size * desired_size;
     // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
-    if let Some(color) = bulb.get_color() {
+    if let Some(color) = color {
         let rgb = RGB::from(*color);
         let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
         let center = response.rect.center();
@@ -17,9 +37,9 @@ pub fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, sc
         let outer_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(64));
         let off_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(32));
         let start_angle: f32 = 0.0;
-        let end_angle: f32 = (2.0 * std::f32::consts::PI)
-            * (bulb.get_color().unwrap().brightness as f32 / u16::MAX as f32);
-        if bulb.power_level.data.unwrap() != 0.0 as u16 {
+        let end_angle: f32 =
+            (2.0 * std::f32::consts::PI) * (color.brightness as f32 / u16::MAX as f32);
+        if power != 0.0 as u16 {
             painter.circle(center, radius, Color32::TRANSPARENT, outer_stroke);
             painter.extend(AngleIter::new(start_angle, end_angle).map(
                 |(start_angle, end_angle)| {
@@ -50,19 +70,39 @@ pub fn display_color_circle(ui: &mut Ui, bulb: &BulbInfo, desired_size: Vec2, sc
     }
 }
 
-pub fn toggle_button(ui: &mut Ui, mgr: &Manager, bulb: &BulbInfo, scale: Vec2) -> egui::Response {
+pub fn toggle_button(
+    ui: &mut Ui,
+    mgr: &Manager,
+    device: &DeviceInfo,
+    scale: Vec2,
+    bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+) -> egui::Response {
     let desired_size = ui.spacing().interact_size * scale;
     let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
     ui.horizontal(|ui| {
         if response.clicked() {
-            if let Err(e) = mgr.toggle(&bulb) {
-                println!("Error toggling bulb: {}", e);
-            } else {
-                println!("Toggled bulb {:?}", bulb.name);
+            match device {
+                DeviceInfo::Bulb(bulb) => {
+                    if let Err(e) = mgr.toggle(bulb) {
+                        println!("Error toggling bulb: {}", e);
+                    } else {
+                        println!("Toggled bulb {:?}", bulb.name);
+                    }
+                }
+                DeviceInfo::Group(group) => {
+                    if let Err(e) = mgr.toggle_group(group, bulbs) {
+                        println!("Error toggling group: {}", e);
+                    } else {
+                        println!("Toggled group {:?}", group.label);
+                    }
+                }
             }
             response.mark_changed();
         }
-        let on = bulb.power_level.data.unwrap_or(0.0 as u16) > 0;
+        let on = match device {
+            DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
+            DeviceInfo::Group(_group) => false,
+        };
         response.widget_info(|| {
             WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle")
         });

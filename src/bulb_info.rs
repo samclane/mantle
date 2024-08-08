@@ -30,6 +30,11 @@ pub struct BulbInfo {
     pub group: RefreshableData<GroupInfo>,
 }
 
+pub enum DeviceInfo<'a> {
+    Bulb(&'a BulbInfo),
+    Group(GroupInfo),
+}
+
 #[derive(Debug)]
 pub enum Color {
     Unknown,
