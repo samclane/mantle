@@ -8,7 +8,13 @@ use lifx_core::HSBK;
 
 use crate::{bulb_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB};
 
-pub fn display_color_circle(ui: &mut Ui, device: &DeviceInfo, desired_size: Vec2, scale: f32) {
+pub fn display_color_circle(
+    ui: &mut Ui,
+    device: &DeviceInfo,
+    desired_size: Vec2,
+    scale: f32,
+    bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+) {
     let color;
     let power;
     match device {
@@ -23,7 +29,7 @@ pub fn display_color_circle(ui: &mut Ui, device: &DeviceInfo, desired_size: Vec2
                 brightness: 0,
                 kelvin: 0,
             });
-            power = 0;
+            power = _group.any_on(bulbs) as u16 * u16::MAX;
         }
     }
     let desired_size = ui.spacing().interact_size * desired_size;
@@ -80,17 +86,22 @@ pub fn toggle_button(
     let desired_size = ui.spacing().interact_size * scale;
     let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
     ui.horizontal(|ui| {
+        let on = match device {
+            DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
+            DeviceInfo::Group(group) => group.any_on(bulbs),
+        };
         if response.clicked() {
+            let level = if on { 0 } else { u16::MAX };
             match device {
                 DeviceInfo::Bulb(bulb) => {
-                    if let Err(e) = mgr.toggle(bulb) {
+                    if let Err(e) = mgr.set_power(bulb, level) {
                         println!("Error toggling bulb: {}", e);
                     } else {
                         println!("Toggled bulb {:?}", bulb.name);
                     }
                 }
                 DeviceInfo::Group(group) => {
-                    if let Err(e) = mgr.toggle_group(group, bulbs) {
+                    if let Err(e) = mgr.set_group_power(group, bulbs, level) {
                         println!("Error toggling group: {}", e);
                     } else {
                         println!("Toggled group {:?}", group.label);
@@ -99,10 +110,6 @@ pub fn toggle_button(
             }
             response.mark_changed();
         }
-        let on = match device {
-            DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
-            DeviceInfo::Group(_group) => false,
-        };
         response.widget_info(|| {
             WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle")
         });

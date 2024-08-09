@@ -128,8 +128,19 @@ impl GroupInfo {
     ) -> Vec<&'a BulbInfo> {
         bulbs
             .values()
-            .filter(|b| b.group.data.as_ref().unwrap().group == self.group)
+            .filter(|b| {
+                b.group
+                    .data
+                    .as_ref()
+                    .map_or(false, |g: &GroupInfo| g.group == self.group)
+            })
             .collect()
+    }
+
+    pub fn any_on(&self, bulbs: &std::collections::HashMap<u64, BulbInfo>) -> bool {
+        self.get_bulbs(bulbs)
+            .iter()
+            .any(|b| b.power_level.data.unwrap_or(0) > 0)
     }
 }
 

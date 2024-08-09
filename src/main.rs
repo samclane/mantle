@@ -119,7 +119,7 @@ impl MantleApp {
         };
 
         ui.horizontal(|ui| {
-            display_color_circle(ui, device, Vec2::new(1.0, 1.0), 8.0);
+            display_color_circle(ui, device, Vec2::new(1.0, 1.0), 8.0, bulbs);
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {

@@ -252,28 +252,18 @@ impl Manager {
         self.sock.send_to(&bytes, target)
     }
 
-    pub fn toggle(&self, bulb: &&BulbInfo) -> Result<usize, std::io::Error> {
-        let power_level = if bulb.power_level.data.unwrap() > 0 {
-            0
-        } else {
-            u16::MAX
-        };
-        self.send_message(
-            bulb,
-            Message::LightSetPower {
-                level: power_level,
-                duration: 0,
-            },
-        )
+    pub fn set_power(&self, bulb: &&BulbInfo, level: u16) -> Result<usize, std::io::Error> {
+        self.send_message(bulb, Message::LightSetPower { level, duration: 0 })
     }
 
-    pub fn toggle_group(
+    pub fn set_group_power(
         &self,
         group: &GroupInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        level: u16,
     ) -> Result<usize, std::io::Error> {
         let bulbs: Vec<&BulbInfo> = group.get_bulbs(bulbs);
-        bulbs.into_iter().map(|b| self.toggle(&b)).sum()
+        bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
     }
 
     pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
