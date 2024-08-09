@@ -5,7 +5,7 @@ use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
 use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service, HSBK};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::spawn;
 use std::time::{Duration, Instant};
 
@@ -252,19 +252,18 @@ impl Manager {
         self.sock.send_to(&bytes, target)
     }
 
-    pub fn toggle(&self, bulb: &&BulbInfo) -> Result<usize, std::io::Error> {
-        let power_level = if bulb.power_level.data.unwrap() > 0 {
-            0
-        } else {
-            u16::MAX
-        };
-        self.send_message(
-            bulb,
-            Message::LightSetPower {
-                level: power_level,
-                duration: 0,
-            },
-        )
+    pub fn set_power(&self, bulb: &&BulbInfo, level: u16) -> Result<usize, std::io::Error> {
+        self.send_message(bulb, Message::LightSetPower { level, duration: 0 })
+    }
+
+    pub fn set_group_power(
+        &self,
+        group: &GroupInfo,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        level: u16,
+    ) -> Result<usize, std::io::Error> {
+        let bulbs: Vec<&BulbInfo> = group.get_bulbs(bulbs);
+        bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
     }
 
     pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
@@ -290,24 +289,16 @@ impl Manager {
         groups
     }
 
-    pub fn set_group_color(&self, group: &GroupInfo, color: HSBK) -> Result<usize, std::io::Error> {
-        if let Ok(bulbs) = self.bulbs.lock() {
-            let bulbs = bulbs.values().filter(|b| {
-                b.group
-                    .data
-                    .as_ref()
-                    .map(|g| g.group == group.group)
-                    .unwrap_or(false)
-            });
-            for bulb in bulbs {
-                self.set_color(&bulb, color)?;
-            }
-            Ok(0)
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to lock bulbs",
-            ))
+    pub fn set_group_color(
+        &self,
+        group: &GroupInfo,
+        color: HSBK,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    ) -> Result<usize, std::io::Error> {
+        let bulbs = group.get_bulbs(bulbs);
+        for bulb in bulbs {
+            self.set_color(&bulb, color)?;
         }
+        Ok(0)
     }
 }

@@ -2,15 +2,17 @@ use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
+    sync::MutexGuard,
     time::{Duration, Instant},
 };
 
-use mantle::{bulb_info::GroupInfo, display_color_circle, toggle_button, BulbInfo, Manager};
+use mantle::{bulb_info::DeviceInfo, display_color_circle, toggle_button, BulbInfo, Manager};
 
 const SIZE: [f32; 2] = [320.0, 800.0];
 const MIN_SIZE: [f32; 2] = [300.0, 220.0];
 const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
+const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
 
 fn main() -> eframe::Result {
     env_logger::init();
@@ -90,22 +92,44 @@ impl MantleApp {
         bulbs
     }
 
-    fn display_bulb(&self, ui: &mut Ui, bulb: &BulbInfo) {
-        if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-            ui.label(s);
-        }
+    fn display_device(
+        &self,
+        ui: &mut Ui,
+        device: &DeviceInfo,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    ) {
+        let color = match device {
+            DeviceInfo::Bulb(bulb) => {
+                if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
+                    ui.label(s);
+                }
+                bulb.get_color().cloned()
+            }
+            DeviceInfo::Group(group) => {
+                if let Ok(s) = group.label.cstr().to_str() {
+                    ui.label(s);
+                }
+                Some(HSBK {
+                    hue: 0,
+                    saturation: 0,
+                    brightness: 0,
+                    kelvin: 0,
+                })
+            }
+        };
 
         ui.horizontal(|ui| {
-            display_color_circle(ui, bulb, Vec2::new(1.0, 1.0), 8.0);
+            display_color_circle(ui, device, Vec2::new(1.0, 1.0), 8.0, bulbs);
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Power");
-                    toggle_button(ui, &self.mgr, bulb, Vec2::new(1.0, 1.0));
+                    toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
                 });
-                if let Some(color) = bulb.get_color() {
-                    self.display_color_controls(ui, bulb, *color, |bulb, color| {
-                        self.mgr.set_color(&bulb, color)
+                if let Some(color) = color {
+                    self.display_color_controls(ui, device, color, |bulb, color| match bulb {
+                        DeviceInfo::Bulb(bulb) => self.mgr.set_color(bulb, color),
+                        DeviceInfo::Group(group) => self.mgr.set_group_color(group, color, bulbs),
                     });
                 }
             });
@@ -113,17 +137,12 @@ impl MantleApp {
         ui.separator();
     }
 
-    fn display_group(&self, ui: &mut Ui, group: GroupInfo) {
-        let group_name = group.label.cstr().to_str().unwrap_or_default();
-        ui.heading(group_name);
-    }
-
     fn display_color_controls(
         &self,
         ui: &mut Ui,
-        bulb: &BulbInfo,
+        device: &DeviceInfo,
         color: HSBK,
-        callback: impl Fn(&BulbInfo, HSBK) -> Result<usize, std::io::Error>,
+        callback: impl Fn(&DeviceInfo, HSBK) -> Result<usize, std::io::Error>,
     ) {
         ui.vertical(|ui| {
             let HSBK {
@@ -135,25 +154,32 @@ impl MantleApp {
             ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
             ui.add(Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"));
             ui.add(Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"));
-            if let Some(range) = bulb.features.temperature_range.as_ref() {
-                if range.min != range.max {
-                    ui.add(Slider::new(&mut kelvin, range.to_range_u16()).text("Kelvin"));
-                } else {
-                    ui.label(format!("Kelvin: {:?}", range.min));
+            match device {
+                DeviceInfo::Bulb(bulb) => {
+                    if let Some(range) = bulb.features.temperature_range.as_ref() {
+                        if range.min != range.max {
+                            ui.add(Slider::new(&mut kelvin, range.to_range_u16()).text("Kelvin"));
+                        } else {
+                            ui.label(format!("Kelvin: {:?}", range.min));
+                        }
+                    }
+                    match callback(
+                        device,
+                        HSBK {
+                            hue,
+                            saturation,
+                            brightness,
+                            kelvin,
+                        },
+                    ) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("Error setting color: {}", e)
+                        }
+                    }
                 }
-            }
-            match callback(
-                bulb,
-                HSBK {
-                    hue,
-                    saturation,
-                    brightness,
-                    kelvin,
-                },
-            ) {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("Error setting brightness: {}", e)
+                DeviceInfo::Group(_) => {
+                    ui.add(Slider::new(&mut kelvin, KELVIN_RANGE).text("Kelvin"));
                 }
             }
         });
@@ -233,10 +259,14 @@ impl eframe::App for MantleApp {
                                 let group_name = group.label.cstr().to_str().unwrap_or_default();
                                 if !seen_groups.contains(group_name) {
                                     seen_groups.insert(group_name.to_owned());
-                                    self.display_group(ui, group.clone());
+                                    self.display_device(
+                                        ui,
+                                        &DeviceInfo::Group(group.clone()),
+                                        &bulbs,
+                                    );
                                 }
                             }
-                            self.display_bulb(ui, bulb);
+                            self.display_device(ui, &DeviceInfo::Bulb(bulb), &bulbs);
                         }
                     }
                 });

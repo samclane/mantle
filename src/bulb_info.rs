@@ -30,6 +30,11 @@ pub struct BulbInfo {
     pub group: RefreshableData<GroupInfo>,
 }
 
+pub enum DeviceInfo<'a> {
+    Bulb(&'a BulbInfo),
+    Group(GroupInfo),
+}
+
 #[derive(Debug)]
 pub enum Color {
     Unknown,
@@ -101,6 +106,41 @@ impl BulbInfo {
             Color::Single(ref data) => data.as_ref(),
             _ => None,
         }
+    }
+}
+
+impl GroupInfo {
+    pub fn new(group: LifxIdent, label: LifxString) -> GroupInfo {
+        GroupInfo {
+            group,
+            label,
+            updated_at: 0,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.updated_at = Instant::now().elapsed().as_secs();
+    }
+
+    pub fn get_bulbs<'a>(
+        &self,
+        bulbs: &'a std::collections::HashMap<u64, BulbInfo>,
+    ) -> Vec<&'a BulbInfo> {
+        bulbs
+            .values()
+            .filter(|b| {
+                b.group
+                    .data
+                    .as_ref()
+                    .map_or(false, |g: &GroupInfo| g.group == self.group)
+            })
+            .collect()
+    }
+
+    pub fn any_on(&self, bulbs: &std::collections::HashMap<u64, BulbInfo>) -> bool {
+        self.get_bulbs(bulbs)
+            .iter()
+            .any(|b| b.power_level.data.unwrap_or(0) > 0)
     }
 }
 
