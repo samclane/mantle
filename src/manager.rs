@@ -272,13 +272,7 @@ impl Manager {
         group: &GroupInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
     ) -> Result<usize, std::io::Error> {
-        let bulbs = bulbs.values().filter(|b| {
-            b.group
-                .data
-                .as_ref()
-                .map(|g| g.group == group.group)
-                .unwrap_or(false)
-        });
+        let bulbs: Vec<&BulbInfo> = group.get_bulbs(bulbs);
         bulbs.into_iter().map(|b| self.toggle(&b)).sum()
     }
 
@@ -311,13 +305,7 @@ impl Manager {
         color: HSBK,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
     ) -> Result<usize, std::io::Error> {
-        let bulbs = bulbs.values().filter(|b| {
-            b.group
-                .data
-                .as_ref()
-                .map(|g| g.group == group.group)
-                .unwrap_or(false)
-        });
+        let bulbs = group.get_bulbs(bulbs);
         for bulb in bulbs {
             self.set_color(&bulb, color)?;
         }

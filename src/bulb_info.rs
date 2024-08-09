@@ -109,6 +109,30 @@ impl BulbInfo {
     }
 }
 
+impl GroupInfo {
+    pub fn new(group: LifxIdent, label: LifxString) -> GroupInfo {
+        GroupInfo {
+            group,
+            label,
+            updated_at: 0,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.updated_at = Instant::now().elapsed().as_secs();
+    }
+
+    pub fn get_bulbs<'a>(
+        &self,
+        bulbs: &'a std::collections::HashMap<u64, BulbInfo>,
+    ) -> Vec<&'a BulbInfo> {
+        bulbs
+            .values()
+            .filter(|b| b.group.data.as_ref().unwrap().group == self.group)
+            .collect()
+    }
+}
+
 impl std::fmt::Debug for BulbInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "BulbInfo({:0>16X} - {}  ", self.target, self.addr)?;
