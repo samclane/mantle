@@ -8,8 +8,8 @@ use std::{
 };
 
 use mantle::{
-    bulb_info::DeviceInfo, capitalize_first_letter, display_color_circle, toggle_button, BulbInfo,
-    Manager,
+    bulb_info::DeviceInfo, capitalize_first_letter, color::default_hsbk, display_color_circle,
+    toggle_button, BulbInfo, Manager,
 };
 
 const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
@@ -121,12 +121,7 @@ impl MantleApp {
             display_color_circle(
                 ui,
                 device,
-                color.unwrap_or(HSBK {
-                    hue: 0,
-                    saturation: 0,
-                    brightness: 0,
-                    kelvin: 0,
-                }),
+                color.unwrap_or(default_hsbk()),
                 Vec2::new(1.0, 1.0),
                 8.0,
                 bulbs,
@@ -138,16 +133,8 @@ impl MantleApp {
                     toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
                 });
                 if let Some(before_color) = color {
-                    let after_color = self.display_color_controls(
-                        ui,
-                        device,
-                        color.unwrap_or(HSBK {
-                            hue: 0,
-                            saturation: 0,
-                            brightness: 0,
-                            kelvin: 0,
-                        }),
-                    );
+                    let after_color =
+                        self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
                     if before_color != after_color {
                         match device {
                             DeviceInfo::Bulb(bulb) => {

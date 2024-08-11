@@ -3,7 +3,7 @@ use lifx_core::HSBK;
 
 const DEFAULT_KELVIN: u16 = 3500;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RGB {
     pub red: u8,
     pub green: u8,
@@ -161,7 +161,17 @@ pub fn kelvin_to_rgb(temperature: u16) -> RGB {
     }
 }
 
+pub fn default_hsbk() -> HSBK {
+    HSBK {
+        hue: 0,
+        saturation: 0,
+        brightness: 0,
+        kelvin: 0,
+    }
+}
+
 // Used for preventing overflow when working with HSBK values
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct HSBK32 {
     pub hue: u32,
     pub saturation: u32,

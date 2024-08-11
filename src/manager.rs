@@ -1,5 +1,5 @@
 use crate::bulb_info::{BulbInfo, GroupInfo};
-use crate::color::HSBK32;
+use crate::color::{default_hsbk, HSBK32};
 use crate::refreshable_data::RefreshableData;
 use crate::Color;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
@@ -316,27 +316,15 @@ impl Manager {
             }
         }
         if colors.is_empty() {
-            return HSBK {
-                hue: 0,
-                saturation: 0,
-                brightness: 0,
-                kelvin: 0,
-            };
+            return default_hsbk();
         }
-        let avg = colors.iter().fold(
-            HSBK32 {
-                hue: 0,
-                saturation: 0,
-                brightness: 0,
-                kelvin: 0,
-            },
-            |acc, c| HSBK32 {
-                hue: acc.hue.saturating_add(c.hue as u32),
-                saturation: acc.saturation.saturating_add(c.saturation as u32),
-                brightness: acc.brightness.saturating_add(c.brightness as u32),
-                kelvin: acc.kelvin.saturating_add(c.kelvin as u32),
-            },
-        );
+        // Use u32 to avoid overflow
+        let avg = colors.iter().fold(HSBK32::default(), |acc, c| HSBK32 {
+            hue: acc.hue.saturating_add(c.hue as u32),
+            saturation: acc.saturation.saturating_add(c.saturation as u32),
+            brightness: acc.brightness.saturating_add(c.brightness as u32),
+            kelvin: acc.kelvin.saturating_add(c.kelvin as u32),
+        });
         let avg = HSBK32 {
             hue: avg.hue / colors.len() as u32,
             saturation: avg.saturation / colors.len() as u32,
