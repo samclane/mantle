@@ -2,6 +2,10 @@
 
 Mantle is a desktop application for controlling LIFX lights
 
+## Screenshot
+
+![Mantle](res/screenshot.png)
+
 ## Sources
 
 - [`lifx-core`](https://github.com/eminence/lifx)
