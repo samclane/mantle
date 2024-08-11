@@ -1,7 +1,9 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
 use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
+use std::collections::HashMap;
 use std::ffi::CString;
+use std::fmt::Formatter;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
 
@@ -122,10 +124,7 @@ impl GroupInfo {
         self.updated_at = Instant::now().elapsed().as_secs();
     }
 
-    pub fn get_bulbs<'a>(
-        &self,
-        bulbs: &'a std::collections::HashMap<u64, BulbInfo>,
-    ) -> Vec<&'a BulbInfo> {
+    pub fn get_bulbs<'a>(&self, bulbs: &'a HashMap<u64, BulbInfo>) -> Vec<&'a BulbInfo> {
         bulbs
             .values()
             .filter(|b| {
@@ -137,7 +136,7 @@ impl GroupInfo {
             .collect()
     }
 
-    pub fn any_on(&self, bulbs: &std::collections::HashMap<u64, BulbInfo>) -> bool {
+    pub fn any_on(&self, bulbs: &HashMap<u64, BulbInfo>) -> bool {
         self.get_bulbs(bulbs)
             .iter()
             .any(|b| b.power_level.data.unwrap_or(0) > 0)
@@ -145,7 +144,7 @@ impl GroupInfo {
 }
 
 impl std::fmt::Debug for BulbInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "BulbInfo({:0>16X} - {}  ", self.target, self.addr)?;
 
         if let Some(name) = self.name.as_ref() {
@@ -206,5 +205,15 @@ impl std::fmt::Debug for BulbInfo {
             write!(f, "  Features: {:?}", features)?;
         }
         write!(f, ")")
+    }
+}
+
+impl std::fmt::Debug for GroupInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "GroupInfo({:?} - {}, {})",
+            self.group, self.label, self.updated_at
+        )
     }
 }
