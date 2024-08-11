@@ -8,7 +8,7 @@ pub mod widgets;
 
 pub use bulb_info::{BulbInfo, Color};
 pub use color::RGB;
-pub use helpers::AngleIter;
+pub use helpers::{capitalize_first_letter, AngleIter};
 pub use manager::Manager;
 pub use products::{get_products, Product};
 pub use refreshable_data::RefreshableData;

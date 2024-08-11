@@ -7,10 +7,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use mantle::{bulb_info::DeviceInfo, display_color_circle, toggle_button, BulbInfo, Manager};
+use mantle::{
+    bulb_info::DeviceInfo, capitalize_first_letter, display_color_circle, toggle_button, BulbInfo,
+    Manager,
+};
 
-const SIZE: [f32; 2] = [320.0, 800.0];
-const MIN_SIZE: [f32; 2] = [300.0, 220.0];
+const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
+const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
+const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
 const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
 
@@ -19,8 +23,8 @@ fn main() -> eframe::Result {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size(SIZE)
-            .with_min_inner_size(MIN_SIZE),
+            .with_inner_size(MAIN_WINDOW_SIZE)
+            .with_min_inner_size(MIN_WINDOW_SIZE),
         ..Default::default()
     };
 
@@ -274,17 +278,17 @@ impl eframe::App for MantleApp {
         });
         if self.show_about {
             egui::Window::new("About")
-                .default_width(320.0)
-                .default_height(480.0)
+                .default_width(ABOUT_WINDOW_SIZE[0])
+                .default_height(ABOUT_WINDOW_SIZE[1])
                 .open(&mut self.show_about)
                 .resizable([true, false])
                 .show(_ctx, |ui| {
-                    ui.heading("Mantle");
+                    ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
                     ui.add_space(8.0);
-                    ui.label("A LIFX manager");
-                    ui.label("Version: 0.1.0");
-                    ui.label("Author: Sawyer McLane");
-                    ui.hyperlink_to("Github", "https://github.com/samclane/mantle");
+                    ui.label(env!("CARGO_PKG_DESCRIPTION"));
+                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+                    ui.label(format!("Author: {}", env!("CARGO_PKG_AUTHORS")));
+                    ui.hyperlink_to("Github", env!("CARGO_PKG_REPOSITORY"));
                 });
         }
     }

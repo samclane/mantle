@@ -1,6 +1,11 @@
 [package]
 name = "mantle"
+authors = ["Sawyer McLane"]
+description = "A simple LIFX control application"
 version = "0.1.0"
+repository = "https://github.com/samclane/mantle"
+readme = "README.md"
+keywords = ["lifx", "home", "automation", "lighting"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
