@@ -217,3 +217,12 @@ impl std::fmt::Debug for GroupInfo {
         )
     }
 }
+
+impl std::fmt::Debug for DeviceInfo<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceInfo::Bulb(b) => write!(f, "{:?}", b),
+            DeviceInfo::Group(g) => write!(f, "{:?}", g),
+        }
+    }
+}

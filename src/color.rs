@@ -160,3 +160,33 @@ pub fn kelvin_to_rgb(temperature: u16) -> RGB {
         temperature: Some(temperature),
     }
 }
+
+// Used for preventing overflow when working with HSBK values
+pub struct HSBK32 {
+    pub hue: u32,
+    pub saturation: u32,
+    pub brightness: u32,
+    pub kelvin: u32,
+}
+
+impl From<HSBK> for HSBK32 {
+    fn from(hsbk: HSBK) -> HSBK32 {
+        HSBK32 {
+            hue: hsbk.hue as u32,
+            saturation: hsbk.saturation as u32,
+            brightness: hsbk.brightness as u32,
+            kelvin: hsbk.kelvin as u32,
+        }
+    }
+}
+
+impl From<HSBK32> for HSBK {
+    fn from(hsbk: HSBK32) -> HSBK {
+        HSBK {
+            hue: hsbk.hue as u16,
+            saturation: hsbk.saturation as u16,
+            brightness: hsbk.brightness as u16,
+            kelvin: hsbk.kelvin as u16,
+        }
+    }
+}

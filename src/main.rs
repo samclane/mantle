@@ -113,48 +113,70 @@ impl MantleApp {
                 if let Ok(s) = group.label.cstr().to_str() {
                     ui.label(s);
                 }
-                Some(HSBK {
-                    hue: 0,
-                    saturation: 0,
-                    brightness: 0,
-                    kelvin: 0,
-                })
+                Some(self.mgr.avg_group_color(group, bulbs))
             }
         };
 
         ui.horizontal(|ui| {
-            display_color_circle(ui, device, Vec2::new(1.0, 1.0), 8.0, bulbs);
+            display_color_circle(
+                ui,
+                device,
+                color.unwrap_or(HSBK {
+                    hue: 0,
+                    saturation: 0,
+                    brightness: 0,
+                    kelvin: 0,
+                }),
+                Vec2::new(1.0, 1.0),
+                8.0,
+                bulbs,
+            );
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Power");
                     toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
                 });
-                if let Some(color) = color {
-                    self.display_color_controls(ui, device, color, |bulb, color| match bulb {
-                        DeviceInfo::Bulb(bulb) => self.mgr.set_color(bulb, color),
-                        DeviceInfo::Group(group) => self.mgr.set_group_color(group, color, bulbs),
-                    });
+                if let Some(before_color) = color {
+                    let after_color = self.display_color_controls(
+                        ui,
+                        device,
+                        color.unwrap_or(HSBK {
+                            hue: 0,
+                            saturation: 0,
+                            brightness: 0,
+                            kelvin: 0,
+                        }),
+                    );
+                    if before_color != after_color {
+                        match device {
+                            DeviceInfo::Bulb(bulb) => {
+                                if let Err(e) = self.mgr.set_color(bulb, after_color) {
+                                    println!("Error setting color: {}", e);
+                                }
+                            }
+                            DeviceInfo::Group(group) => {
+                                if let Err(e) = self.mgr.set_group_color(group, after_color, bulbs)
+                                {
+                                    println!("Error setting group color: {}", e);
+                                }
+                            }
+                        }
+                    }
                 }
             });
         });
         ui.separator();
     }
 
-    fn display_color_controls(
-        &self,
-        ui: &mut Ui,
-        device: &DeviceInfo,
-        color: HSBK,
-        callback: impl Fn(&DeviceInfo, HSBK) -> Result<usize, std::io::Error>,
-    ) {
+    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> HSBK {
+        let HSBK {
+            mut hue,
+            mut saturation,
+            mut brightness,
+            mut kelvin,
+        } = color;
         ui.vertical(|ui| {
-            let HSBK {
-                mut hue,
-                mut saturation,
-                mut brightness,
-                mut kelvin,
-            } = color;
             ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
             ui.add(Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"));
             ui.add(Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"));
@@ -167,26 +189,18 @@ impl MantleApp {
                             ui.label(format!("Kelvin: {:?}", range.min));
                         }
                     }
-                    match callback(
-                        device,
-                        HSBK {
-                            hue,
-                            saturation,
-                            brightness,
-                            kelvin,
-                        },
-                    ) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("Error setting color: {}", e)
-                        }
-                    }
                 }
                 DeviceInfo::Group(_) => {
                     ui.add(Slider::new(&mut kelvin, KELVIN_RANGE).text("Kelvin"));
                 }
             }
         });
+        HSBK {
+            hue,
+            saturation,
+            brightness,
+            kelvin,
+        }
     }
 
     fn file_menu_button(&self, ui: &mut Ui) {
