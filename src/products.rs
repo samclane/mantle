@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
 use std::ops::RangeInclusive;
+
+static PRODUCTS: &str = include_str!("../data/products.json");
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Upgrade {
@@ -64,9 +64,7 @@ pub struct Products {
 }
 
 pub fn get_products() -> HashMap<u32, Product> {
-    let file = File::open("data/products.json").unwrap();
-    let reader = BufReader::new(file);
-    let products: Products = serde_json::from_reader(reader).unwrap();
+    let products: Products = serde_json::from_str(PRODUCTS).unwrap();
     let mut product_map = HashMap::new();
     for product in products.products {
         product_map.insert(product.pid, product);
