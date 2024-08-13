@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )] // Hide console window on Release
 use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
+use env_logger::{Builder, Target};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -23,7 +24,10 @@ const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
 
 fn main() -> eframe::Result {
-    env_logger::init();
+    Builder::new()
+        .target(Target::Stdout)
+        .filter_level(log::LevelFilter::Debug)
+        .init();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -143,13 +147,13 @@ impl MantleApp {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
                                 if let Err(e) = self.mgr.set_color(bulb, after_color) {
-                                    println!("Error setting color: {}", e);
+                                    log::error!("Error setting color: {}", e);
                                 }
                             }
                             DeviceInfo::Group(group) => {
                                 if let Err(e) = self.mgr.set_group_color(group, after_color, bulbs)
                                 {
-                                    println!("Error setting group color: {}", e);
+                                    log::error!("Error setting group color: {}", e);
                                 }
                             }
                         }

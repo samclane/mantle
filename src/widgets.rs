@@ -80,16 +80,16 @@ pub fn toggle_button(
             match device {
                 DeviceInfo::Bulb(bulb) => {
                     if let Err(e) = mgr.set_power(bulb, level) {
-                        println!("Error toggling bulb: {}", e);
+                        log::error!("Error toggling bulb: {}", e);
                     } else {
-                        println!("Toggled bulb {:?}", bulb.name);
+                        log::info!("Toggled bulb {:?}", bulb.name);
                     }
                 }
                 DeviceInfo::Group(group) => {
                     if let Err(e) = mgr.set_group_power(group, bulbs, level) {
-                        println!("Error toggling group: {}", e);
+                        log::error!("Error toggling group: {}", e);
                     } else {
-                        println!("Toggled group {:?}", group.label);
+                        log::info!("Toggled group {:?}", group.label);
                     }
                 }
             }

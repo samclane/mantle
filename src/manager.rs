@@ -44,7 +44,7 @@ impl Manager {
         match Message::from_raw(&raw)? {
             Message::StateService { port, service } => {
                 if port != bulb.addr.port() as u32 || service != Service::UDP {
-                    println!("Unsupported service: {:?}/{}", service, port);
+                    log::debug!("Unsupported service: {:?}/{}", service, port);
                 }
             }
             Message::StateLabel { label } => bulb.name.update(label.cstr().to_owned()),
@@ -143,7 +143,7 @@ impl Manager {
             }
             Message::Acknowledgement { seq } => {
                 if raw.frame_addr.ack_required {
-                    println!("Received ack for sequence {}", seq);
+                    log::debug!("Received ack for sequence {}", seq);
                 }
             }
             Message::LightStatePower { level } => {
@@ -161,7 +161,7 @@ impl Manager {
                 });
             }
             unknown => {
-                println!("Received, but ignored {:?}", unknown);
+                log::debug!("Received, but ignored {:?}", unknown);
             }
         }
         Ok(())
@@ -175,7 +175,7 @@ impl Manager {
         let mut buf = [0; 1024];
         loop {
             match recv_sock.recv_from(&mut buf) {
-                Ok((0, addr)) => println!("Received a zero-byte datagram from {:?}", addr),
+                Ok((0, addr)) => log::debug!("Received a zero-byte datagram from {:?}", addr),
                 Ok((nbytes, addr)) => match RawMessage::unpack(&buf[0..nbytes]) {
                     Ok(raw) => {
                         if raw.frame_addr.target == 0 {
@@ -189,11 +189,11 @@ impl Manager {
                                     BulbInfo::new(source, raw.frame_addr.target, addr)
                                 });
                             if let Err(e) = Self::handle_message(raw, bulb) {
-                                println!("Error handling message from {}: {}", addr, e)
+                                log::error!("Error handling message from {}: {}", addr, e)
                             }
                         }
                     }
-                    Err(e) => println!("Error unpacking raw message from {}: {}", addr, e),
+                    Err(e) => log::error!("Error unpacking raw message from {}: {}", addr, e),
                 },
                 Err(e) => panic!("recv_from err {:?}", e),
             }
@@ -201,7 +201,7 @@ impl Manager {
     }
 
     pub fn discover(&mut self) -> Result<(), failure::Error> {
-        println!("Doing discovery");
+        log::debug!("Doing discovery");
 
         let opts = BuildOptions {
             source: self.source,
@@ -220,7 +220,7 @@ impl Manager {
                     continue;
                 }
                 let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
-                println!("Discovering bulbs on LAN {:?}", addr);
+                log::debug!("Discovering bulbs on LAN {:?}", addr);
                 self.sock.send_to(&bytes, addr)?;
             }
         }

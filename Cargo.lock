@@ -1954,6 +1954,7 @@ dependencies = [
  "failure",
  "get_if_addrs",
  "lifx-core",
+ "log",
  "serde",
  "serde_json",
 ]
