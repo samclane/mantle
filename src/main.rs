@@ -1,3 +1,7 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions),),
+    windows_subsystem = "windows"
+)] // Hide console window on Release
 use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
