@@ -3,8 +3,14 @@
     windows_subsystem = "windows"
 )] // Hide console window on Release
 use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
-use env_logger::{Builder, Target};
 use lifx_core::HSBK;
+use log::LevelFilter;
+use log4rs::config::{Appender, Config, Root};
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::{
+    append::{console::ConsoleAppender, file::FileAppender},
+    filter::threshold::ThresholdFilter,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -24,10 +30,33 @@ const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
 
 fn main() -> eframe::Result {
-    Builder::new()
-        .target(Target::Stdout)
-        .filter_level(log::LevelFilter::Debug)
-        .init();
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .build("log/output.log")
+        .unwrap();
+
+    let console = ConsoleAppender::builder().build();
+
+    let config = Config::builder()
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(LevelFilter::Info)))
+                .build("logfile", Box::new(logfile)),
+        )
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(LevelFilter::Debug)))
+                .build("stdout", Box::new(console)),
+        )
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stdout")
+                .build(LevelFilter::Debug),
+        )
+        .unwrap();
+
+    log4rs::init_config(config).unwrap();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
