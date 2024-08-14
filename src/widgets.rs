@@ -1,7 +1,10 @@
-use std::{collections::HashMap, sync::MutexGuard};
+use std::{collections::HashMap, ops::RangeInclusive, sync::MutexGuard};
 
 use eframe::{
-    egui::{self, Color32, Pos2, Sense, Shape, Stroke, Ui, Vec2, WidgetInfo, WidgetType},
+    egui::{
+        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Painter, Pos2, Rect, Response, Rgba,
+        Sense, Shape, Stroke, Ui, Vec2, WidgetInfo, WidgetType,
+    },
     epaint::CubicBezierShape,
 };
 use lifx_core::HSBK;
@@ -111,5 +114,122 @@ pub fn toggle_button(
                 .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
         }
     });
+    response
+}
+
+const N: u32 = 6 * 6;
+
+fn background_checkers(painter: &Painter, rect: Rect) {
+    let rect = rect.shrink(0.5); // Small hack to avoid the checkers from peeking through the sides
+    if !rect.is_positive() {
+        return;
+    }
+
+    let dark_color = Color32::from_gray(32);
+    let bright_color = Color32::from_gray(128);
+
+    let checker_size = Vec2::splat(rect.height() / 2.0);
+    let n = (rect.width() / checker_size.x).round() as u32;
+
+    let mut mesh = Mesh::default();
+    mesh.add_colored_rect(rect, dark_color);
+
+    let mut top = true;
+    for i in 0..n {
+        let x = lerp(rect.left()..=rect.right(), i as f32 / (n as f32));
+        let small_rect = if top {
+            Rect::from_min_size(pos2(x, rect.top()), checker_size)
+        } else {
+            Rect::from_min_size(pos2(x, rect.center().y), checker_size)
+        };
+        mesh.add_colored_rect(small_rect, bright_color);
+        top = !top;
+    }
+    painter.add(Shape::mesh(mesh));
+}
+
+fn contrast_color(color: impl Into<Rgba>) -> Color32 {
+    if color.into().intensity() < 0.5 {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    }
+}
+
+pub fn color_slider(
+    ui: &mut Ui,
+    value: &mut u16,
+    range: std::ops::RangeInclusive<u16>,
+    label: &str,
+    color_at: impl Fn(u16) -> Color32,
+) -> Response {
+    let desired_size = vec2(ui.spacing().slider_width, ui.spacing().interact_size.y);
+    let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
+
+    response.widget_info(|| {
+        WidgetInfo::selected(
+            WidgetType::Slider,
+            ui.is_enabled(),
+            response.drag_started(),
+            label,
+        )
+    });
+
+    if let Some(mpos) = response.interact_pointer_pos() {
+        *value = remap_clamp(
+            mpos.x,
+            rect.left()..=rect.right(),
+            RangeInclusive::new(*range.start() as f32, *range.end() as f32),
+        )
+        .round() as u16;
+    }
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+
+        background_checkers(ui.painter(), rect); // for alpha:
+
+        {
+            // fill color:
+            let mut mesh = Mesh::default();
+            for i in 0..=N {
+                let t = i as f32 / (N as f32);
+                let color = color_at((t * u16::MAX as f32) as u16);
+                let x = lerp(rect.left()..=rect.right(), t);
+                mesh.colored_vertex(pos2(x, rect.top()), color);
+                mesh.colored_vertex(pos2(x, rect.bottom()), color);
+                if i < N {
+                    mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
+                    mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
+                }
+            }
+            ui.painter().add(Shape::mesh(mesh));
+        }
+
+        ui.painter().rect_stroke(rect, 0.0, visuals.bg_stroke); // outline
+
+        {
+            // Show where the slider is at:
+            let x = lerp(
+                rect.left()..=rect.right(),
+                remap_clamp(
+                    *value as f32,
+                    RangeInclusive::new(*range.start() as f32, *range.end() as f32),
+                    0.0..=1.0,
+                ),
+            );
+            let r = rect.height() / 4.0;
+            let picked_color = color_at(*value);
+            ui.painter().add(Shape::convex_polygon(
+                vec![
+                    pos2(x, rect.center().y),   // tip
+                    pos2(x + r, rect.bottom()), // right bottom
+                    pos2(x - r, rect.bottom()), // left bottom
+                ],
+                picked_color,
+                Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
+            ));
+        }
+    }
     response
 }

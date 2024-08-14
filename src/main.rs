@@ -2,7 +2,7 @@
     all(target_os = "windows", not(debug_assertions),),
     windows_subsystem = "windows"
 )] // Hide console window on Release
-use eframe::egui::{self, Modifiers, Slider, Ui, Vec2};
+use eframe::egui::{self, Modifiers, Ui, Vec2};
 use lifx_core::HSBK;
 use log::LevelFilter;
 use log4rs::config::{Appender, Config, Root};
@@ -11,6 +11,8 @@ use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
     filter::threshold::ThresholdFilter,
 };
+use mantle::color::HSBK32;
+use mantle::color_slider;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -28,6 +30,7 @@ const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
 const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
 const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
+const REFRESH_RATE: Duration = Duration::from_secs(10);
 
 fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
@@ -201,21 +204,66 @@ impl MantleApp {
             mut kelvin,
         } = color;
         ui.vertical(|ui| {
-            ui.add(Slider::new(&mut hue, LIFX_RANGE).text("Hue"));
-            ui.add(Slider::new(&mut saturation, LIFX_RANGE).text("Saturation"));
-            ui.add(Slider::new(&mut brightness, LIFX_RANGE).text("Brightness"));
+            ui.label("Hue");
+            color_slider(ui, &mut hue, LIFX_RANGE, "Hue", |v| {
+                HSBK32 {
+                    hue: v as u32,
+                    saturation: u32::MAX,
+                    brightness: u32::MAX,
+                    kelvin: 0,
+                }
+                .into()
+            });
+            ui.label("Saturation");
+            color_slider(ui, &mut saturation, LIFX_RANGE, "Saturation", |v| {
+                HSBK32 {
+                    hue: u32::MAX,
+                    saturation: v as u32,
+                    brightness: u32::MAX,
+                    kelvin: 0,
+                }
+                .into()
+            });
+            ui.label("Brightness");
+            color_slider(ui, &mut brightness, LIFX_RANGE, "Brightness", |v| {
+                HSBK32 {
+                    hue: u32::MAX,
+                    saturation: 0,
+                    brightness: v as u32,
+                    kelvin: 0,
+                }
+                .into()
+            });
             match device {
                 DeviceInfo::Bulb(bulb) => {
                     if let Some(range) = bulb.features.temperature_range.as_ref() {
                         if range.min != range.max {
-                            ui.add(Slider::new(&mut kelvin, range.to_range_u16()).text("Kelvin"));
+                            ui.label("Kelvin");
+                            color_slider(ui, &mut kelvin, range.to_range_u16(), "Kelvin", |v| {
+                                HSBK32 {
+                                    hue: u32::MAX,
+                                    saturation: 0,
+                                    brightness: u32::MAX,
+                                    kelvin: v as u32,
+                                }
+                                .into()
+                            });
                         } else {
                             ui.label(format!("Kelvin: {:?}", range.min));
                         }
                     }
                 }
                 DeviceInfo::Group(_) => {
-                    ui.add(Slider::new(&mut kelvin, KELVIN_RANGE).text("Kelvin"));
+                    ui.label("Kelvin");
+                    color_slider(ui, &mut kelvin, KELVIN_RANGE, "Kelvin", |v| {
+                        HSBK32 {
+                            hue: u32::MAX,
+                            saturation: 0,
+                            brightness: u32::MAX,
+                            kelvin: v as u32,
+                        }
+                        .into()
+                    });
                 }
             }
         });
@@ -279,7 +327,7 @@ impl eframe::App for MantleApp {
     }
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if Instant::now() - self.mgr.last_discovery > Duration::from_secs(3) {
+        if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
             self.mgr.discover().unwrap();
         }
         self.mgr.refresh();
