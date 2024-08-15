@@ -2,8 +2,8 @@ use std::{collections::HashMap, ops::RangeInclusive, sync::MutexGuard};
 
 use eframe::{
     egui::{
-        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Painter, Pos2, Rect, Response, Rgba,
-        Sense, Shape, Stroke, Ui, Vec2, WidgetInfo, WidgetType,
+        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Rgba, Sense, Shape,
+        Stroke, Ui, Vec2, WidgetInfo, WidgetType,
     },
     epaint::CubicBezierShape,
 };
@@ -119,35 +119,6 @@ pub fn toggle_button(
 
 const N: u32 = 6 * 6;
 
-fn background_checkers(painter: &Painter, rect: Rect) {
-    let rect = rect.shrink(0.5); // Small hack to avoid the checkers from peeking through the sides
-    if !rect.is_positive() {
-        return;
-    }
-
-    let dark_color = Color32::from_gray(32);
-    let bright_color = Color32::from_gray(128);
-
-    let checker_size = Vec2::splat(rect.height() / 2.0);
-    let n = (rect.width() / checker_size.x).round() as u32;
-
-    let mut mesh = Mesh::default();
-    mesh.add_colored_rect(rect, dark_color);
-
-    let mut top = true;
-    for i in 0..n {
-        let x = lerp(rect.left()..=rect.right(), i as f32 / (n as f32));
-        let small_rect = if top {
-            Rect::from_min_size(pos2(x, rect.top()), checker_size)
-        } else {
-            Rect::from_min_size(pos2(x, rect.center().y), checker_size)
-        };
-        mesh.add_colored_rect(small_rect, bright_color);
-        top = !top;
-    }
-    painter.add(Shape::mesh(mesh));
-}
-
 fn contrast_color(color: impl Into<Rgba>) -> Color32 {
     if color.into().intensity() < 0.5 {
         Color32::WHITE
@@ -187,8 +158,6 @@ pub fn color_slider(
     if ui.is_rect_visible(rect) {
         let visuals = ui.style().interact(&response);
 
-        background_checkers(ui.painter(), rect); // for alpha:
-
         {
             // fill color:
             let mut mesh = Mesh::default();
@@ -196,8 +165,14 @@ pub fn color_slider(
                 let t = i as f32 / (N as f32);
                 let color = color_at((t * u16::MAX as f32) as u16);
                 let x = lerp(rect.left()..=rect.right(), t);
-                mesh.colored_vertex(pos2(x, rect.top()), color);
-                mesh.colored_vertex(pos2(x, rect.bottom()), color);
+                mesh.colored_vertex(
+                    pos2(x, rect.center().y + (ui.spacing().slider_rail_height / 2.0)),
+                    color,
+                );
+                mesh.colored_vertex(
+                    pos2(x, rect.center().y - (ui.spacing().slider_rail_height / 2.0)),
+                    color,
+                );
                 if i < N {
                     mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
                     mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
@@ -218,17 +193,14 @@ pub fn color_slider(
                     0.0..=1.0,
                 ),
             );
-            let r = rect.height() / 4.0;
+            let r = ui.spacing().slider_rail_height / 1.3;
             let picked_color = color_at(*value);
-            ui.painter().add(Shape::convex_polygon(
-                vec![
-                    pos2(x, rect.center().y),   // tip
-                    pos2(x + r, rect.bottom()), // right bottom
-                    pos2(x - r, rect.bottom()), // left bottom
-                ],
+            ui.painter().circle(
+                pos2(x, rect.center().y), // center
+                r,                        // radius
                 picked_color,
                 Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
-            ));
+            );
         }
     }
     response
