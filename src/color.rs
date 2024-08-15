@@ -200,3 +200,38 @@ impl From<HSBK32> for HSBK {
         }
     }
 }
+
+impl From<RGB> for HSBK32 {
+    fn from(rgb: RGB) -> HSBK32 {
+        let hsbk: HSBK = rgb.into();
+        hsbk.into()
+    }
+}
+
+impl From<HSBK32> for RGB {
+    fn from(hsbk: HSBK32) -> RGB {
+        let hsbk: HSBK = hsbk.into();
+        hsbk.into()
+    }
+}
+
+impl From<Color32> for HSBK32 {
+    fn from(color: Color32) -> HSBK32 {
+        let rgb = RGB {
+            red: color.r(),
+            green: color.g(),
+            blue: color.b(),
+            temperature: None,
+        };
+
+        let hsbk: HSBK = rgb.into();
+        hsbk.into()
+    }
+}
+
+impl From<HSBK32> for Color32 {
+    fn from(hsbk: HSBK32) -> Color32 {
+        let rgb: RGB = hsbk.into();
+        rgb.into()
+    }
+}

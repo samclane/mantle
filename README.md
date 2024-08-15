@@ -1,5 +1,8 @@
 # Mantle
 
+![LIFX-Control-Panel Logo](./res/logo128.png)
+
+
 Mantle is a desktop application for controlling LIFX lights
 
 ## Screenshot
