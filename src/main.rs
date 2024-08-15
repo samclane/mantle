@@ -210,76 +210,83 @@ impl MantleApp {
             mut kelvin,
         } = color;
         ui.vertical(|ui| {
-            ui.label("Hue");
-            color_slider(ui, &mut hue, LIFX_RANGE, "Hue", |v| {
-                HSBK32 {
-                    hue: v as u32,
-                    saturation: u32::MAX,
-                    brightness: u32::MAX,
-                    kelvin: 0,
-                }
-                .into()
+            ui.horizontal(|ui| {
+                ui.label("Hue");
+                color_slider(ui, &mut hue, LIFX_RANGE, "Hue", |v| {
+                    HSBK32 {
+                        hue: v as u32,
+                        saturation: u32::MAX,
+                        brightness: u32::MAX,
+                        kelvin: 0,
+                    }
+                    .into()
+                });
             });
-            ui.label("Saturation");
-            color_slider(ui, &mut saturation, LIFX_RANGE, "Saturation", |v| {
-                HSBK32 {
-                    hue: u32::MAX,
-                    saturation: v as u32,
-                    brightness: u32::MAX,
-                    kelvin: 0,
-                }
-                .into()
+            ui.horizontal(|ui| {
+                ui.label("Saturation");
+                color_slider(ui, &mut saturation, LIFX_RANGE, "Saturation", |v| {
+                    HSBK32 {
+                        hue: u32::MAX,
+                        saturation: v as u32,
+                        brightness: u32::MAX,
+                        kelvin: 0,
+                    }
+                    .into()
+                });
             });
-            ui.label("Brightness");
-            color_slider(ui, &mut brightness, LIFX_RANGE, "Brightness", |v| {
-                HSBK32 {
-                    hue: u32::MAX,
-                    saturation: 0,
-                    brightness: v as u32,
-                    kelvin: 0,
-                }
-                .into()
+            ui.horizontal(|ui| {
+                ui.label("Brightness");
+                color_slider(ui, &mut brightness, LIFX_RANGE, "Brightness", |v| {
+                    HSBK32 {
+                        hue: u32::MAX,
+                        saturation: 0,
+                        brightness: v as u32,
+                        kelvin: 0,
+                    }
+                    .into()
+                });
             });
-            match device {
-                DeviceInfo::Bulb(bulb) => {
-                    if let Some(range) = bulb.features.temperature_range.as_ref() {
-                        if range.min != range.max {
-                            ui.label("Kelvin");
-                            color_slider(
-                                ui,
-                                &mut kelvin,
-                                RangeInclusive::new(range.min as u16, range.max as u16),
-                                "Kelvin",
-                                |v| {
-                                    let temp = (((v as f32 / u16::MAX as f32)
-                                        * (range.max - range.min) as f32)
-                                        + range.min as f32)
-                                        as u16;
-                                    kelvin_to_rgb(temp).into()
-                                },
-                            );
-                        } else {
-                            ui.label(format!("Kelvin: {:?}", range.min));
+            ui.horizontal(|ui| {
+                ui.label("Kelvin");
+                match device {
+                    DeviceInfo::Bulb(bulb) => {
+                        if let Some(range) = bulb.features.temperature_range.as_ref() {
+                            if range.min != range.max {
+                                color_slider(
+                                    ui,
+                                    &mut kelvin,
+                                    RangeInclusive::new(range.min as u16, range.max as u16),
+                                    "Kelvin",
+                                    |v| {
+                                        let temp = (((v as f32 / u16::MAX as f32)
+                                            * (range.max - range.min) as f32)
+                                            + range.min as f32)
+                                            as u16;
+                                        kelvin_to_rgb(temp).into()
+                                    },
+                                );
+                            } else {
+                                ui.label(range.min.to_string());
+                            }
                         }
                     }
+                    DeviceInfo::Group(_) => {
+                        color_slider(
+                            ui,
+                            &mut kelvin,
+                            RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
+                            "Kelvin",
+                            |v| {
+                                let temp = (((v as f32 / u16::MAX as f32)
+                                    * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
+                                    + KELVIN_RANGE.min as f32)
+                                    as u16;
+                                kelvin_to_rgb(temp).into()
+                            },
+                        );
+                    }
                 }
-                DeviceInfo::Group(_) => {
-                    ui.label("Kelvin");
-                    color_slider(
-                        ui,
-                        &mut kelvin,
-                        RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
-                        "Kelvin",
-                        |v| {
-                            let temp = (((v as f32 / u16::MAX as f32)
-                                * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
-                                + KELVIN_RANGE.min as f32)
-                                as u16;
-                            kelvin_to_rgb(temp).into()
-                        },
-                    );
-                }
-            }
+            });
         });
         HSBK {
             hue,
