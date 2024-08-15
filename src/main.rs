@@ -17,7 +17,6 @@ use mantle::color_slider;
 use mantle::products::TemperatureRange;
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
-use std::u16;
 use std::{
     collections::{HashMap, HashSet},
     sync::MutexGuard,
