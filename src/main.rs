@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )] // Hide console window on Release
 use eframe::egui::{self, Modifiers, Ui, Vec2};
+use image::GenericImageView;
 use lifx_core::HSBK;
 use log::LevelFilter;
 use log4rs::config::{Appender, Config, Root};
@@ -37,6 +38,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     max: 9000,
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
+const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 
 fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
@@ -67,10 +69,18 @@ fn main() -> eframe::Result {
 
     log4rs::init_config(config).unwrap();
 
+    let icon = image::load_from_memory(ICON).unwrap();
+    let icon = egui::IconData {
+        rgba: icon.to_rgba8().into_raw(),
+        width: icon.width(),
+        height: icon.height(),
+    };
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(MAIN_WINDOW_SIZE)
-            .with_min_inner_size(MIN_WINDOW_SIZE),
+            .with_min_inner_size(MIN_WINDOW_SIZE)
+            .with_icon(icon),
         ..Default::default()
     };
 
