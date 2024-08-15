@@ -11,9 +11,12 @@ use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
     filter::threshold::ThresholdFilter,
 };
-use mantle::color::HSBK32;
+use mantle::color::{kelvin_to_rgb, HSBK32};
 use mantle::color_slider;
+use mantle::products::TemperatureRange;
 use serde::{Deserialize, Serialize};
+use std::ops::RangeInclusive;
+use std::u16;
 use std::{
     collections::{HashMap, HashSet},
     sync::MutexGuard,
@@ -29,7 +32,10 @@ const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
 const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
 const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
 const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
-const KELVIN_RANGE: std::ops::RangeInclusive<u16> = 1500..=9000;
+const KELVIN_RANGE: TemperatureRange = TemperatureRange {
+    min: 2500,
+    max: 9000,
+};
 const REFRESH_RATE: Duration = Duration::from_secs(10);
 
 fn main() -> eframe::Result {
@@ -239,15 +245,19 @@ impl MantleApp {
                     if let Some(range) = bulb.features.temperature_range.as_ref() {
                         if range.min != range.max {
                             ui.label("Kelvin");
-                            color_slider(ui, &mut kelvin, range.to_range_u16(), "Kelvin", |v| {
-                                HSBK32 {
-                                    hue: u32::MAX,
-                                    saturation: 0,
-                                    brightness: u32::MAX,
-                                    kelvin: v as u32,
-                                }
-                                .into()
-                            });
+                            color_slider(
+                                ui,
+                                &mut kelvin,
+                                RangeInclusive::new(range.min as u16, range.max as u16),
+                                "Kelvin",
+                                |v| {
+                                    let temp = (((v as f32 / u16::MAX as f32)
+                                        * (range.max - range.min) as f32)
+                                        + range.min as f32)
+                                        as u16;
+                                    kelvin_to_rgb(temp).into()
+                                },
+                            );
                         } else {
                             ui.label(format!("Kelvin: {:?}", range.min));
                         }
@@ -255,15 +265,19 @@ impl MantleApp {
                 }
                 DeviceInfo::Group(_) => {
                     ui.label("Kelvin");
-                    color_slider(ui, &mut kelvin, KELVIN_RANGE, "Kelvin", |v| {
-                        HSBK32 {
-                            hue: u32::MAX,
-                            saturation: 0,
-                            brightness: u32::MAX,
-                            kelvin: v as u32,
-                        }
-                        .into()
-                    });
+                    color_slider(
+                        ui,
+                        &mut kelvin,
+                        RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
+                        "Kelvin",
+                        |v| {
+                            let temp = (((v as f32 / u16::MAX as f32)
+                                * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
+                                + KELVIN_RANGE.min as f32)
+                                as u16;
+                            kelvin_to_rgb(temp).into()
+                        },
+                    );
                 }
             }
         });
