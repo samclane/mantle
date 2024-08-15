@@ -146,15 +146,6 @@ pub fn color_slider(
         )
     });
 
-    if let Some(mpos) = response.interact_pointer_pos() {
-        *value = remap_clamp(
-            mpos.x,
-            rect.left()..=rect.right(),
-            RangeInclusive::new(*range.start() as f32, *range.end() as f32),
-        )
-        .round() as u16;
-    }
-
     if ui.is_rect_visible(rect) {
         let visuals = ui.style().interact(&response);
 
@@ -202,6 +193,24 @@ pub fn color_slider(
                 Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
             );
         }
+
+        let text_field: &mut String = &mut format!("{}", value);
+        let text_response = ui.text_edit_singleline(text_field);
+        if text_response.changed() {
+            if let Ok(v) = text_field.parse::<u16>() {
+                *value = v;
+            }
+        }
     }
+
+    if let Some(mpos) = response.interact_pointer_pos() {
+        *value = remap_clamp(
+            mpos.x,
+            rect.left()..=rect.right(),
+            RangeInclusive::new(*range.start() as f32, *range.end() as f32),
+        )
+        .round() as u16;
+    }
+
     response
 }
