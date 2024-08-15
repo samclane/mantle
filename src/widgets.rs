@@ -157,23 +157,13 @@ pub fn color_slider(
                 let color = color_at((t * u16::MAX as f32) as u16);
                 let x = lerp(rect.left()..=rect.right(), t);
                 // round edges:
-                match i {
-                    0 => {
-                        let y_offset = (ui.spacing().slider_rail_height / 2.0) - (i ^ 2) as f32;
-                        mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
-                        mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
-                    }
-                    N => {
-                        let y_offset = (ui.spacing().slider_rail_height / 2.0) - (i as f32).sqrt();
-                        mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
-                        mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
-                    }
-                    _ => {
-                        let y_offset = ui.spacing().slider_rail_height / 2.0;
-                        mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
-                        mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
-                    }
-                }
+                let y_offset = if i == 0 || i == N {
+                    (ui.spacing().slider_rail_height / 2.0) - 2.
+                } else {
+                    ui.spacing().slider_rail_height / 2.0
+                };
+                mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
+                mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
                 if i < N {
                     mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
                     mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
