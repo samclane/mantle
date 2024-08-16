@@ -2,7 +2,7 @@
     all(target_os = "windows", not(debug_assertions),),
     windows_subsystem = "windows"
 )] // Hide console window on Release
-use eframe::egui::{self, Modifiers, Ui, Vec2};
+use eframe::egui::{self, Color32, Modifiers, Ui, Vec2};
 use image::GenericImageView;
 use lifx_core::HSBK;
 use log::LevelFilter;
@@ -234,25 +234,15 @@ impl MantleApp {
             ui.horizontal(|ui| {
                 ui.label("Saturation");
                 color_slider(ui, &mut saturation, LIFX_RANGE, "Saturation", |v| {
-                    HSBK32 {
-                        hue: u32::MAX,
-                        saturation: v as u32,
-                        brightness: u32::MAX,
-                        kelvin: 0,
-                    }
-                    .into()
+                    let color_value = (u16::MAX - v).max(0) / u8::MAX as u16;
+                    Color32::from_gray(color_value as u8)
                 });
             });
             ui.horizontal(|ui| {
                 ui.label("Brightness");
                 color_slider(ui, &mut brightness, LIFX_RANGE, "Brightness", |v| {
-                    HSBK32 {
-                        hue: u32::MAX,
-                        saturation: 0,
-                        brightness: v as u32,
-                        kelvin: 0,
-                    }
-                    .into()
+                    let color_value = v.min(u16::MAX) / u8::MAX as u16;
+                    Color32::from_gray(color_value as u8)
                 });
             });
             ui.horizontal(|ui| {
@@ -275,7 +265,7 @@ impl MantleApp {
                                     },
                                 );
                             } else {
-                                ui.label(range.min.to_string());
+                                ui.label(format!("{}K", range.min));
                             }
                         }
                     }
