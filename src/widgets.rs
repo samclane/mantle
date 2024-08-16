@@ -129,6 +129,15 @@ pub fn color_slider(
     let desired_size = vec2(ui.spacing().slider_width, ui.spacing().interact_size.y);
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
 
+    if let Some(mpos) = response.interact_pointer_pos() {
+        *value = remap_clamp(
+            mpos.x,
+            rect.left()..=rect.right(),
+            RangeInclusive::new(*range.start() as f32, *range.end() as f32),
+        )
+        .round() as u16;
+    }
+
     response.widget_info(|| {
         WidgetInfo::selected(
             WidgetType::Slider,
@@ -193,15 +202,6 @@ pub fn color_slider(
                 *value = v;
             }
         }
-    }
-
-    if let Some(mpos) = response.interact_pointer_pos() {
-        *value = remap_clamp(
-            mpos.x,
-            rect.left()..=rect.right(),
-            RangeInclusive::new(*range.start() as f32, *range.end() as f32),
-        )
-        .round() as u16;
     }
 
     response
