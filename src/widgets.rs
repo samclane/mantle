@@ -2,14 +2,14 @@ use std::{collections::HashMap, ops::RangeInclusive, sync::MutexGuard};
 
 use eframe::{
     egui::{
-        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Rgba, Sense, Shape,
-        Stroke, Ui, Vec2, WidgetInfo, WidgetType,
+        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Sense, Shape, Stroke,
+        Ui, Vec2, WidgetInfo, WidgetType,
     },
     epaint::CubicBezierShape,
 };
 use lifx_core::HSBK;
 
-use crate::{bulb_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB};
+use crate::{bulb_info::DeviceInfo, contrast_color, AngleIter, BulbInfo, Manager, RGB};
 
 pub fn display_color_circle(
     ui: &mut Ui,
@@ -118,14 +118,6 @@ pub fn toggle_button(
 }
 
 const N: u32 = 6 * 6;
-
-fn contrast_color(color: impl Into<Rgba>) -> Color32 {
-    if color.into().intensity() < 0.5 {
-        Color32::WHITE
-    } else {
-        Color32::BLACK
-    }
-}
 
 pub fn color_slider(
     ui: &mut Ui,

@@ -7,7 +7,7 @@ pub mod refreshable_data;
 pub mod widgets;
 
 pub use bulb_info::{BulbInfo, Color};
-pub use color::RGB;
+pub use color::{contrast_color, HSBK32, RGB};
 pub use helpers::{capitalize_first_letter, AngleIter};
 pub use manager::Manager;
 pub use products::{get_products, Product};

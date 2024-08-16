@@ -1,4 +1,4 @@
-use eframe::egui::Color32;
+use eframe::egui::{Color32, Rgba};
 use lifx_core::HSBK;
 
 const DEFAULT_KELVIN: u16 = 3500;
@@ -233,5 +233,13 @@ impl From<HSBK32> for Color32 {
     fn from(hsbk: HSBK32) -> Color32 {
         let rgb: RGB = hsbk.into();
         rgb.into()
+    }
+}
+
+pub fn contrast_color(color: impl Into<Rgba>) -> Color32 {
+    if color.into().intensity() < 0.5 {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
     }
 }
