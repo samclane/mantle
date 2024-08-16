@@ -1,4 +1,4 @@
-use crate::bulb_info::{BulbInfo, GroupInfo};
+use crate::device_info::{BulbInfo, GroupInfo};
 use crate::color::{default_hsbk, HSBK32};
 use crate::refreshable_data::RefreshableData;
 use crate::Color;

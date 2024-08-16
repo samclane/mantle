@@ -24,7 +24,7 @@ use std::{
 };
 
 use mantle::{
-    bulb_info::DeviceInfo, capitalize_first_letter, color::default_hsbk, display_color_circle,
+    device_info::DeviceInfo, capitalize_first_letter, color::default_hsbk, display_color_circle,
     toggle_button, BulbInfo, Manager,
 };
 

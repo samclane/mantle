@@ -1,4 +1,4 @@
-pub mod bulb_info;
+pub mod device_info;
 pub mod color;
 pub mod helpers;
 pub mod manager;
@@ -6,7 +6,7 @@ pub mod products;
 pub mod refreshable_data;
 pub mod widgets;
 
-pub use bulb_info::{BulbInfo, Color};
+pub use device_info::{BulbInfo, Color};
 pub use color::{contrast_color, HSBK32, RGB};
 pub use helpers::{capitalize_first_letter, AngleIter};
 pub use manager::Manager;
