@@ -43,7 +43,7 @@ fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build("log/output.log")
-        .unwrap();
+        .expect("Failed to create log file appender");
 
     let console = ConsoleAppender::builder().build();
 
@@ -64,11 +64,11 @@ fn main() -> eframe::Result {
                 .appender("stdout")
                 .build(LevelFilter::Debug),
         )
-        .unwrap();
+        .expect("Failed to create log config");
 
-    log4rs::init_config(config).unwrap();
+    log4rs::init_config(config).expect("Failed to initialize log4rs");
 
-    let icon = image::load_from_memory(ICON).unwrap();
+    let icon = image::load_from_memory(ICON).expect("Failed to load icon");
     let icon = egui::IconData {
         rgba: icon.to_rgba8().into_raw(),
         width: icon.width(),
@@ -103,7 +103,7 @@ struct MantleApp {
 
 impl Default for MantleApp {
     fn default() -> Self {
-        let mgr = Manager::new().unwrap();
+        let mgr = Manager::new().expect("Failed to create manager");
         Self {
             mgr,
             show_about: false,
@@ -358,7 +358,7 @@ impl eframe::App for MantleApp {
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
-            self.mgr.discover().unwrap();
+            self.mgr.discover().expect("Failed to discover bulbs");
         }
         self.mgr.refresh();
         egui::TopBottomPanel::top("menu_bar").show(_ctx, |ui| {

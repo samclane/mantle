@@ -64,7 +64,7 @@ pub struct Products {
 }
 
 pub fn get_products() -> HashMap<u32, Product> {
-    let products: Products = serde_json::from_str(PRODUCTS).unwrap();
+    let products: Products = serde_json::from_str(PRODUCTS).expect("Failed to parse products json");
     let mut product_map = HashMap::new();
     for product in products.products {
         product_map.insert(product.pid, product);

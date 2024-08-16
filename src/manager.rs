@@ -207,10 +207,10 @@ impl Manager {
             source: self.source,
             ..Default::default()
         };
-        let rawmsg = RawMessage::build(&opts, Message::GetService).unwrap();
-        let bytes = rawmsg.pack().unwrap();
+        let rawmsg = RawMessage::build(&opts, Message::GetService)?;
+        let bytes = rawmsg.pack()?;
 
-        for addr in get_if_addrs().unwrap() {
+        for addr in get_if_addrs()? {
             if let IfAddr::V4(Ifv4Addr {
                 broadcast: Some(bcast),
                 ..
@@ -234,7 +234,9 @@ impl Manager {
         if let Ok(mut bulbs) = self.bulbs.lock() {
             let bulbs = bulbs.values_mut();
             for bulb in bulbs {
-                bulb.query_for_missing_info(&self.sock).unwrap();
+                if let Err(e) = bulb.query_for_missing_info(&self.sock) {
+                    log::error!("Error querying bulb: {}", e);
+                }
             }
         }
     }
@@ -248,8 +250,8 @@ impl Manager {
             res_required: true,
             sequence: 0,
         };
-        let raw = RawMessage::build(&opts, message).unwrap();
-        let bytes = raw.pack().unwrap();
+        let raw = RawMessage::build(&opts, message).expect("Failed to build message");
+        let bytes = raw.pack().expect("Failed to pack message");
         self.sock.send_to(&bytes, target)
     }
 
