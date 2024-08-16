@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct GroupInfo {
     pub group: LifxIdent,
     pub label: LifxString,
@@ -27,7 +27,7 @@ pub struct BulbInfo {
     pub host_firmware: RefreshableData<(u16, u16)>,
     pub wifi_firmware: RefreshableData<(u16, u16)>,
     pub power_level: RefreshableData<u16>,
-    pub color: Color,
+    pub color: DeviceColor,
     pub features: Features,
     pub group: RefreshableData<GroupInfo>,
 }
@@ -38,7 +38,7 @@ pub enum DeviceInfo<'a> {
 }
 
 #[derive(Debug)]
-pub enum Color {
+pub enum DeviceColor {
     Unknown,
     Single(RefreshableData<HSBK>),
     Multi(RefreshableData<Vec<Option<HSBK>>>),
@@ -57,7 +57,7 @@ impl BulbInfo {
             host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),
             wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
             power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
-            color: Color::Unknown,
+            color: DeviceColor::Unknown,
             features: Features::default(),
             group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
         }
@@ -95,9 +95,9 @@ impl BulbInfo {
         self.refresh_if_needed(sock, &self.power_level)?;
         self.refresh_if_needed(sock, &self.group)?;
         match &self.color {
-            Color::Unknown => (), // we'll need to wait to get info about this bulb's model, so we'll know if it's multizone or not
-            Color::Single(d) => self.refresh_if_needed(sock, d)?,
-            Color::Multi(d) => self.refresh_if_needed(sock, d)?,
+            DeviceColor::Unknown => (), // we'll need to wait to get info about this bulb's model, so we'll know if it's multizone or not
+            DeviceColor::Single(d) => self.refresh_if_needed(sock, d)?,
+            DeviceColor::Multi(d) => self.refresh_if_needed(sock, d)?,
         }
         self.features = Features::get_features(self.model.as_ref());
         Ok(())
@@ -105,7 +105,7 @@ impl BulbInfo {
 
     pub fn get_color(&self) -> Option<&HSBK> {
         match self.color {
-            Color::Single(ref data) => data.as_ref(),
+            DeviceColor::Single(ref data) => data.as_ref(),
             _ => None,
         }
     }
@@ -120,11 +120,21 @@ impl GroupInfo {
         }
     }
 
+    pub fn build_all_group() -> GroupInfo {
+        GroupInfo::new(
+            LifxIdent([0u8; 16]),
+            LifxString::new(&CString::new("All").expect("Failed to create CString")),
+        )
+    }
+
     pub fn update(&mut self) {
         self.updated_at = Instant::now().elapsed().as_secs();
     }
 
     pub fn get_bulbs<'a>(&self, bulbs: &'a HashMap<u64, BulbInfo>) -> Vec<&'a BulbInfo> {
+        if self.group == LifxIdent([0u8; 16]) {
+            return bulbs.values().collect();
+        }
         bulbs
             .values()
             .filter(|b| {
@@ -174,8 +184,8 @@ impl std::fmt::Debug for BulbInfo {
             if *level > 0 {
                 write!(f, "  Powered On(")?;
                 match self.color {
-                    Color::Unknown => write!(f, "??")?,
-                    Color::Single(ref color) => {
+                    DeviceColor::Unknown => write!(f, "??")?,
+                    DeviceColor::Single(ref color) => {
                         f.write_str(
                             &color
                                 .as_ref()
@@ -183,7 +193,7 @@ impl std::fmt::Debug for BulbInfo {
                                 .unwrap_or_else(|| "??".to_owned()),
                         )?;
                     }
-                    Color::Multi(ref color) => {
+                    DeviceColor::Multi(ref color) => {
                         if let Some(vec) = color.as_ref() {
                             write!(f, "Zones: ")?;
                             for zone in vec {

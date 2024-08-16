@@ -1,13 +1,13 @@
-pub mod device_info;
 pub mod color;
+pub mod device_info;
 pub mod helpers;
 pub mod manager;
 pub mod products;
 pub mod refreshable_data;
 pub mod widgets;
 
-pub use device_info::{BulbInfo, Color};
 pub use color::{contrast_color, HSBK32, RGB};
+pub use device_info::{BulbInfo, DeviceColor};
 pub use helpers::{capitalize_first_letter, AngleIter};
 pub use manager::Manager;
 pub use products::{get_products, Product};

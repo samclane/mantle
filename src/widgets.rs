@@ -9,7 +9,7 @@ use eframe::{
 };
 use lifx_core::HSBK;
 
-use crate::{device_info::DeviceInfo, contrast_color, AngleIter, BulbInfo, Manager, RGB};
+use crate::{contrast_color, device_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB};
 
 pub fn display_color_circle(
     ui: &mut Ui,

@@ -24,7 +24,7 @@ use std::{
 };
 
 use mantle::{
-    device_info::DeviceInfo, capitalize_first_letter, color::default_hsbk, display_color_circle,
+    capitalize_first_letter, color::default_hsbk, device_info::DeviceInfo, display_color_circle,
     toggle_button, BulbInfo, Manager,
 };
 
@@ -373,6 +373,7 @@ impl eframe::App for MantleApp {
                 let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
+                        self.display_device(ui, &DeviceInfo::Group(self.mgr.all.clone()), &bulbs);
                         let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
                         for bulb in sorted_bulbs {
                             if let Some(group) = bulb.group.data.as_ref() {

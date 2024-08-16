@@ -1,7 +1,7 @@
-use crate::device_info::{BulbInfo, GroupInfo};
 use crate::color::{default_hsbk, HSBK32};
+use crate::device_info::{BulbInfo, GroupInfo};
 use crate::refreshable_data::RefreshableData;
-use crate::Color;
+use crate::DeviceColor;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
 use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service, HSBK};
 use std::collections::HashMap;
@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 pub struct Manager {
     pub bulbs: Arc<Mutex<HashMap<u64, BulbInfo>>>,
+    pub all: GroupInfo,
     pub last_discovery: Instant,
     pub sock: UdpSocket,
     pub source: u32,
@@ -35,6 +36,7 @@ impl Manager {
             last_discovery: Instant::now(),
             sock,
             source,
+            all: GroupInfo::build_all_group(),
         };
         mgr.discover()?;
         Ok(mgr)
@@ -55,7 +57,7 @@ impl Manager {
                 bulb.model.update((vendor, product));
                 if let Some(info) = get_product_info(vendor, product) {
                     if info.multizone {
-                        bulb.color = Color::Multi(RefreshableData::empty(
+                        bulb.color = DeviceColor::Multi(RefreshableData::empty(
                             Duration::from_secs(15),
                             Message::GetColorZones {
                                 start_index: 0,
@@ -63,7 +65,7 @@ impl Manager {
                             },
                         ))
                     } else {
-                        bulb.color = Color::Single(RefreshableData::empty(
+                        bulb.color = DeviceColor::Single(RefreshableData::empty(
                             Duration::from_secs(15),
                             Message::LightGet,
                         ))
@@ -87,7 +89,7 @@ impl Manager {
                 label,
                 ..
             } => {
-                if let Color::Single(ref mut d) = bulb.color {
+                if let DeviceColor::Single(ref mut d) = bulb.color {
                     d.update(color);
                     bulb.power_level.update(power);
                 }
@@ -98,7 +100,7 @@ impl Manager {
                 index,
                 color,
             } => {
-                if let Color::Multi(ref mut d) = bulb.color {
+                if let DeviceColor::Multi(ref mut d) = bulb.color {
                     d.data.get_or_insert_with(|| {
                         let mut v = Vec::with_capacity(count as usize);
                         v.resize(count as usize, None);
@@ -119,7 +121,7 @@ impl Manager {
                 color6,
                 color7,
             } => {
-                if let Color::Multi(ref mut d) = bulb.color {
+                if let DeviceColor::Multi(ref mut d) = bulb.color {
                     let v = d.data.get_or_insert_with(|| {
                         let mut v = Vec::with_capacity(count as usize);
                         v.resize(count as usize, None);
