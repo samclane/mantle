@@ -1,8 +1,11 @@
-use xcap::{image::Rgba, Monitor, Window, XCapError};
+use lifx_core::HSBK;
+use xcap::{Monitor, Window, XCapError};
+
+use crate::RGB;
 
 pub struct ScreencapManager {
-    monitors: Vec<Monitor>,
-    windows: Vec<Window>,
+    pub monitors: Vec<Monitor>,
+    pub windows: Vec<Window>,
 }
 
 impl ScreencapManager {
@@ -34,11 +37,35 @@ impl ScreencapManager {
         self.windows.iter().find(|w| w.title() == title)
     }
 
-    pub fn from_click(x: i32, y: i32) -> Rgba<u8> {
+    pub fn from_click(&self, x: i32, y: i32) -> HSBK {
         let monitor = Monitor::from_point(x, y).unwrap();
-        *monitor
+        let rgba = *monitor
             .capture_image()
             .unwrap()
-            .get_pixel(x as u32, y as u32)
+            .get_pixel(x as u32, y as u32);
+        RGB {
+            red: rgba[0],
+            green: rgba[1],
+            blue: rgba[2],
+            temperature: None,
+        }
+        .into()
+    }
+
+    pub fn bounding_box(&self) -> eframe::egui::Rect {
+        let mut x_min = i32::MAX;
+        let mut y_min = i32::MAX;
+        let mut x_max = i32::MIN;
+        let mut y_max = i32::MIN;
+        for monitor in &self.monitors {
+            x_min = x_min.min(monitor.x());
+            y_min = y_min.min(monitor.y());
+            x_max = x_max.max(monitor.x() + monitor.width() as i32);
+            y_max = y_max.max(monitor.y() + monitor.height() as i32);
+        }
+        eframe::egui::Rect::from_min_max(
+            eframe::egui::Pos2::new(x_min as f32, y_min as f32),
+            eframe::egui::Pos2::new(x_max as f32, y_max as f32),
+        )
     }
 }

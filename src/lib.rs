@@ -13,4 +13,5 @@ pub use helpers::{capitalize_first_letter, AngleIter};
 pub use manager::Manager;
 pub use products::{get_products, Product};
 pub use refreshable_data::RefreshableData;
+pub use screencap::ScreencapManager;
 pub use widgets::{color_slider, display_color_circle, toggle_button};
