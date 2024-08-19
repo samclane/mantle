@@ -2,7 +2,7 @@
     all(target_os = "windows", not(debug_assertions),),
     windows_subsystem = "windows"
 )] // Hide console window on Release
-use eframe::egui::{self, Color32, Modifiers, Ui, Vec2};
+use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
 use image::GenericImageView;
 use lifx_core::HSBK;
 use log::LevelFilter;
@@ -160,13 +160,17 @@ impl MantleApp {
         let color = match device {
             DeviceInfo::Bulb(bulb) => {
                 if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                    ui.label(s);
+                    ui.label(RichText::new(s).size(14.0));
                 }
                 bulb.get_color().cloned()
             }
             DeviceInfo::Group(group) => {
                 if let Ok(s) = group.label.cstr().to_str() {
-                    ui.label(s);
+                    if *group == self.mgr.all {
+                        ui.label(RichText::new(s).size(16.0).strong().underline());
+                    } else {
+                        ui.label(RichText::new(s).size(16.0).strong());
+                    }
                 }
                 Some(self.mgr.avg_group_color(group, bulbs))
             }

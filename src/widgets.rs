@@ -196,7 +196,7 @@ pub fn color_slider(
         }
 
         let text_field: &mut String = &mut format!("{}", value);
-        let text_response = ui.text_edit_singleline(text_field);
+        let text_response = ui.add(egui::TextEdit::singleline(text_field).desired_width(50.0));
         if text_response.changed() {
             if let Ok(v) = text_field.parse::<u16>() {
                 *value = v;
