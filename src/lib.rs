@@ -4,6 +4,7 @@ pub mod helpers;
 pub mod manager;
 pub mod products;
 pub mod refreshable_data;
+pub mod screencap;
 pub mod widgets;
 
 pub use color::{contrast_color, HSBK32, RGB};
