@@ -106,9 +106,15 @@ impl BulbInfo {
     pub fn get_color(&self) -> Option<&HSBK> {
         match self.color {
             DeviceColor::Single(ref data) => data.as_ref(),
+            DeviceColor::Multi(ref data) => handle_multizone(data.as_ref()),
             _ => None,
         }
     }
+}
+
+fn handle_multizone(data: Option<&Vec<Option<HSBK>>>) -> Option<&HSBK> {
+    data.and_then(|vec| vec.first())
+        .and_then(|opt| opt.as_ref())
 }
 
 impl GroupInfo {

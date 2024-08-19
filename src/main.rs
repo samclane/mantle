@@ -209,6 +209,8 @@ impl MantleApp {
                             }
                         }
                     }
+                } else {
+                    ui.label(format!("No color data: {:?}", color));
                 }
             });
         });
