@@ -357,6 +357,9 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
     }
     if app.show_eyedropper {
         let screencap = ScreencapManager::new().unwrap();
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
         // todo: capture entire screen, not just app window
         if ui.ctx().input(|i| i.pointer.any_down()) {
             if let Some(mpos) = ui.ctx().pointer_interact_pos() {
