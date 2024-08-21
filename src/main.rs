@@ -13,8 +13,8 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use mantle::color::{kelvin_to_rgb, HSBK32};
-use mantle::color_slider;
 use mantle::products::TemperatureRange;
+use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
 use std::{
@@ -99,6 +99,7 @@ struct MantleApp {
     #[serde(skip)]
     mgr: Manager,
     show_about: bool,
+    show_eyedropper: bool,
 }
 
 impl Default for MantleApp {
@@ -107,6 +108,7 @@ impl Default for MantleApp {
         Self {
             mgr,
             show_about: false,
+            show_eyedropper: false,
         }
     }
 }
@@ -152,7 +154,7 @@ impl MantleApp {
     }
 
     fn display_device(
-        &self,
+        &mut self,
         ui: &mut Ui,
         device: &DeviceInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
@@ -192,8 +194,9 @@ impl MantleApp {
                     toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
                 });
                 if let Some(before_color) = color {
-                    let after_color =
+                    let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
+                    after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
                     if before_color != after_color {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
@@ -347,6 +350,24 @@ impl MantleApp {
     }
 }
 
+fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
+    let mut color: Option<HSBK> = None;
+    if ui.add(egui::Button::new("Eyedropper")).clicked() {
+        app.show_eyedropper = !app.show_eyedropper;
+    }
+    if app.show_eyedropper {
+        let screencap = ScreencapManager::new().unwrap();
+        // todo: capture entire screen, not just app window
+        if ui.ctx().input(|i| i.pointer.any_down()) {
+            if let Some(mpos) = ui.ctx().pointer_interact_pos() {
+                color = Some(screencap.from_click(mpos.x as i32, mpos.y as i32));
+                app.show_eyedropper = false;
+            }
+        }
+    }
+    color
+}
+
 impl eframe::App for MantleApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -365,7 +386,8 @@ impl eframe::App for MantleApp {
         });
         egui::CentralPanel::default().show(_ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let bulbs = self.mgr.bulbs.lock();
+                let bulbs = self.mgr.bulbs.clone();
+                let bulbs = bulbs.lock();
                 let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
