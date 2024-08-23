@@ -4923,9 +4923,9 @@ checksum = "ec107c4503ea0b4a98ef47356329af139c0a4f7750e621cf2973cd3385ebcb3d"
 
 [[package]]
 name = "xcap"
-version = "0.0.11"
+version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fa35001e43f706819833cca4094d274c26a58f10239e3f962e7547b0e60ca3f"
+checksum = "ef63013185432ec4957e2ef8f5d075ea26eebda6374883b2669896195634f235"
 dependencies = [
  "core-foundation",
  "core-graphics",
