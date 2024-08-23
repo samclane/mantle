@@ -39,10 +39,12 @@ impl ScreencapManager {
 
     pub fn from_click(&self, x: i32, y: i32) -> HSBK {
         let monitor = Monitor::from_point(x, y).unwrap();
+        let new_x = x - monitor.x();
+        let new_y = y - monitor.y();
         let rgba = *monitor
             .capture_image()
             .unwrap()
-            .get_pixel(x as u32, y as u32);
+            .get_pixel(new_x as u32, new_y as u32);
         RGB {
             red: rgba[0],
             green: rgba[1],

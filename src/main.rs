@@ -1,7 +1,9 @@
 #![cfg_attr(
     all(target_os = "windows", not(debug_assertions),),
     windows_subsystem = "windows"
-)] // Hide console window on Release
+)]
+// Hide console window on Release
+use device_query::{DeviceQuery, DeviceState};
 use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
 use image::GenericImageView;
 use lifx_core::HSBK;
@@ -360,12 +362,12 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
-        // todo: capture entire screen, not just app window
-        if ui.ctx().input(|i| i.pointer.any_down()) {
-            if let Some(mpos) = ui.ctx().pointer_interact_pos() {
-                color = Some(screencap.from_click(mpos.x as i32, mpos.y as i32));
-                app.show_eyedropper = false;
-            }
+        let device_state = DeviceState::new();
+        let mouse = device_state.get_mouse();
+        if mouse.button_pressed[1] {
+            let position = mouse.coords;
+            color = Some(screencap.from_click(position.0, position.1));
+            app.show_eyedropper = false;
         }
     }
     color
