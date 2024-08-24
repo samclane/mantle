@@ -40,6 +40,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
+const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 
 fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
@@ -354,7 +355,18 @@ impl MantleApp {
 
 fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
     let mut color: Option<HSBK> = None;
-    if ui.add(egui::Button::new("Eyedropper")).clicked() {
+    // if ui.add(egui::Button::new("Eyedropper")).clicked() {
+    //     app.show_eyedropper = !app.show_eyedropper;
+    // }
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("", EYEDROPPER_ICON).fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click()),
+        )
+        .clicked()
+    {
         app.show_eyedropper = !app.show_eyedropper;
     }
     if app.show_eyedropper {
