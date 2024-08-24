@@ -1,7 +1,9 @@
 #![cfg_attr(
     all(target_os = "windows", not(debug_assertions),),
     windows_subsystem = "windows"
-)] // Hide console window on Release
+)]
+// Hide console window on Release
+use device_query::{DeviceQuery, DeviceState};
 use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
 use image::GenericImageView;
 use lifx_core::HSBK;
@@ -13,8 +15,8 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use mantle::color::{kelvin_to_rgb, HSBK32};
-use mantle::color_slider;
 use mantle::products::TemperatureRange;
+use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
 use std::{
@@ -38,6 +40,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
+const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 
 fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
@@ -99,6 +102,7 @@ struct MantleApp {
     #[serde(skip)]
     mgr: Manager,
     show_about: bool,
+    show_eyedropper: bool,
 }
 
 impl Default for MantleApp {
@@ -107,6 +111,7 @@ impl Default for MantleApp {
         Self {
             mgr,
             show_about: false,
+            show_eyedropper: false,
         }
     }
 }
@@ -152,7 +157,7 @@ impl MantleApp {
     }
 
     fn display_device(
-        &self,
+        &mut self,
         ui: &mut Ui,
         device: &DeviceInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
@@ -192,8 +197,9 @@ impl MantleApp {
                     toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
                 });
                 if let Some(before_color) = color {
-                    let after_color =
+                    let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
+                    after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
                     if before_color != after_color {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
@@ -347,6 +353,38 @@ impl MantleApp {
     }
 }
 
+fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
+    let mut color: Option<HSBK> = None;
+    // if ui.add(egui::Button::new("Eyedropper")).clicked() {
+    //     app.show_eyedropper = !app.show_eyedropper;
+    // }
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("", EYEDROPPER_ICON).fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click()),
+        )
+        .clicked()
+    {
+        app.show_eyedropper = !app.show_eyedropper;
+    }
+    if app.show_eyedropper {
+        let screencap = ScreencapManager::new().unwrap();
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
+        let device_state = DeviceState::new();
+        let mouse = device_state.get_mouse();
+        if mouse.button_pressed[1] {
+            let position = mouse.coords;
+            color = Some(screencap.from_click(position.0, position.1));
+            app.show_eyedropper = false;
+        }
+    }
+    color
+}
+
 impl eframe::App for MantleApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -365,7 +403,8 @@ impl eframe::App for MantleApp {
         });
         egui::CentralPanel::default().show(_ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let bulbs = self.mgr.bulbs.lock();
+                let bulbs = self.mgr.bulbs.clone();
+                let bulbs = bulbs.lock();
                 let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
