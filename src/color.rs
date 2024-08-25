@@ -1,19 +1,20 @@
 use eframe::egui::{Color32, Rgba};
 use lifx_core::HSBK;
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_KELVIN: u16 = 3500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct RGB {
+pub struct RGB8 {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
     pub temperature: Option<u16>,
 }
 
-impl RGB {
-    pub fn new(red: u8, green: u8, blue: u8, temperature: Option<u16>) -> RGB {
-        RGB {
+impl RGB8 {
+    pub fn new(red: u8, green: u8, blue: u8, temperature: Option<u16>) -> RGB8 {
+        RGB8 {
             red,
             green,
             blue,
@@ -26,8 +27,8 @@ impl RGB {
     }
 }
 
-impl From<HSBK> for RGB {
-    fn from(hsbk: HSBK) -> RGB {
+impl From<HSBK> for RGB8 {
+    fn from(hsbk: HSBK) -> RGB8 {
         let HSBK {
             hue,
             saturation,
@@ -59,7 +60,7 @@ impl From<HSBK> for RGB {
         let match_value = brightness_ratio - chroma;
         let (red, green, blue) = (red + match_value, green + match_value, blue + match_value);
 
-        let rgb_hsb = RGB {
+        let rgb_hsb = RGB8 {
             red: (red * 255.0) as u8,
             green: (green * 255.0) as u8,
             blue: (blue * 255.0) as u8,
@@ -74,7 +75,7 @@ impl From<HSBK> for RGB {
         let green = (rgb_hsb.green as f64 * (a + rgb_k.green as f64 * b)).round() as u8;
         let blue = (rgb_hsb.blue as f64 * (a + rgb_k.blue as f64 * b)).round() as u8;
 
-        RGB {
+        RGB8 {
             red,
             green,
             blue,
@@ -83,8 +84,8 @@ impl From<HSBK> for RGB {
     }
 }
 
-impl From<RGB> for HSBK {
-    fn from(color: RGB) -> HSBK {
+impl From<RGB8> for HSBK {
+    fn from(color: RGB8) -> HSBK {
         let cmax = *[color.red, color.green, color.blue].iter().max().unwrap() as f32;
         let cmin = *[color.red, color.green, color.blue].iter().min().unwrap() as f32;
         let cdel = cmax - cmin;
@@ -125,13 +126,13 @@ impl From<RGB> for HSBK {
     }
 }
 
-impl From<RGB> for Color32 {
-    fn from(rgb: RGB) -> Color32 {
+impl From<RGB8> for Color32 {
+    fn from(rgb: RGB8) -> Color32 {
         Color32::from_rgb(rgb.red, rgb.green, rgb.blue)
     }
 }
 
-pub fn kelvin_to_rgb(temperature: u16) -> RGB {
+pub fn kelvin_to_rgb(temperature: u16) -> RGB8 {
     let p_temp = temperature / 100;
     let red;
     let green;
@@ -153,7 +154,7 @@ pub fn kelvin_to_rgb(temperature: u16) -> RGB {
         (138.5177312231 * ((p_temp - 10) as f64).ln() - 305.0447927307).clamp(0.0, 255.0)
     };
 
-    RGB {
+    RGB8 {
         red: red as u8,
         green: green as u8,
         blue: blue as u8,
@@ -171,7 +172,7 @@ pub fn default_hsbk() -> HSBK {
 }
 
 // Used for preventing overflow when working with HSBK values
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct HSBK32 {
     pub hue: u32,
     pub saturation: u32,
@@ -201,15 +202,15 @@ impl From<HSBK32> for HSBK {
     }
 }
 
-impl From<RGB> for HSBK32 {
-    fn from(rgb: RGB) -> HSBK32 {
+impl From<RGB8> for HSBK32 {
+    fn from(rgb: RGB8) -> HSBK32 {
         let hsbk: HSBK = rgb.into();
         hsbk.into()
     }
 }
 
-impl From<HSBK32> for RGB {
-    fn from(hsbk: HSBK32) -> RGB {
+impl From<HSBK32> for RGB8 {
+    fn from(hsbk: HSBK32) -> RGB8 {
         let hsbk: HSBK = hsbk.into();
         hsbk.into()
     }
@@ -217,7 +218,7 @@ impl From<HSBK32> for RGB {
 
 impl From<Color32> for HSBK32 {
     fn from(color: Color32) -> HSBK32 {
-        let rgb = RGB {
+        let rgb = RGB8 {
             red: color.r(),
             green: color.g(),
             blue: color.b(),
@@ -231,7 +232,7 @@ impl From<Color32> for HSBK32 {
 
 impl From<HSBK32> for Color32 {
     fn from(hsbk: HSBK32) -> Color32 {
-        let rgb: RGB = hsbk.into();
+        let rgb: RGB8 = hsbk.into();
         rgb.into()
     }
 }

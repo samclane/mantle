@@ -1,7 +1,14 @@
 use lifx_core::HSBK;
 use xcap::{Monitor, Window, XCapError};
 
-use crate::RGB;
+use crate::RGB8;
+
+pub enum FollowType {
+    // either monitor, window, or All
+    Monitor(Vec<Monitor>),
+    Window(Vec<Window>),
+    All,
+}
 
 pub struct ScreencapManager {
     pub monitors: Vec<Monitor>,
@@ -45,7 +52,7 @@ impl ScreencapManager {
             .capture_image()
             .unwrap()
             .get_pixel(new_x as u32, new_y as u32);
-        RGB {
+        RGB8 {
             red: rgba[0],
             green: rgba[1],
             blue: rgba[2],
@@ -69,5 +76,63 @@ impl ScreencapManager {
             eframe::egui::Pos2::new(x_min as f32, y_min as f32),
             eframe::egui::Pos2::new(x_max as f32, y_max as f32),
         )
+    }
+
+    pub fn avg_color(&self, follow: FollowType) -> HSBK {
+        let mut red: u32 = 0;
+        let mut green: u32 = 0;
+        let mut blue: u32 = 0;
+        let mut count: u32 = 0;
+        match follow {
+            FollowType::Monitor(monitors) => {
+                for monitor in monitors {
+                    let image = monitor.capture_image().unwrap();
+                    for x in 0..monitor.width() {
+                        for y in 0..monitor.height() {
+                            let rgba = *image.get_pixel(x, y);
+                            red += rgba[0] as u32;
+                            green += rgba[1] as u32;
+                            blue += rgba[2] as u32;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            FollowType::Window(windows) => {
+                for window in windows {
+                    let image = window.capture_image().unwrap();
+                    for x in 0..window.width() {
+                        for y in 0..window.height() {
+                            let rgba = *image.get_pixel(x, y);
+                            red += rgba[0] as u32;
+                            green += rgba[1] as u32;
+                            blue += rgba[2] as u32;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            FollowType::All => {
+                for monitor in &self.monitors {
+                    let image = monitor.capture_image().unwrap();
+                    for x in 0..monitor.width() {
+                        for y in 0..monitor.height() {
+                            let rgba = *image.get_pixel(x, y);
+                            red += rgba[0] as u32;
+                            green += rgba[1] as u32;
+                            blue += rgba[2] as u32;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        RGB8 {
+            red: (red / count) as u8,
+            green: (green / count) as u8,
+            blue: (blue / count) as u8,
+            temperature: None,
+        }
+        .into()
     }
 }

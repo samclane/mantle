@@ -37,6 +37,15 @@ pub enum DeviceInfo<'a> {
     Group(GroupInfo),
 }
 
+impl DeviceInfo<'_> {
+    pub fn id(&self) -> u64 {
+        match self {
+            DeviceInfo::Bulb(b) => b.target,
+            DeviceInfo::Group(g) => u64::from_le_bytes(g.group.0[0..8].try_into().unwrap()),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum DeviceColor {
     Unknown,

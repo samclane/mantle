@@ -16,6 +16,7 @@ use log4rs::{
 };
 use mantle::color::{kelvin_to_rgb, HSBK32};
 use mantle::products::TemperatureRange;
+use mantle::screencap::FollowType;
 use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
@@ -41,6 +42,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
 const REFRESH_RATE: Duration = Duration::from_secs(10);
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
+const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 
 fn main() -> eframe::Result {
     let logfile = FileAppender::builder()
@@ -103,6 +105,7 @@ struct MantleApp {
     mgr: Manager,
     show_about: bool,
     show_eyedropper: bool,
+    waveform_map: HashMap<u64, bool>,
 }
 
 impl Default for MantleApp {
@@ -112,6 +115,7 @@ impl Default for MantleApp {
             mgr,
             show_about: false,
             show_eyedropper: false,
+            waveform_map: HashMap::new(),
         }
     }
 }
@@ -199,7 +203,10 @@ impl MantleApp {
                 if let Some(before_color) = color {
                     let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
-                    after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
+                    ui.horizontal(|ui| {
+                        after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
+                        after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                    });
                     if before_color != after_color {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
@@ -355,13 +362,11 @@ impl MantleApp {
 
 fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
     let mut color: Option<HSBK> = None;
-    // if ui.add(egui::Button::new("Eyedropper")).clicked() {
-    //     app.show_eyedropper = !app.show_eyedropper;
-    // }
     if ui
         .add(
             egui::Button::image(
-                egui::Image::from_bytes("", EYEDROPPER_ICON).fit_to_exact_size(Vec2::new(15., 15.)),
+                egui::Image::from_bytes("eyedropper", EYEDROPPER_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
             )
             .sense(egui::Sense::click()),
         )
@@ -381,6 +386,37 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
             color = Some(screencap.from_click(position.0, position.1));
             app.show_eyedropper = false;
         }
+    }
+    color
+}
+
+fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<HSBK> {
+    let mut color: Option<HSBK> = None;
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("monitor", MONITOR_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click()),
+        )
+        .clicked()
+    {
+        let waveform = app
+            .waveform_map
+            .get(&device.id())
+            .cloned()
+            .unwrap_or_default();
+        app.waveform_map.insert(device.id(), !waveform);
+    }
+    if app
+        .waveform_map
+        .get(&device.id())
+        .cloned()
+        .unwrap_or_default()
+    {
+        let screencap = ScreencapManager::new().unwrap();
+        color = Some(screencap.avg_color(FollowType::All)); // using all for testing
     }
     color
 }

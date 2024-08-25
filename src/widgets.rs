@@ -9,7 +9,7 @@ use eframe::{
 };
 use lifx_core::HSBK;
 
-use crate::{contrast_color, device_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB};
+use crate::{contrast_color, device_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB8};
 
 pub fn display_color_circle(
     ui: &mut Ui,
@@ -25,7 +25,7 @@ pub fn display_color_circle(
     };
     let desired_size = ui.spacing().interact_size * desired_size;
     // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
-    let rgb = RGB::from(color);
+    let rgb = RGB8::from(color);
     let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
     let center = response.rect.center();
     let radius = response.rect.width() / scale;
