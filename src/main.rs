@@ -40,7 +40,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     max: 9000,
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
-const FOLLOW_RATE: Duration = Duration::from_millis(250);
+const FOLLOW_RATE: Duration = Duration::from_millis(500);
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
@@ -222,12 +222,13 @@ impl MantleApp {
                     if before_color != after_color {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) = self.mgr.set_color(bulb, after_color) {
+                                if let Err(e) = self.mgr.set_color(bulb, after_color, None) {
                                     log::error!("Error setting color: {}", e);
                                 }
                             }
                             DeviceInfo::Group(group) => {
-                                if let Err(e) = self.mgr.set_group_color(group, after_color, bulbs)
+                                if let Err(e) =
+                                    self.mgr.set_group_color(group, after_color, bulbs, None)
                                 {
                                     log::error!("Error setting group color: {}", e);
                                 }
