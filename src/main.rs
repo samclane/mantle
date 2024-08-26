@@ -14,7 +14,7 @@ use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
     filter::threshold::ThresholdFilter,
 };
-use mantle::color::{kelvin_to_rgb, HSBK32};
+use mantle::color::{kelvin_to_rgb, DeltaColor, HSBK32};
 use mantle::products::TemperatureRange;
 use mantle::screencap::FollowType;
 use mantle::{color_slider, ScreencapManager};
@@ -218,18 +218,25 @@ impl MantleApp {
                     ui.horizontal(|ui| {
                         after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                        // destruct the color to get the after color
                     });
-                    if before_color != after_color {
+                    if before_color != after_color.next {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) = self.mgr.set_color(bulb, after_color, None) {
+                                if let Err(e) =
+                                    self.mgr
+                                        .set_color(bulb, after_color.next, after_color.duration)
+                                {
                                     log::error!("Error setting color: {}", e);
                                 }
                             }
                             DeviceInfo::Group(group) => {
-                                if let Err(e) =
-                                    self.mgr.set_group_color(group, after_color, bulbs, None)
-                                {
+                                if let Err(e) = self.mgr.set_group_color(
+                                    group,
+                                    after_color.next,
+                                    bulbs,
+                                    after_color.duration,
+                                ) {
                                     log::error!("Error setting group color: {}", e);
                                 }
                             }
@@ -243,7 +250,7 @@ impl MantleApp {
         ui.separator();
     }
 
-    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> HSBK {
+    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> DeltaColor {
         let HSBK {
             mut hue,
             mut saturation,
@@ -319,11 +326,14 @@ impl MantleApp {
                 }
             });
         });
-        HSBK {
-            hue,
-            saturation,
-            brightness,
-            kelvin,
+        DeltaColor {
+            next: HSBK {
+                hue,
+                saturation,
+                brightness,
+                kelvin,
+            },
+            duration: None,
         }
     }
 
@@ -373,7 +383,7 @@ impl MantleApp {
     }
 }
 
-fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
+fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
     if ui
         .add(
@@ -400,10 +410,13 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
             app.show_eyedropper = false;
         }
     }
-    color
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: None,
+    })
 }
 
-fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<HSBK> {
+fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
     if ui
         .add(
@@ -437,7 +450,10 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         color = Some(app.screen_manager.avg_color(FollowType::All));
         follow_state.last_update = Instant::now();
     }
-    color
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
+    })
 }
 
 impl eframe::App for MantleApp {

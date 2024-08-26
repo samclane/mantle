@@ -244,3 +244,9 @@ pub fn contrast_color(color: impl Into<Rgba>) -> Color32 {
         Color32::BLACK
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct DeltaColor {
+    pub next: HSBK,
+    pub duration: Option<u32>,
+}
