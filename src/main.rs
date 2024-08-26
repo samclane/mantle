@@ -110,6 +110,8 @@ struct RunningWaveform {
 struct MantleApp {
     #[serde(skip)]
     mgr: Manager,
+    #[serde(skip)]
+    screen_manager: ScreencapManager,
     show_about: bool,
     show_eyedropper: bool,
     #[serde(skip)]
@@ -119,8 +121,10 @@ struct MantleApp {
 impl Default for MantleApp {
     fn default() -> Self {
         let mgr = Manager::new().expect("Failed to create manager");
+        let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         Self {
             mgr,
+            screen_manager,
             show_about: false,
             show_eyedropper: false,
             waveform_map: HashMap::new(),
@@ -429,8 +433,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                 last_update: Instant::now(),
             });
     if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
-        let screencap = ScreencapManager::new().unwrap();
-        color = Some(screencap.avg_color(FollowType::All)); // using all for testing
+        color = Some(app.screen_manager.avg_color(FollowType::All));
         follow_state.last_update = Instant::now();
     }
     color
