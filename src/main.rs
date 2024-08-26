@@ -40,6 +40,7 @@ const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     max: 9000,
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
+const FOLLOW_RATE: Duration = Duration::from_millis(250);
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
@@ -98,6 +99,12 @@ fn main() -> eframe::Result {
     )
 }
 
+#[derive(Debug, Clone)]
+struct RunningWaveform {
+    active: bool,
+    last_update: Instant,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 struct MantleApp {
@@ -105,7 +112,8 @@ struct MantleApp {
     mgr: Manager,
     show_about: bool,
     show_eyedropper: bool,
-    waveform_map: HashMap<u64, bool>,
+    #[serde(skip)]
+    waveform_map: HashMap<u64, RunningWaveform>,
 }
 
 impl Default for MantleApp {
@@ -402,21 +410,28 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         )
         .clicked()
     {
-        let waveform = app
-            .waveform_map
-            .get(&device.id())
-            .cloned()
-            .unwrap_or_default();
-        app.waveform_map.insert(device.id(), !waveform);
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            waveform.active = !waveform.active;
+        } else {
+            let running_waveform = RunningWaveform {
+                active: true,
+                last_update: Instant::now(),
+            };
+            app.waveform_map
+                .insert(device.id(), running_waveform.clone());
+        }
     }
-    if app
-        .waveform_map
-        .get(&device.id())
-        .cloned()
-        .unwrap_or_default()
-    {
+    let follow_state: &mut RunningWaveform =
+        app.waveform_map
+            .entry(device.id())
+            .or_insert(RunningWaveform {
+                active: false,
+                last_update: Instant::now(),
+            });
+    if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
         let screencap = ScreencapManager::new().unwrap();
         color = Some(screencap.avg_color(FollowType::All)); // using all for testing
+        follow_state.last_update = Instant::now();
     }
     color
 }
