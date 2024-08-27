@@ -46,6 +46,7 @@ const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.pn
 const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 
 fn main() -> eframe::Result {
+    start_puffin_server();
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build("log/output.log")
@@ -417,6 +418,7 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
 }
 
 fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
+    puffin::profile_function!();
     let mut color: Option<HSBK> = None;
     if ui
         .add(
@@ -447,6 +449,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                 last_update: Instant::now(),
             });
     if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
+        puffin::profile_scope!("avg_color");
         color = Some(app.screen_manager.avg_color(FollowType::All));
         follow_state.last_update = Instant::now();
     }
@@ -462,6 +465,8 @@ impl eframe::App for MantleApp {
     }
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        puffin::GlobalProfiler::lock().new_frame();
+        // puffin_egui::show_viewport_if_enabled(_ctx);
         if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
             self.mgr.discover().expect("Failed to discover bulbs");
         }
@@ -515,4 +520,28 @@ impl eframe::App for MantleApp {
                 });
         }
     }
+}
+
+fn start_puffin_server() {
+    puffin::set_scopes_on(true); // tell puffin to collect data
+
+    match puffin_http::Server::new("127.0.0.1:8585") {
+        Ok(puffin_server) => {
+            eprintln!("Run:  cargo install puffin_viewer && puffin_viewer --url 127.0.0.1:8585");
+
+            std::process::Command::new("puffin_viewer")
+                .arg("--url")
+                .arg("127.0.0.1:8585")
+                .spawn()
+                .ok();
+
+            // We can store the server if we want, but in this case we just want
+            // it to keep running. Dropping it closes the server, so let's not drop it!
+            #[allow(clippy::mem_forget)]
+            std::mem::forget(puffin_server);
+        }
+        Err(err) => {
+            eprintln!("Failed to start puffin server: {err}");
+        }
+    };
 }
