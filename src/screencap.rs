@@ -10,6 +10,7 @@ pub enum FollowType {
     All,
 }
 
+#[derive(Clone)]
 pub struct ScreencapManager {
     pub monitors: Vec<Monitor>,
     pub windows: Vec<Window>,

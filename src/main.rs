@@ -20,6 +20,8 @@ use mantle::screencap::FollowType;
 use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
+use std::sync::mpsc;
+use std::thread;
 use std::{
     collections::{HashMap, HashSet},
     sync::MutexGuard,
@@ -117,6 +119,8 @@ struct MantleApp {
     show_eyedropper: bool,
     #[serde(skip)]
     waveform_map: HashMap<u64, RunningWaveform>,
+    #[serde(skip)]
+    waveform_trx: HashMap<u64, (mpsc::Sender<HSBK>, mpsc::Receiver<HSBK>)>,
 }
 
 impl Default for MantleApp {
@@ -129,6 +133,7 @@ impl Default for MantleApp {
             show_about: false,
             show_eyedropper: false,
             waveform_map: HashMap::new(),
+            waveform_trx: HashMap::new(),
         }
     }
 }
@@ -420,6 +425,26 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
 fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
     puffin::profile_function!();
     let mut color: Option<HSBK> = None;
+    // get tx and rx for the device
+    if let Some((_tx, rx)) = app.waveform_trx.get(&device.id()) {
+        let follow_state: &mut RunningWaveform =
+            app.waveform_map
+                .entry(device.id())
+                .or_insert(RunningWaveform {
+                    active: false,
+                    last_update: Instant::now(),
+                });
+        if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
+            if let Ok(computed_color) = rx.try_recv() {
+                color = Some(computed_color);
+                follow_state.last_update = Instant::now();
+            }
+        }
+    } else {
+        let (tx, rx) = mpsc::channel();
+        app.waveform_trx.insert(device.id(), (tx, rx));
+    }
+
     if ui
         .add(
             egui::Button::image(
@@ -440,19 +465,22 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             app.waveform_map
                 .insert(device.id(), running_waveform.clone());
         }
-    }
-    let follow_state: &mut RunningWaveform =
-        app.waveform_map
-            .entry(device.id())
-            .or_insert(RunningWaveform {
-                active: false,
-                last_update: Instant::now(),
+        // if the waveform is active, we need to spawn a thread to get the color
+        if app.waveform_map[&device.id()].active {
+            let screen_manager = app.screen_manager.clone(); // Clone if necessary
+            let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
+            thread::spawn(move || loop {
+                let avg_color = screen_manager.avg_color(FollowType::All);
+                if let Err(err) = tx.send(avg_color) {
+                    eprintln!("Failed to send color data: {}", err);
+                }
+                thread::sleep(Duration::from_millis(100));
             });
-    if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
-        puffin::profile_scope!("avg_color");
-        color = Some(app.screen_manager.avg_color(FollowType::All));
-        follow_state.last_update = Instant::now();
+        } else {
+            // kill thread
+        }
     }
+
     color.map(|color| DeltaColor {
         next: color,
         duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
