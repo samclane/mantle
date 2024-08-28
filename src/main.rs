@@ -21,7 +21,7 @@ use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
 use std::sync::mpsc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::{
     collections::{HashMap, HashSet},
     sync::MutexGuard,
@@ -108,6 +108,15 @@ struct RunningWaveform {
     last_update: Instant,
 }
 
+type ColorChannel = HashMap<
+    u64,
+    (
+        mpsc::Sender<HSBK>,
+        mpsc::Receiver<HSBK>,
+        Option<JoinHandle<HSBK>>,
+    ),
+>;
+
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 struct MantleApp {
@@ -120,7 +129,7 @@ struct MantleApp {
     #[serde(skip)]
     waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
-    waveform_trx: HashMap<u64, (mpsc::Sender<HSBK>, mpsc::Receiver<HSBK>)>,
+    waveform_trx: ColorChannel,
 }
 
 impl Default for MantleApp {
@@ -224,7 +233,6 @@ impl MantleApp {
                     ui.horizontal(|ui| {
                         after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
-                        // destruct the color to get the after color
                     });
                     if before_color != after_color.next {
                         match device {
@@ -440,7 +448,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
     } else {
         ui.visuals().widgets.inactive.bg_fill
     };
-    if let Some((_tx, rx)) = app.waveform_trx.get(&device.id()) {
+    if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
                 .entry(device.id())
@@ -456,7 +464,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         }
     } else {
         let (tx, rx) = mpsc::channel();
-        app.waveform_trx.insert(device.id(), (tx, rx));
+        app.waveform_trx.insert(device.id(), (tx, rx, None));
     }
 
     if ui
@@ -482,17 +490,24 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         }
         // if the waveform is active, we need to spawn a thread to get the color
         if app.waveform_map[&device.id()].active {
-            let screen_manager = app.screen_manager.clone(); // Clone if necessary
+            let screen_manager = app.screen_manager.clone();
             let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
-            thread::spawn(move || loop {
-                let avg_color = screen_manager.avg_color(FollowType::All);
-                if let Err(err) = tx.send(avg_color) {
-                    eprintln!("Failed to send color data: {}", err);
-                }
-                thread::sleep(Duration::from_millis(100));
-            });
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                waveform_trx.2 = Some(thread::spawn(move || loop {
+                    let avg_color = screen_manager.avg_color(FollowType::All);
+                    if let Err(err) = tx.send(avg_color) {
+                        eprintln!("Failed to send color data: {}", err);
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }));
+            }
         } else {
             // kill thread
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                if let Some(thread) = waveform_trx.2.take() {
+                    thread.thread().unpark();
+                }
+            }
         }
     }
 
@@ -509,7 +524,6 @@ impl eframe::App for MantleApp {
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         puffin::GlobalProfiler::lock().new_frame();
-        // puffin_egui::show_viewport_if_enabled(_ctx);
         if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
             self.mgr.discover().expect("Failed to discover bulbs");
         }
