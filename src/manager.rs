@@ -271,13 +271,18 @@ impl Manager {
         bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
     }
 
-    pub fn set_color(&self, bulb: &&BulbInfo, color: HSBK) -> Result<usize, std::io::Error> {
+    pub fn set_color(
+        &self,
+        bulb: &&BulbInfo,
+        color: HSBK,
+        duration: Option<u32>,
+    ) -> Result<usize, std::io::Error> {
         self.send_message(
             bulb,
             Message::LightSetColor {
                 reserved: 0,
                 color,
-                duration: 0,
+                duration: duration.unwrap_or(0u32),
             },
         )
     }
@@ -299,10 +304,11 @@ impl Manager {
         group: &GroupInfo,
         color: HSBK,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        duration: Option<u32>,
     ) -> Result<usize, std::io::Error> {
         let bulbs = group.get_bulbs(bulbs);
         for bulb in bulbs {
-            self.set_color(&bulb, color)?;
+            self.set_color(&bulb, color, duration)?;
         }
         Ok(0)
     }

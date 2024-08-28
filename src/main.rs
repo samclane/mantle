@@ -14,11 +14,14 @@ use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
     filter::threshold::ThresholdFilter,
 };
-use mantle::color::{kelvin_to_rgb, HSBK32};
+use mantle::color::{kelvin_to_rgb, DeltaColor, HSBK32};
 use mantle::products::TemperatureRange;
+use mantle::screencap::FollowType;
 use mantle::{color_slider, ScreencapManager};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
+use std::sync::mpsc;
+use std::thread::{self, JoinHandle};
 use std::{
     collections::{HashMap, HashSet},
     sync::MutexGuard,
@@ -30,19 +33,65 @@ use mantle::{
     toggle_button, BulbInfo, Manager,
 };
 
+// UI and window size constants
 const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
 const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
 const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
-const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
+
+// Color and refresh constants
+const LIFX_RANGE: RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     min: 2500,
     max: 9000,
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
+const FOLLOW_RATE: Duration = Duration::from_millis(500);
+
+// Icon data
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
+const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 
 fn main() -> eframe::Result {
+    #[cfg(debug_assertions)]
+    start_puffin_server();
+
+    init_logging();
+
+    let options = setup_eframe_options();
+
+    eframe::run_native(
+        "Mantle",
+        options,
+        Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(MantleApp::new(cc)))
+        }),
+    )
+}
+
+fn setup_eframe_options() -> eframe::NativeOptions {
+    let icon = load_icon(ICON);
+
+    eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(MAIN_WINDOW_SIZE)
+            .with_min_inner_size(MIN_WINDOW_SIZE)
+            .with_icon(icon),
+        ..Default::default()
+    }
+}
+
+fn load_icon(icon: &[u8]) -> egui::IconData {
+    let icon = image::load_from_memory(icon).expect("Failed to load icon");
+    egui::IconData {
+        rgba: icon.to_rgba8().into_raw(),
+        width: icon.width(),
+        height: icon.height(),
+    }
+}
+
+fn init_logging() {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build("log/output.log")
@@ -70,48 +119,50 @@ fn main() -> eframe::Result {
         .expect("Failed to create log config");
 
     log4rs::init_config(config).expect("Failed to initialize log4rs");
-
-    let icon = image::load_from_memory(ICON).expect("Failed to load icon");
-    let icon = egui::IconData {
-        rgba: icon.to_rgba8().into_raw(),
-        width: icon.width(),
-        height: icon.height(),
-    };
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size(MAIN_WINDOW_SIZE)
-            .with_min_inner_size(MIN_WINDOW_SIZE)
-            .with_icon(icon),
-        ..Default::default()
-    };
-
-    eframe::run_native(
-        "Mantle",
-        options,
-        Box::new(|cc| {
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(MantleApp::new(cc)))
-        }),
-    )
 }
+
+#[derive(Debug, Clone)]
+struct RunningWaveform {
+    active: bool,
+    last_update: Instant,
+    follow_type: FollowType,
+}
+
+type ColorChannel = HashMap<
+    u64,
+    (
+        mpsc::Sender<HSBK>,
+        mpsc::Receiver<HSBK>,
+        Option<JoinHandle<HSBK>>,
+    ),
+>;
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 struct MantleApp {
     #[serde(skip)]
     mgr: Manager,
+    #[serde(skip)]
+    screen_manager: ScreencapManager,
     show_about: bool,
     show_eyedropper: bool,
+    #[serde(skip)]
+    waveform_map: HashMap<u64, RunningWaveform>,
+    #[serde(skip)]
+    waveform_trx: ColorChannel,
 }
 
 impl Default for MantleApp {
     fn default() -> Self {
         let mgr = Manager::new().expect("Failed to create manager");
+        let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         Self {
             mgr,
+            screen_manager,
             show_about: false,
             show_eyedropper: false,
+            waveform_map: HashMap::new(),
+            waveform_trx: HashMap::new(),
         }
     }
 }
@@ -126,32 +177,11 @@ impl MantleApp {
 
     fn sort_bulbs<'a>(&self, mut bulbs: Vec<&'a BulbInfo>) -> Vec<&'a BulbInfo> {
         bulbs.sort_by(|a, b| {
-            let group_a = a
-                .group
-                .data
-                .as_ref()
-                .and_then(|g| g.label.cstr().to_str().ok())
-                .unwrap_or_default();
-            let group_b = b
-                .group
-                .data
-                .as_ref()
-                .and_then(|g| g.label.cstr().to_str().ok())
-                .unwrap_or_default();
-            let name_a = a
-                .name
-                .data
-                .as_ref()
-                .and_then(|s| s.to_str().ok())
-                .unwrap_or_default();
-            let name_b = b
-                .name
-                .data
-                .as_ref()
-                .and_then(|s| s.to_str().ok())
-                .unwrap_or_default();
-
-            group_a.cmp(group_b).then(name_a.cmp(name_b))
+            let group_a = a.group_label();
+            let group_b = b.group_label();
+            let name_a = a.name_label();
+            let name_b = b.name_label();
+            group_a.cmp(&group_b).then(name_a.cmp(&name_b))
         });
         bulbs
     }
@@ -199,17 +229,27 @@ impl MantleApp {
                 if let Some(before_color) = color {
                     let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
-                    after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
-                    if before_color != after_color {
+                    ui.horizontal(|ui| {
+                        after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
+                        after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                    });
+                    if before_color != after_color.next {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) = self.mgr.set_color(bulb, after_color) {
+                                if let Err(e) =
+                                    self.mgr
+                                        .set_color(bulb, after_color.next, after_color.duration)
+                                {
                                     log::error!("Error setting color: {}", e);
                                 }
                             }
                             DeviceInfo::Group(group) => {
-                                if let Err(e) = self.mgr.set_group_color(group, after_color, bulbs)
-                                {
+                                if let Err(e) = self.mgr.set_group_color(
+                                    group,
+                                    after_color.next,
+                                    bulbs,
+                                    after_color.duration,
+                                ) {
                                     log::error!("Error setting group color: {}", e);
                                 }
                             }
@@ -223,7 +263,7 @@ impl MantleApp {
         ui.separator();
     }
 
-    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> HSBK {
+    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> DeltaColor {
         let HSBK {
             mut hue,
             mut saturation,
@@ -299,11 +339,14 @@ impl MantleApp {
                 }
             });
         });
-        HSBK {
-            hue,
-            saturation,
-            brightness,
-            kelvin,
+        DeltaColor {
+            next: HSBK {
+                hue,
+                saturation,
+                brightness,
+                kelvin,
+            },
+            duration: None,
         }
     }
 
@@ -351,57 +394,15 @@ impl MantleApp {
             }
         });
     }
-}
 
-fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<HSBK> {
-    let mut color: Option<HSBK> = None;
-    // if ui.add(egui::Button::new("Eyedropper")).clicked() {
-    //     app.show_eyedropper = !app.show_eyedropper;
-    // }
-    if ui
-        .add(
-            egui::Button::image(
-                egui::Image::from_bytes("", EYEDROPPER_ICON).fit_to_exact_size(Vec2::new(15., 15.)),
-            )
-            .sense(egui::Sense::click()),
-        )
-        .clicked()
-    {
-        app.show_eyedropper = !app.show_eyedropper;
-    }
-    if app.show_eyedropper {
-        let screencap = ScreencapManager::new().unwrap();
-        ui.ctx().output_mut(|out| {
-            out.cursor_icon = egui::CursorIcon::Crosshair;
-        });
-        let device_state = DeviceState::new();
-        let mouse = device_state.get_mouse();
-        if mouse.button_pressed[1] {
-            let position = mouse.coords;
-            color = Some(screencap.from_click(position.0, position.1));
-            app.show_eyedropper = false;
-        }
-    }
-    color
-}
-
-impl eframe::App for MantleApp {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
-    fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
-            self.mgr.discover().expect("Failed to discover bulbs");
-        }
-        self.mgr.refresh();
-        egui::TopBottomPanel::top("menu_bar").show(_ctx, |ui| {
+    fn update_ui(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 self.file_menu_button(ui);
                 self.help_menu_button(ui);
             });
         });
-        egui::CentralPanel::default().show(_ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let bulbs = self.mgr.bulbs.clone();
                 let bulbs = bulbs.lock();
@@ -428,13 +429,16 @@ impl eframe::App for MantleApp {
                 });
             });
         });
+    }
+
+    fn show_about_window(&mut self, ctx: &egui::Context) {
         if self.show_about {
             egui::Window::new("About")
                 .default_width(ABOUT_WINDOW_SIZE[0])
                 .default_height(ABOUT_WINDOW_SIZE[1])
                 .open(&mut self.show_about)
                 .resizable([true, false])
-                .show(_ctx, |ui| {
+                .show(ctx, |ui| {
                     ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
                     ui.add_space(8.0);
                     ui.label(env!("CARGO_PKG_DESCRIPTION"));
@@ -444,4 +448,183 @@ impl eframe::App for MantleApp {
                 });
         }
     }
+}
+
+fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
+    let mut color: Option<HSBK> = None;
+    let highlight = if app.show_eyedropper {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("eyedropper", EYEDROPPER_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        app.show_eyedropper = !app.show_eyedropper;
+    }
+    if app.show_eyedropper {
+        let screencap = ScreencapManager::new().unwrap();
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
+        let device_state = DeviceState::new();
+        let mouse = device_state.get_mouse();
+        if mouse.button_pressed[1] {
+            let position = mouse.coords;
+            color = Some(screencap.from_click(position.0, position.1));
+            app.show_eyedropper = false;
+        }
+    }
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: None,
+    })
+}
+
+fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
+    #[cfg(debug_assertions)]
+    puffin::profile_function!();
+    let mut color: Option<HSBK> = None;
+    let highlight = if app
+        .waveform_map
+        .get(&device.id())
+        .map_or(false, |w| w.active)
+    {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
+        let follow_state: &mut RunningWaveform =
+            app.waveform_map
+                .entry(device.id())
+                .or_insert(RunningWaveform {
+                    active: false,
+                    last_update: Instant::now(),
+                    follow_type: FollowType::All,
+                });
+        if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
+            if let Ok(computed_color) = rx.try_recv() {
+                color = Some(computed_color);
+                follow_state.last_update = Instant::now();
+            }
+        }
+    } else {
+        let (tx, rx) = mpsc::channel();
+        app.waveform_trx.insert(device.id(), (tx, rx, None));
+    }
+
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("monitor", MONITOR_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            waveform.active = !waveform.active;
+        } else {
+            let running_waveform = RunningWaveform {
+                active: true,
+                last_update: Instant::now(),
+                follow_type: FollowType::All,
+            };
+            app.waveform_map
+                .insert(device.id(), running_waveform.clone());
+        }
+        // if the waveform is active, we need to spawn a thread to get the color
+        if app.waveform_map[&device.id()].active {
+            let screen_manager = app.screen_manager.clone();
+            let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
+            let follow_type = app.waveform_map[&device.id()].follow_type.clone();
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                waveform_trx.2 = Some(thread::spawn(move || loop {
+                    let avg_color = screen_manager.avg_color(follow_type.clone());
+                    if let Err(err) = tx.send(avg_color) {
+                        eprintln!("Failed to send color data: {}", err);
+                    }
+                    thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
+                }));
+            }
+        } else {
+            // kill thread
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                if let Some(thread) = waveform_trx.2.take() {
+                    thread.thread().unpark();
+                }
+            }
+        }
+    }
+
+    ui.horizontal(|ui| {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
+            for monitor in app.screen_manager.monitors.iter() {
+                ui.radio_value(
+                    &mut waveform.follow_type,
+                    FollowType::Monitor(vec![monitor.clone()]),
+                    monitor.name(),
+                );
+            }
+        }
+    });
+
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
+    })
+}
+
+impl eframe::App for MantleApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
+    fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(debug_assertions)]
+        puffin::GlobalProfiler::lock().new_frame();
+        if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
+            self.mgr.discover().expect("Failed to discover bulbs");
+        }
+        self.mgr.refresh();
+        self.update_ui(_ctx);
+        self.show_about_window(_ctx);
+    }
+}
+
+#[cfg(debug_assertions)]
+fn start_puffin_server() {
+    puffin::set_scopes_on(true); // tell puffin to collect data
+
+    match puffin_http::Server::new("127.0.0.1:8585") {
+        Ok(puffin_server) => {
+            eprintln!("Run:  cargo install puffin_viewer && puffin_viewer --url 127.0.0.1:8585");
+
+            std::process::Command::new("puffin_viewer")
+                .arg("--url")
+                .arg("127.0.0.1:8585")
+                .spawn()
+                .ok();
+
+            // We can store the server if we want, but in this case we just want
+            // it to keep running. Dropping it closes the server, so let's not drop it!
+            #[allow(clippy::mem_forget)]
+            std::mem::forget(puffin_server);
+        }
+        Err(err) => {
+            eprintln!("Failed to start puffin server: {err}");
+        }
+    };
 }

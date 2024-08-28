@@ -37,6 +37,15 @@ pub enum DeviceInfo<'a> {
     Group(GroupInfo),
 }
 
+impl DeviceInfo<'_> {
+    pub fn id(&self) -> u64 {
+        match self {
+            DeviceInfo::Bulb(b) => b.target,
+            DeviceInfo::Group(g) => u64::from_le_bytes(g.group.0[0..8].try_into().unwrap()),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum DeviceColor {
     Unknown,
@@ -109,6 +118,21 @@ impl BulbInfo {
             DeviceColor::Multi(ref data) => handle_multizone(data.as_ref()),
             _ => None,
         }
+    }
+
+    pub fn group_label(&self) -> Option<String> {
+        self.group
+            .data
+            .as_ref()
+            .map(|g| &g.label)
+            .map(|l| l.to_string())
+    }
+
+    pub fn name_label(&self) -> Option<String> {
+        self.name
+            .data
+            .as_ref()
+            .map(|n| n.to_string_lossy().to_string())
     }
 }
 
