@@ -391,13 +391,19 @@ impl MantleApp {
 
 fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
+    let highlight = if app.show_eyedropper {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
     if ui
         .add(
             egui::Button::image(
                 egui::Image::from_bytes("eyedropper", EYEDROPPER_ICON)
                     .fit_to_exact_size(Vec2::new(15., 15.)),
             )
-            .sense(egui::Sense::click()),
+            .sense(egui::Sense::click())
+            .fill(highlight),
         )
         .clicked()
     {
@@ -425,7 +431,15 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
 fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
     puffin::profile_function!();
     let mut color: Option<HSBK> = None;
-    // get tx and rx for the device
+    let highlight = if app
+        .waveform_map
+        .get(&device.id())
+        .map_or(false, |w| w.active)
+    {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
     if let Some((_tx, rx)) = app.waveform_trx.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
@@ -451,7 +465,8 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                 egui::Image::from_bytes("monitor", MONITOR_ICON)
                     .fit_to_exact_size(Vec2::new(15., 15.)),
             )
-            .sense(egui::Sense::click()),
+            .sense(egui::Sense::click())
+            .fill(highlight),
         )
         .clicked()
     {
