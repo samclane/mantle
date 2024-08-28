@@ -15,6 +15,8 @@ Mantle is a desktop application for controlling LIFX lights, born from the ashes
 - Control multiple lights
   - Group lights
   - Control all lights
+- Eyedropper tool
+- Real Time Screen averaging for ambient lighting
 
 ## Building
 
