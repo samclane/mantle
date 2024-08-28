@@ -48,6 +48,7 @@ const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.pn
 const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 
 fn main() -> eframe::Result {
+    #[cfg(debug_assertions)]
     start_puffin_server();
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
@@ -437,6 +438,7 @@ fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
 }
 
 fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
+    #[cfg(debug_assertions)]
     puffin::profile_function!();
     let mut color: Option<HSBK> = None;
     let highlight = if app
@@ -523,6 +525,7 @@ impl eframe::App for MantleApp {
     }
 
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(debug_assertions)]
         puffin::GlobalProfiler::lock().new_frame();
         if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
             self.mgr.discover().expect("Failed to discover bulbs");
@@ -579,6 +582,7 @@ impl eframe::App for MantleApp {
     }
 }
 
+#[cfg(debug_assertions)]
 fn start_puffin_server() {
     puffin::set_scopes_on(true); // tell puffin to collect data
 
