@@ -125,6 +125,7 @@ fn init_logging() {
 struct RunningWaveform {
     active: bool,
     last_update: Instant,
+    follow_type: FollowType,
 }
 
 type ColorChannel = HashMap<
@@ -508,6 +509,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                 .or_insert(RunningWaveform {
                     active: false,
                     last_update: Instant::now(),
+                    follow_type: FollowType::All,
                 });
         if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
             if let Ok(computed_color) = rx.try_recv() {
@@ -537,6 +539,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             let running_waveform = RunningWaveform {
                 active: true,
                 last_update: Instant::now(),
+                follow_type: FollowType::All,
             };
             app.waveform_map
                 .insert(device.id(), running_waveform.clone());
@@ -545,9 +548,10 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         if app.waveform_map[&device.id()].active {
             let screen_manager = app.screen_manager.clone();
             let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
+            let follow_type = app.waveform_map[&device.id()].follow_type.clone();
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
                 waveform_trx.2 = Some(thread::spawn(move || loop {
-                    let avg_color = screen_manager.avg_color(FollowType::All);
+                    let avg_color = screen_manager.avg_color(follow_type.clone());
                     if let Err(err) = tx.send(avg_color) {
                         eprintln!("Failed to send color data: {}", err);
                     }
@@ -563,6 +567,19 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             }
         }
     }
+
+    ui.horizontal(|ui| {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
+            for monitor in app.screen_manager.monitors.iter() {
+                ui.radio_value(
+                    &mut waveform.follow_type,
+                    FollowType::Monitor(vec![monitor.clone()]),
+                    monitor.name(),
+                );
+            }
+        }
+    });
 
     color.map(|color| DeltaColor {
         next: color,

@@ -3,11 +3,43 @@ use xcap::{Monitor, Window, XCapError};
 
 use crate::RGB8;
 
+#[derive(Clone, Debug)]
 pub enum FollowType {
     // either monitor, window, or All
     Monitor(Vec<Monitor>),
     Window(Vec<Window>),
     All,
+}
+
+impl PartialEq for FollowType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (FollowType::Monitor(m1), FollowType::Monitor(m2)) => {
+                if m1.len() != m2.len() {
+                    return false;
+                }
+                for (a, b) in m1.iter().zip(m2.iter()) {
+                    if a.id() != b.id() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (FollowType::Window(w1), FollowType::Window(w2)) => {
+                if w1.len() != w2.len() {
+                    return false;
+                }
+                for (a, b) in w1.iter().zip(w2.iter()) {
+                    if a.id() != b.id() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (FollowType::All, FollowType::All) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone)]
