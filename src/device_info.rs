@@ -119,6 +119,21 @@ impl BulbInfo {
             _ => None,
         }
     }
+
+    pub fn group_label(&self) -> Option<String> {
+        self.group
+            .data
+            .as_ref()
+            .map(|g| &g.label)
+            .map(|l| l.to_string())
+    }
+
+    pub fn name_label(&self) -> Option<String> {
+        self.name
+            .data
+            .as_ref()
+            .map(|n| n.to_string_lossy().to_string())
+    }
 }
 
 fn handle_multizone(data: Option<&Vec<Option<HSBK>>>) -> Option<&HSBK> {

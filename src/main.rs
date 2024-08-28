@@ -33,16 +33,21 @@ use mantle::{
     toggle_button, BulbInfo, Manager,
 };
 
+// UI and window size constants
 const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
 const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
 const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
-const LIFX_RANGE: std::ops::RangeInclusive<u16> = 0..=u16::MAX;
+
+// Color and refresh constants
+const LIFX_RANGE: RangeInclusive<u16> = 0..=u16::MAX;
 const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     min: 2500,
     max: 9000,
 };
 const REFRESH_RATE: Duration = Duration::from_secs(10);
 const FOLLOW_RATE: Duration = Duration::from_millis(500);
+
+// Icon data
 const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
@@ -50,6 +55,43 @@ const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png
 fn main() -> eframe::Result {
     #[cfg(debug_assertions)]
     start_puffin_server();
+
+    init_logging();
+
+    let options = setup_eframe_options();
+
+    eframe::run_native(
+        "Mantle",
+        options,
+        Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(MantleApp::new(cc)))
+        }),
+    )
+}
+
+fn setup_eframe_options() -> eframe::NativeOptions {
+    let icon = load_icon(ICON);
+
+    eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(MAIN_WINDOW_SIZE)
+            .with_min_inner_size(MIN_WINDOW_SIZE)
+            .with_icon(icon),
+        ..Default::default()
+    }
+}
+
+fn load_icon(icon: &[u8]) -> egui::IconData {
+    let icon = image::load_from_memory(icon).expect("Failed to load icon");
+    egui::IconData {
+        rgba: icon.to_rgba8().into_raw(),
+        width: icon.width(),
+        height: icon.height(),
+    }
+}
+
+fn init_logging() {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build("log/output.log")
@@ -77,30 +119,6 @@ fn main() -> eframe::Result {
         .expect("Failed to create log config");
 
     log4rs::init_config(config).expect("Failed to initialize log4rs");
-
-    let icon = image::load_from_memory(ICON).expect("Failed to load icon");
-    let icon = egui::IconData {
-        rgba: icon.to_rgba8().into_raw(),
-        width: icon.width(),
-        height: icon.height(),
-    };
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size(MAIN_WINDOW_SIZE)
-            .with_min_inner_size(MIN_WINDOW_SIZE)
-            .with_icon(icon),
-        ..Default::default()
-    };
-
-    eframe::run_native(
-        "Mantle",
-        options,
-        Box::new(|cc| {
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(MantleApp::new(cc)))
-        }),
-    )
 }
 
 #[derive(Debug, Clone)]
@@ -158,32 +176,11 @@ impl MantleApp {
 
     fn sort_bulbs<'a>(&self, mut bulbs: Vec<&'a BulbInfo>) -> Vec<&'a BulbInfo> {
         bulbs.sort_by(|a, b| {
-            let group_a = a
-                .group
-                .data
-                .as_ref()
-                .and_then(|g| g.label.cstr().to_str().ok())
-                .unwrap_or_default();
-            let group_b = b
-                .group
-                .data
-                .as_ref()
-                .and_then(|g| g.label.cstr().to_str().ok())
-                .unwrap_or_default();
-            let name_a = a
-                .name
-                .data
-                .as_ref()
-                .and_then(|s| s.to_str().ok())
-                .unwrap_or_default();
-            let name_b = b
-                .name
-                .data
-                .as_ref()
-                .and_then(|s| s.to_str().ok())
-                .unwrap_or_default();
-
-            group_a.cmp(group_b).then(name_a.cmp(name_b))
+            let group_a = a.group_label();
+            let group_b = b.group_label();
+            let name_a = a.name_label();
+            let name_b = b.name_label();
+            group_a.cmp(&group_b).then(name_a.cmp(&name_b))
         });
         bulbs
     }
@@ -396,6 +393,60 @@ impl MantleApp {
             }
         });
     }
+
+    fn update_ui(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                self.file_menu_button(ui);
+                self.help_menu_button(ui);
+            });
+        });
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                let bulbs = self.mgr.bulbs.clone();
+                let bulbs = bulbs.lock();
+                let mut seen_groups = HashSet::<String>::new();
+                ui.vertical(|ui| {
+                    if let Ok(bulbs) = bulbs {
+                        self.display_device(ui, &DeviceInfo::Group(self.mgr.all.clone()), &bulbs);
+                        let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
+                        for bulb in sorted_bulbs {
+                            if let Some(group) = bulb.group.data.as_ref() {
+                                let group_name = group.label.cstr().to_str().unwrap_or_default();
+                                if !seen_groups.contains(group_name) {
+                                    seen_groups.insert(group_name.to_owned());
+                                    self.display_device(
+                                        ui,
+                                        &DeviceInfo::Group(group.clone()),
+                                        &bulbs,
+                                    );
+                                }
+                            }
+                            self.display_device(ui, &DeviceInfo::Bulb(bulb), &bulbs);
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    fn show_about_window(&mut self, ctx: &egui::Context) {
+        if self.show_about {
+            egui::Window::new("About")
+                .default_width(ABOUT_WINDOW_SIZE[0])
+                .default_height(ABOUT_WINDOW_SIZE[1])
+                .open(&mut self.show_about)
+                .resizable([true, false])
+                .show(ctx, |ui| {
+                    ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
+                    ui.add_space(8.0);
+                    ui.label(env!("CARGO_PKG_DESCRIPTION"));
+                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+                    ui.label(format!("Author: {}", env!("CARGO_PKG_AUTHORS")));
+                    ui.hyperlink_to("Github", env!("CARGO_PKG_REPOSITORY"));
+                });
+        }
+    }
 }
 
 fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
@@ -500,7 +551,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                     if let Err(err) = tx.send(avg_color) {
                         eprintln!("Failed to send color data: {}", err);
                     }
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
                 }));
             }
         } else {
@@ -531,54 +582,8 @@ impl eframe::App for MantleApp {
             self.mgr.discover().expect("Failed to discover bulbs");
         }
         self.mgr.refresh();
-        egui::TopBottomPanel::top("menu_bar").show(_ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                self.file_menu_button(ui);
-                self.help_menu_button(ui);
-            });
-        });
-        egui::CentralPanel::default().show(_ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let bulbs = self.mgr.bulbs.clone();
-                let bulbs = bulbs.lock();
-                let mut seen_groups = HashSet::<String>::new();
-                ui.vertical(|ui| {
-                    if let Ok(bulbs) = bulbs {
-                        self.display_device(ui, &DeviceInfo::Group(self.mgr.all.clone()), &bulbs);
-                        let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
-                        for bulb in sorted_bulbs {
-                            if let Some(group) = bulb.group.data.as_ref() {
-                                let group_name = group.label.cstr().to_str().unwrap_or_default();
-                                if !seen_groups.contains(group_name) {
-                                    seen_groups.insert(group_name.to_owned());
-                                    self.display_device(
-                                        ui,
-                                        &DeviceInfo::Group(group.clone()),
-                                        &bulbs,
-                                    );
-                                }
-                            }
-                            self.display_device(ui, &DeviceInfo::Bulb(bulb), &bulbs);
-                        }
-                    }
-                });
-            });
-        });
-        if self.show_about {
-            egui::Window::new("About")
-                .default_width(ABOUT_WINDOW_SIZE[0])
-                .default_height(ABOUT_WINDOW_SIZE[1])
-                .open(&mut self.show_about)
-                .resizable([true, false])
-                .show(_ctx, |ui| {
-                    ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
-                    ui.add_space(8.0);
-                    ui.label(env!("CARGO_PKG_DESCRIPTION"));
-                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
-                    ui.label(format!("Author: {}", env!("CARGO_PKG_AUTHORS")));
-                    ui.hyperlink_to("Github", env!("CARGO_PKG_REPOSITORY"));
-                });
-        }
+        self.update_ui(_ctx);
+        self.show_about_window(_ctx);
     }
 }
 
