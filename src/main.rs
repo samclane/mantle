@@ -126,6 +126,7 @@ struct RunningWaveform {
     active: bool,
     last_update: Instant,
     follow_type: FollowType,
+    stop_tx: Option<mpsc::Sender<()>>,
 }
 
 type ColorChannel = HashMap<
@@ -133,7 +134,7 @@ type ColorChannel = HashMap<
     (
         mpsc::Sender<HSBK>,
         mpsc::Receiver<HSBK>,
-        Option<JoinHandle<HSBK>>,
+        Option<JoinHandle<()>>,
     ),
 >;
 
@@ -510,6 +511,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                     active: false,
                     last_update: Instant::now(),
                     follow_type: FollowType::All,
+                    stop_tx: None,
                 });
         if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
             if let Ok(computed_color) = rx.try_recv() {
@@ -540,6 +542,7 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
                 active: true,
                 last_update: Instant::now(),
                 follow_type: FollowType::All,
+                stop_tx: None,
             };
             app.waveform_map
                 .insert(device.id(), running_waveform.clone());
@@ -549,20 +552,38 @@ fn handle_screencap(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             let screen_manager = app.screen_manager.clone();
             let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
             let follow_type = app.waveform_map[&device.id()].follow_type.clone();
+            let (stop_tx, stop_rx) = mpsc::channel::<()>();
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
                 waveform_trx.2 = Some(thread::spawn(move || loop {
+                    #[cfg(debug_assertions)]
+                    puffin::profile_function!();
                     let avg_color = screen_manager.avg_color(follow_type.clone());
                     if let Err(err) = tx.send(avg_color) {
                         eprintln!("Failed to send color data: {}", err);
                     }
                     thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
+                    if stop_rx.try_recv().is_ok() {
+                        break;
+                    }
                 }));
             }
+            app.waveform_map.get_mut(&device.id()).unwrap().stop_tx = Some(stop_tx);
         } else {
             // kill thread
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
                 if let Some(thread) = waveform_trx.2.take() {
-                    thread.thread().unpark();
+                    // Send a signal to stop the thread
+                    if let Some(stop_tx) = app
+                        .waveform_map
+                        .get_mut(&device.id())
+                        .unwrap()
+                        .stop_tx
+                        .take()
+                    {
+                        stop_tx.send(()).unwrap();
+                    }
+                    // Wait for the thread to finish
+                    thread.join().unwrap();
                 }
             }
         }
