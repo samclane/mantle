@@ -1,5 +1,24 @@
-use std::{collections::HashMap, ops::RangeInclusive, sync::MutexGuard};
+use std::{
+    collections::HashMap,
+    ops::RangeInclusive,
+    sync::{mpsc, MutexGuard},
+    thread,
+    time::{Duration, Instant},
+};
 
+use crate::{
+    app::{
+        MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON, MAIN_WINDOW_SIZE,
+        MIN_WINDOW_SIZE, MONITOR_ICON,
+    },
+    color::DeltaColor,
+    contrast_color,
+    device_info::DeviceInfo,
+    screencap::{FollowType, ScreencapManager},
+    AngleIter, BulbInfo, Manager, RGB8,
+};
+
+use device_query::{DeviceQuery, DeviceState};
 use eframe::{
     egui::{
         self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Sense, Shape, Stroke,
@@ -7,9 +26,190 @@ use eframe::{
     },
     epaint::CubicBezierShape,
 };
+use image::GenericImageView;
 use lifx_core::HSBK;
 
-use crate::{contrast_color, device_info::DeviceInfo, AngleIter, BulbInfo, Manager, RGB8};
+pub fn setup_eframe_options() -> eframe::NativeOptions {
+    let icon = load_icon(ICON);
+
+    eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(MAIN_WINDOW_SIZE)
+            .with_min_inner_size(MIN_WINDOW_SIZE)
+            .with_icon(icon),
+        ..Default::default()
+    }
+}
+
+pub fn load_icon(icon: &[u8]) -> egui::IconData {
+    let icon = image::load_from_memory(icon).expect("Failed to load icon");
+    egui::IconData {
+        rgba: icon.to_rgba8().into_raw(),
+        width: icon.width(),
+        height: icon.height(),
+    }
+}
+
+pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
+    let mut color: Option<HSBK> = None;
+    let highlight = if app.show_eyedropper {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("eyedropper", EYEDROPPER_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        app.show_eyedropper = !app.show_eyedropper;
+    }
+    if app.show_eyedropper {
+        let screencap = ScreencapManager::new().unwrap();
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
+        let device_state = DeviceState::new();
+        let mouse = device_state.get_mouse();
+        if mouse.button_pressed[1] {
+            let position = mouse.coords;
+            color = Some(screencap.from_click(position.0, position.1));
+            app.show_eyedropper = false;
+        }
+    }
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: None,
+    })
+}
+
+pub fn handle_screencap(
+    app: &mut MantleApp,
+    ui: &mut Ui,
+    device: &DeviceInfo,
+) -> Option<DeltaColor> {
+    #[cfg(debug_assertions)]
+    puffin::profile_function!();
+    let mut color: Option<HSBK> = None;
+    let highlight = if app
+        .waveform_map
+        .get(&device.id())
+        .map_or(false, |w| w.active)
+    {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
+        let follow_state: &mut RunningWaveform =
+            app.waveform_map
+                .entry(device.id())
+                .or_insert(RunningWaveform {
+                    active: false,
+                    last_update: Instant::now(),
+                    follow_type: FollowType::All,
+                    stop_tx: None,
+                });
+        if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
+            if let Ok(computed_color) = rx.try_recv() {
+                color = Some(computed_color);
+                follow_state.last_update = Instant::now();
+            }
+        }
+    } else {
+        let (tx, rx) = mpsc::channel();
+        app.waveform_trx.insert(device.id(), (tx, rx, None));
+    }
+
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("monitor", MONITOR_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            waveform.active = !waveform.active;
+        } else {
+            let running_waveform = RunningWaveform {
+                active: true,
+                last_update: Instant::now(),
+                follow_type: FollowType::All,
+                stop_tx: None,
+            };
+            app.waveform_map
+                .insert(device.id(), running_waveform.clone());
+        }
+        // if the waveform is active, we need to spawn a thread to get the color
+        if app.waveform_map[&device.id()].active {
+            let screen_manager = app.screen_manager.clone();
+            let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
+            let follow_type = app.waveform_map[&device.id()].follow_type.clone();
+            let (stop_tx, stop_rx) = mpsc::channel::<()>();
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                waveform_trx.2 = Some(thread::spawn(move || loop {
+                    #[cfg(debug_assertions)]
+                    puffin::profile_function!();
+                    let avg_color = screen_manager.avg_color(follow_type.clone());
+                    if let Err(err) = tx.send(avg_color) {
+                        eprintln!("Failed to send color data: {}", err);
+                    }
+                    thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
+                    if stop_rx.try_recv().is_ok() {
+                        break;
+                    }
+                }));
+            }
+            app.waveform_map.get_mut(&device.id()).unwrap().stop_tx = Some(stop_tx);
+        } else {
+            // kill thread
+            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+                if let Some(thread) = waveform_trx.2.take() {
+                    // Send a signal to stop the thread
+                    if let Some(stop_tx) = app
+                        .waveform_map
+                        .get_mut(&device.id())
+                        .unwrap()
+                        .stop_tx
+                        .take()
+                    {
+                        stop_tx.send(()).unwrap();
+                    }
+                    // Wait for the thread to finish
+                    thread.join().unwrap();
+                }
+            }
+        }
+    }
+
+    ui.horizontal(|ui| {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
+            for monitor in app.screen_manager.monitors.iter() {
+                ui.radio_value(
+                    &mut waveform.follow_type,
+                    FollowType::Monitor(vec![monitor.clone()]),
+                    monitor.name(),
+                );
+            }
+        }
+    });
+
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
+    })
+}
 
 pub fn display_color_circle(
     ui: &mut Ui,
