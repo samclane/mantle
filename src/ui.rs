@@ -155,12 +155,19 @@ pub fn handle_screencap(
             let screen_manager = app.screen_manager.clone();
             let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
             let follow_type = app.waveform_map[&device.id()].follow_type.clone();
+            let mgr = app.mgr.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
+            let device_id = device.id();
+
             let (stop_tx, stop_rx) = mpsc::channel::<()>();
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
                 waveform_trx.2 = Some(thread::spawn(move || loop {
                     #[cfg(debug_assertions)]
                     puffin::profile_function!();
+
                     let avg_color = screen_manager.avg_color(follow_type.clone());
+
+                    mgr.set_color_by_id(device_id, avg_color).unwrap();
+
                     if let Err(err) = tx.send(avg_color) {
                         eprintln!("Failed to send color data: {}", err);
                     }

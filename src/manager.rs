@@ -18,6 +18,18 @@ pub struct Manager {
     pub source: u32,
 }
 
+impl Clone for Manager {
+    fn clone(&self) -> Self {
+        Manager {
+            bulbs: self.bulbs.clone(),
+            all: self.all.clone(),
+            last_discovery: self.last_discovery,
+            sock: self.sock.try_clone().unwrap(),
+            source: self.source,
+        }
+    }
+}
+
 impl Manager {
     pub fn new() -> Result<Manager, failure::Error> {
         let sock = UdpSocket::bind("0.0.0.0:56700")?;
@@ -342,5 +354,28 @@ impl Manager {
             kelvin: avg.kelvin / colors.len() as u32,
         };
         avg.into()
+    }
+
+    pub fn set_color_by_id(
+        &self,
+        device_id: u64,
+        avg_color: HSBK,
+    ) -> Result<usize, std::io::Error> {
+        if let Ok(bulbs) = self.bulbs.lock() {
+            if let Some(bulb) = bulbs.get(&device_id) {
+                return self.set_color(&bulb, avg_color, None);
+            }
+        }
+        // check for group
+        if let Ok(bulbs) = self.bulbs.lock() {
+            for bulb in bulbs.values() {
+                if let Some(group) = &bulb.group.data {
+                    if group.id() == device_id {
+                        return self.set_group_color(group, avg_color, &bulbs, None);
+                    }
+                }
+            }
+        }
+        Ok(0)
     }
 }

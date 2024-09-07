@@ -181,6 +181,11 @@ impl GroupInfo {
             .iter()
             .any(|b| b.power_level.data.unwrap_or(0) > 0)
     }
+
+    pub fn id(&self) -> u64 {
+        // convert ident to u64
+        u64::from_le_bytes(self.group.0[0..8].try_into().unwrap())
+    }
 }
 
 impl std::fmt::Debug for BulbInfo {
