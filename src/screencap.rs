@@ -1,5 +1,5 @@
 use lifx_core::HSBK;
-use xcap::{Monitor, Window, XCapError};
+use xcap::{image::RgbaImage, Monitor, Window, XCapError};
 
 use crate::RGB8;
 
@@ -141,64 +141,46 @@ impl ScreencapManager {
         let mut green: u32 = 0;
         let mut blue: u32 = 0;
         let mut count: u32 = 0;
+
+        let mut calculate_image_pixel_average = |image: &RgbaImage, width: u32, height: u32| {
+            for x in 0..width {
+                for y in 0..height {
+                    let rgba = *image.get_pixel(x, y);
+                    red += rgba[0] as u32;
+                    green += rgba[1] as u32;
+                    blue += rgba[2] as u32;
+                    count += 1;
+                }
+            }
+        };
+
         match follow {
             FollowType::Monitor(monitors) => {
                 for monitor in monitors {
                     let image = monitor.capture_image().unwrap();
-                    for x in 0..monitor.width() {
-                        for y in 0..monitor.height() {
-                            let rgba = *image.get_pixel(x, y);
-                            red += rgba[0] as u32;
-                            green += rgba[1] as u32;
-                            blue += rgba[2] as u32;
-                            count += 1;
-                        }
-                    }
+                    calculate_image_pixel_average(&image, monitor.width(), monitor.height());
                 }
             }
             FollowType::Window(windows) => {
                 for window in windows {
                     let image = window.capture_image().unwrap();
-                    for x in 0..window.width() {
-                        for y in 0..window.height() {
-                            let rgba = *image.get_pixel(x, y);
-                            red += rgba[0] as u32;
-                            green += rgba[1] as u32;
-                            blue += rgba[2] as u32;
-                            count += 1;
-                        }
-                    }
+                    calculate_image_pixel_average(&image, window.width(), window.height());
                 }
             }
             FollowType::Subregion(subregions) => {
                 for subregion in subregions {
                     let image = subregion.monitor.capture_image().unwrap();
-                    for x in 0..subregion.width {
-                        for y in 0..subregion.height {
-                            let rgba = *image.get_pixel(x as u32, y as u32);
-                            red += rgba[0] as u32;
-                            green += rgba[1] as u32;
-                            blue += rgba[2] as u32;
-                            count += 1;
-                        }
-                    }
+                    calculate_image_pixel_average(&image, subregion.width, subregion.height);
                 }
             }
             FollowType::All => {
                 for monitor in &self.monitors {
                     let image = monitor.capture_image().unwrap();
-                    for x in 0..monitor.width() {
-                        for y in 0..monitor.height() {
-                            let rgba = *image.get_pixel(x, y);
-                            red += rgba[0] as u32;
-                            green += rgba[1] as u32;
-                            blue += rgba[2] as u32;
-                            count += 1;
-                        }
-                    }
+                    calculate_image_pixel_average(&image, monitor.width(), monitor.height());
                 }
             }
         }
+
         RGB8 {
             red: (red / count) as u8,
             green: (green / count) as u8,
