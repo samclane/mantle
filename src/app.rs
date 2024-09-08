@@ -207,14 +207,14 @@ impl MantleApp {
             ui.horizontal(|ui| {
                 ui.label("Saturation");
                 color_slider(ui, &mut saturation, LIFX_RANGE, "Saturation", |v| {
-                    let color_value = (u16::MAX - v).max(0) / u8::MAX as u16;
+                    let color_value = (u16::MAX - v) / u8::MAX as u16;
                     Color32::from_gray(color_value as u8)
                 });
             });
             ui.horizontal(|ui| {
                 ui.label("Brightness");
                 color_slider(ui, &mut brightness, LIFX_RANGE, "Brightness", |v| {
-                    let color_value = v.min(u16::MAX) / u8::MAX as u16;
+                    let color_value = v / u8::MAX as u16;
                     Color32::from_gray(color_value as u8)
                 });
             });
