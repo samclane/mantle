@@ -4,10 +4,19 @@ use xcap::{Monitor, Window, XCapError};
 use crate::RGB8;
 
 #[derive(Clone, Debug)]
+pub struct ScreenSubregion {
+    pub monitor: Monitor,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Clone, Debug)]
 pub enum FollowType {
-    // either monitor, window, or All
     Monitor(Vec<Monitor>),
     Window(Vec<Window>),
+    Subregion(Vec<ScreenSubregion>),
     All,
 }
 
@@ -31,6 +40,22 @@ impl PartialEq for FollowType {
                 }
                 for (a, b) in w1.iter().zip(w2.iter()) {
                     if a.id() != b.id() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (FollowType::Subregion(s1), FollowType::Subregion(s2)) => {
+                if s1.len() != s2.len() {
+                    return false;
+                }
+                for (a, b) in s1.iter().zip(s2.iter()) {
+                    if a.monitor.id() != b.monitor.id()
+                        || a.x != b.x
+                        || a.y != b.y
+                        || a.width != b.width
+                        || a.height != b.height
+                    {
                         return false;
                     }
                 }
@@ -137,6 +162,20 @@ impl ScreencapManager {
                     for x in 0..window.width() {
                         for y in 0..window.height() {
                             let rgba = *image.get_pixel(x, y);
+                            red += rgba[0] as u32;
+                            green += rgba[1] as u32;
+                            blue += rgba[2] as u32;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            FollowType::Subregion(subregions) => {
+                for subregion in subregions {
+                    let image = subregion.monitor.capture_image().unwrap();
+                    for x in 0..subregion.width {
+                        for y in 0..subregion.height {
+                            let rgba = *image.get_pixel(x as u32, y as u32);
                             red += rgba[0] as u32;
                             green += rgba[1] as u32;
                             blue += rgba[2] as u32;

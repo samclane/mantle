@@ -209,6 +209,14 @@ pub fn handle_screencap(
                     monitor.name(),
                 );
             }
+            // add a dropdown for windows
+            for window in app.screen_manager.windows.iter() {
+                ui.radio_value(
+                    &mut waveform.follow_type,
+                    FollowType::Window(vec![window.clone()]),
+                    window.title(),
+                );
+            }
         }
     });
 
