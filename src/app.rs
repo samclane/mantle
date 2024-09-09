@@ -13,9 +13,9 @@ use crate::{
     device_info::DeviceInfo,
     display_color_circle,
     products::TemperatureRange,
-    screencap::FollowType,
+    screencap::{FollowType, ScreenSubregion},
     toggle_button,
-    ui::{handle_eyedropper, handle_screencap},
+    ui::{handle_eyedropper, handle_get_subregion_bounds, handle_screencap},
     BulbInfo, Manager, ScreencapManager,
 };
 
@@ -41,6 +41,7 @@ pub const FOLLOW_RATE: Duration = Duration::from_millis(500);
 pub const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 pub const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 pub const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
+pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png");
 
 #[derive(Debug, Clone)]
 pub struct RunningWaveform {
@@ -67,6 +68,8 @@ pub struct MantleApp {
     pub screen_manager: ScreencapManager,
     pub show_about: bool,
     pub show_eyedropper: bool,
+    pub show_subregion: bool,
+    pub subregion_points: HashMap<u64, ScreenSubregion>,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
@@ -82,6 +85,8 @@ impl Default for MantleApp {
             screen_manager,
             show_about: false,
             show_eyedropper: false,
+            show_subregion: false,
+            subregion_points: HashMap::new(),
             waveform_map: HashMap::new(),
             waveform_trx: HashMap::new(),
         }
@@ -153,6 +158,7 @@ impl MantleApp {
                     ui.horizontal(|ui| {
                         after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                        handle_get_subregion_bounds(self, ui, device.id());
                     });
                     if before_color != after_color.next {
                         match device {

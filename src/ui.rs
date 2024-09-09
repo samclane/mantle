@@ -9,12 +9,12 @@ use std::{
 use crate::{
     app::{
         MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON, MAIN_WINDOW_SIZE,
-        MIN_WINDOW_SIZE, MONITOR_ICON,
+        MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
     color::DeltaColor,
     contrast_color,
     device_info::DeviceInfo,
-    screencap::{FollowType, ScreencapManager},
+    screencap::{FollowType, ScreenSubregion, ScreencapManager},
     AngleIter, BulbInfo, Manager, RGB8,
 };
 
@@ -198,31 +198,103 @@ pub fn handle_screencap(
             }
         }
     }
+    if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
+                for monitor in app.screen_manager.monitors.iter() {
+                    ui.radio_value(
+                        &mut waveform.follow_type,
+                        FollowType::Monitor(vec![monitor.clone()]),
+                        monitor.name(),
+                    );
+                }
+            });
 
-    ui.horizontal(|ui| {
-        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
-            ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
-            for monitor in app.screen_manager.monitors.iter() {
-                ui.radio_value(
-                    &mut waveform.follow_type,
-                    FollowType::Monitor(vec![monitor.clone()]),
-                    monitor.name(),
-                );
-            }
-            for window in app.screen_manager.windows.iter() {
-                ui.radio_value(
-                    &mut waveform.follow_type,
-                    FollowType::Window(vec![window.clone()]),
-                    window.title(),
-                );
-            }
-        }
-    });
+            ui.horizontal(|ui| {
+                for window in app.screen_manager.windows.iter() {
+                    ui.radio_value(
+                        &mut waveform.follow_type,
+                        FollowType::Window(vec![window.clone()]),
+                        window.title(),
+                    );
+                }
+            });
+
+            let subregion = app.subregion_points.entry(device.id()).or_default();
+            ui.radio_value(
+                &mut waveform.follow_type,
+                FollowType::Subregion(vec![subregion.clone()]),
+                "Subregion",
+            );
+            // add numerical fields for subregion
+            ui.horizontal(|ui| {
+                ui.label("X:");
+                ui.add(egui::DragValue::new(&mut subregion.x));
+
+                ui.label("Y:");
+                ui.add(egui::DragValue::new(&mut subregion.y));
+
+                ui.label("Width:");
+                ui.add(egui::DragValue::new(&mut subregion.width));
+
+                ui.label("Height:");
+                ui.add(egui::DragValue::new(&mut subregion.height));
+            });
+        });
+    }
 
     color.map(|color| DeltaColor {
         next: color,
         duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
     })
+}
+
+pub fn handle_get_subregion_bounds(
+    app: &mut MantleApp,
+    ui: &mut Ui,
+    device_id: u64,
+) -> Option<ScreenSubregion> {
+    // like eyedropper, but user picks 2 points to define a subregion
+    let subregion = app.subregion_points.entry(device_id).or_default();
+    let highlight = if app.show_subregion {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("subregion", SUBREGION_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        app.show_subregion = !app.show_subregion;
+        subregion.reset();
+        return None;
+    }
+    if app.show_subregion {
+        let device_state = DeviceState::new();
+        let mouse = device_state.get_mouse();
+        if mouse.button_pressed[1] {
+            let position = mouse.coords;
+            if subregion.x == 0 {
+                subregion.x = position.0;
+                subregion.y = position.1;
+                dbg!("First point set");
+            } else {
+                subregion.width = (position.0 as u32).saturating_sub(subregion.x as u32);
+                subregion.height = (position.1 as u32).saturating_sub(subregion.y as u32);
+                app.show_subregion = false;
+                dbg!("Second point set");
+            }
+        }
+    }
+    Some(subregion.clone())
 }
 
 pub fn display_color_circle(
