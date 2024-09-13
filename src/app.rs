@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::RangeInclusive,
-    sync::{mpsc, MutexGuard},
+    sync::{mpsc, Arc, Mutex, MutexGuard},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -12,6 +12,7 @@ use crate::{
     color_slider,
     device_info::DeviceInfo,
     display_color_circle,
+    listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
     toggle_button,
@@ -66,10 +67,14 @@ pub struct MantleApp {
     pub mgr: Manager,
     #[serde(skip)]
     pub screen_manager: ScreencapManager,
+    #[serde(skip)]
+    pub input_listener: InputListener,
+    #[serde(skip)]
+    pub listener_handle: Option<JoinHandle<()>>,
     pub show_about: bool,
     pub show_eyedropper: bool,
     pub show_subregion: bool,
-    pub subregion_points: HashMap<u64, ScreenSubregion>,
+    pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
@@ -80,9 +85,13 @@ impl Default for MantleApp {
     fn default() -> Self {
         let mgr = Manager::new().expect("Failed to create manager");
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
+        let input_listener = InputListener::new();
+        let listener_handle = Some(input_listener.spawn());
         Self {
             mgr,
             screen_manager,
+            input_listener,
+            listener_handle,
             show_about: false,
             show_eyedropper: false,
             show_subregion: false,

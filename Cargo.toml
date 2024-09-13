@@ -32,3 +32,4 @@ xcap = "0.0.12"
 device_query = "2.1.0"
 puffin = { "version" = "0.19.1" }
 puffin_http = { "version" = "0.16.1" }
+rdev = { version = "0.5.3" }

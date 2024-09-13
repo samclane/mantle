@@ -221,7 +221,12 @@ pub fn handle_screencap(
                 }
             });
 
-            let subregion = app.subregion_points.entry(device.id()).or_default();
+            let mut subregion = app
+                .subregion_points
+                .entry(device.id())
+                .or_default()
+                .lock()
+                .unwrap();
             ui.radio_value(
                 &mut waveform.follow_type,
                 FollowType::Subregion(vec![subregion.clone()]),
@@ -250,18 +255,23 @@ pub fn handle_screencap(
     })
 }
 
-pub fn handle_get_subregion_bounds(
-    app: &mut MantleApp,
-    ui: &mut Ui,
-    device_id: u64,
-) -> Option<ScreenSubregion> {
-    // like eyedropper, but user picks 2 points to define a subregion
-    let subregion = app.subregion_points.entry(device_id).or_default();
+use std::sync::{Arc, Mutex};
+
+pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
+    // Get or create the subregion
+    let subregion_lock = app
+        .subregion_points
+        .entry(device_id)
+        .or_insert_with(|| Arc::new(Mutex::new(ScreenSubregion::default())));
+
+    let mut subregion = subregion_lock.lock().unwrap();
+
     let highlight = if app.show_subregion {
         ui.visuals().widgets.hovered.bg_stroke.color
     } else {
         ui.visuals().widgets.inactive.bg_fill
     };
+
     if ui
         .add(
             egui::Button::image(
@@ -274,27 +284,28 @@ pub fn handle_get_subregion_bounds(
         .clicked()
     {
         app.show_subregion = !app.show_subregion;
-        subregion.reset();
-        return None;
-    }
-    if app.show_subregion {
-        let device_state = DeviceState::new();
-        let mouse = device_state.get_mouse();
-        if mouse.button_pressed[1] {
-            let position = mouse.coords;
-            if subregion.x == 0 {
-                subregion.x = position.0;
-                subregion.y = position.1;
-                dbg!("First point set");
-            } else {
-                subregion.width = (position.0 as u32).saturating_sub(subregion.x as u32);
-                subregion.height = (position.1 as u32).saturating_sub(subregion.y as u32);
-                app.show_subregion = false;
-                dbg!("Second point set");
-            }
+        if app.show_subregion {
+            subregion.reset();
         }
     }
-    Some(subregion.clone())
+    if app.show_subregion {
+        if app.input_listener.is_button_pressed(rdev::Button::Left) {
+            let mouse_pos = app.input_listener.get_last_mouse_position().unwrap();
+            if subregion.x == 0 && subregion.y == 0 {
+                subregion.x = mouse_pos.0;
+                subregion.y = mouse_pos.1;
+            } else {
+                subregion.width = (mouse_pos.0 - subregion.x).unsigned_abs();
+                subregion.height = (mouse_pos.1 - subregion.y).unsigned_abs();
+                app.show_subregion = false;
+            }
+        } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
+            app.show_subregion = false;
+        }
+    }
+
+    // Return the current value of the subregion
+    // Some(subregion.lock().unwrap().clone())
 }
 
 pub fn display_color_circle(
