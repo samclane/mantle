@@ -72,8 +72,8 @@ pub struct MantleApp {
     #[serde(skip)]
     pub listener_handle: Option<JoinHandle<()>>,
     pub show_about: bool,
-    pub show_eyedropper: bool,
-    pub show_subregion: bool,
+    pub show_eyedropper: HashMap<u64, bool>,
+    pub show_subregion: HashMap<u64, bool>,
     pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
@@ -93,8 +93,8 @@ impl Default for MantleApp {
             input_listener,
             listener_handle,
             show_about: false,
-            show_eyedropper: false,
-            show_subregion: false,
+            show_eyedropper: HashMap::new(),
+            show_subregion: HashMap::new(),
             subregion_points: HashMap::new(),
             waveform_map: HashMap::new(),
             waveform_trx: HashMap::new(),
@@ -165,7 +165,7 @@ impl MantleApp {
                     let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
                     ui.horizontal(|ui| {
-                        after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
+                        after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
                         handle_get_subregion_bounds(self, ui, device.id());
                     });

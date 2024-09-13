@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     ops::RangeInclusive,
-    sync::{mpsc, MutexGuard},
+    sync::{mpsc, Arc, Mutex, MutexGuard},
     thread,
     time::{Duration, Instant},
 };
@@ -50,9 +50,15 @@ pub fn load_icon(icon: &[u8]) -> egui::IconData {
     }
 }
 
-pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
+pub fn handle_eyedropper(
+    app: &mut MantleApp,
+    ui: &mut Ui,
+    device: &DeviceInfo,
+) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
-    let highlight = if app.show_eyedropper {
+    // let mut show_eyedropper = app.show_eyedropper[&device.id()];
+    let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
+    let highlight = if *show_eyedropper {
         ui.visuals().widgets.hovered.bg_stroke.color
     } else {
         ui.visuals().widgets.inactive.bg_fill
@@ -68,9 +74,10 @@ pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor>
         )
         .clicked()
     {
-        app.show_eyedropper = !app.show_eyedropper;
+        // show_eyedropper = !show_eyedropper;
+        *show_eyedropper = !*show_eyedropper;
     }
-    if app.show_eyedropper {
+    if *show_eyedropper {
         let screencap = ScreencapManager::new().unwrap();
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
@@ -80,7 +87,7 @@ pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor>
         if mouse.button_pressed[1] {
             let position = mouse.coords;
             color = Some(screencap.from_click(position.0, position.1));
-            app.show_eyedropper = false;
+            *show_eyedropper = false;
         }
     }
     color.map(|color| DeltaColor {
@@ -255,18 +262,17 @@ pub fn handle_screencap(
     })
 }
 
-use std::sync::{Arc, Mutex};
-
 pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
     // Get or create the subregion
     let subregion_lock = app
         .subregion_points
         .entry(device_id)
         .or_insert_with(|| Arc::new(Mutex::new(ScreenSubregion::default())));
+    let show_subregion = app.show_subregion.entry(device_id).or_insert(false);
 
     let mut subregion = subregion_lock.lock().unwrap();
 
-    let highlight = if app.show_subregion {
+    let highlight = if *show_subregion {
         ui.visuals().widgets.hovered.bg_stroke.color
     } else {
         ui.visuals().widgets.inactive.bg_fill
@@ -283,12 +289,12 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
         )
         .clicked()
     {
-        app.show_subregion = !app.show_subregion;
-        if app.show_subregion {
+        *show_subregion = !*show_subregion;
+        if *show_subregion {
             subregion.reset();
         }
     }
-    if app.show_subregion {
+    if *show_subregion {
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
             let mouse_pos = app.input_listener.get_last_mouse_position().unwrap();
             if subregion.x == 0 && subregion.y == 0 {
@@ -297,15 +303,12 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
             } else {
                 subregion.width = (mouse_pos.0 - subregion.x).unsigned_abs();
                 subregion.height = (mouse_pos.1 - subregion.y).unsigned_abs();
-                app.show_subregion = false;
+                *show_subregion = false;
             }
         } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
-            app.show_subregion = false;
+            *show_subregion = false;
         }
     }
-
-    // Return the current value of the subregion
-    // Some(subregion.lock().unwrap().clone())
 }
 
 pub fn display_color_circle(
