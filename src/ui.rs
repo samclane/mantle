@@ -18,7 +18,6 @@ use crate::{
     AngleIter, BulbInfo, Manager, RGB8,
 };
 
-use device_query::{DeviceQuery, DeviceState};
 use eframe::{
     egui::{
         self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Sense, Shape, Stroke,
@@ -82,10 +81,8 @@ pub fn handle_eyedropper(
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
-        let device_state = DeviceState::new();
-        let mouse = device_state.get_mouse();
-        if mouse.button_pressed[1] {
-            let position = mouse.coords;
+        if app.input_listener.is_button_pressed(rdev::Button::Left) {
+            let position = app.input_listener.get_last_mouse_position().unwrap();
             color = Some(screencap.from_click(position.0, position.1));
             *show_eyedropper = false;
         }
