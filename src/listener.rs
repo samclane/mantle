@@ -1,3 +1,4 @@
+use log::error;
 use rdev::{listen, Event, EventType};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -29,55 +30,93 @@ impl SharedInputState {
     }
 
     fn update_mouse_position(&self, x: i32, y: i32) {
-        if let Ok(mut pos) = self.last_mouse_position.lock() {
-            *pos = Some((x, y));
+        match self.last_mouse_position.lock() {
+            Ok(mut pos) => {
+                *pos = Some((x, y));
+            }
+            Err(e) => {
+                error!("Failed to lock last_mouse_position mutex: {}", e);
+            }
         }
     }
 
     fn update_button_press(&self, button: rdev::Button) {
-        if let Ok(mut pressed) = self.button_pressed.lock() {
+        if let Err(e) = self.button_pressed.lock().map(|mut pressed| {
             *pressed = Some(button);
+        }) {
+            error!("Failed to lock button_pressed mutex: {}", e);
         }
-        if let Ok(mut time) = self.last_click_time.lock() {
+
+        if let Err(e) = self.last_click_time.lock().map(|mut time| {
             *time = Some(Instant::now());
+        }) {
+            error!("Failed to lock last_click_time mutex: {}", e);
         }
-        if let Ok(mut last) = self.last_button_pressed.lock() {
+
+        if let Err(e) = self.last_button_pressed.lock().map(|mut last| {
             *last = Some(button);
+        }) {
+            error!("Failed to lock last_button_pressed mutex: {}", e);
         }
     }
 
     fn update_key_press(&self, key: rdev::Key) {
-        if let Ok(mut keys) = self.keys_pressed.lock() {
-            keys.push(key);
-            if let Ok(mut last) = self.last_keys_pressed.lock() {
-                *last = keys.clone();
+        match self.keys_pressed.lock() {
+            Ok(mut keys) => {
+                keys.push(key);
+
+                if let Ok(mut last) = self.last_keys_pressed.lock() {
+                    *last = keys.clone();
+                } else {
+                    error!("Failed to lock last_keys_pressed mutex");
+                }
+            }
+            Err(e) => {
+                error!("Failed to lock keys_pressed mutex: {}", e);
             }
         }
     }
 
     fn update_key_release(&self, key: rdev::Key) {
-        if let Ok(mut keys) = self.keys_pressed.lock() {
-            keys.retain(|&k| k != key);
+        match self.keys_pressed.lock() {
+            Ok(mut keys) => {
+                keys.retain(|&k| k != key);
+            }
+            Err(e) => {
+                error!("Failed to lock keys_pressed mutex: {}", e);
+            }
         }
     }
 
     fn update_button_release(&self) {
-        if let Ok(mut pressed) = self.button_pressed.lock() {
+        if let Err(e) = self.button_pressed.lock().map(|mut pressed| {
             *pressed = None;
+        }) {
+            error!("Failed to lock button_pressed mutex: {}", e);
         }
     }
 
     fn execute_callbacks(&self, event: &Event) {
-        if let Ok(callbacks) = self.callbacks.lock() {
-            for callback in callbacks.iter() {
-                callback(event.clone());
+        match self.callbacks.lock() {
+            Ok(callbacks) => {
+                for callback in callbacks.iter() {
+                    callback(event.clone());
+                }
+            }
+            Err(e) => {
+                error!("Failed to lock callbacks mutex: {}", e);
             }
         }
     }
 
     fn add_callback(&self, callback: Callback) {
-        if let Ok(mut callbacks) = self.callbacks.lock() {
-            callbacks.push(callback);
+        match self.callbacks.lock() {
+            Ok(mut callbacks) => {
+                callbacks.push(callback);
+            }
+            Err(e) => {
+                error!("Failed to lock callbacks mutex: {}", e);
+            }
         }
     }
 }
