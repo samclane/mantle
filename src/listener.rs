@@ -6,74 +6,10 @@ use std::time::Instant;
 
 type Callback = Box<dyn Fn(Event) + Send>;
 
-pub trait EventListener {
-    fn listen(&self);
-    fn spawn(&self) -> thread::JoinHandle<()>;
-    fn add_callback(&mut self, callback: Callback);
-}
-
-#[derive(Clone)]
-pub struct Listener {
+pub struct InputListener {
     pub sender: mpsc::Sender<Event>,
     pub receiver: Arc<Mutex<mpsc::Receiver<Event>>>,
     pub callbacks: Arc<Mutex<Vec<Callback>>>,
-}
-
-impl Listener {
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        Listener {
-            sender,
-            receiver: Arc::new(Mutex::new(receiver)),
-            callbacks: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-}
-
-impl Default for Listener {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EventListener for Listener {
-    fn listen(&self) {
-        let sender = self.sender.clone();
-        let callbacks = Arc::clone(&self.callbacks);
-        listen(move |event| {
-            let callbacks = callbacks.lock().unwrap();
-            for callback in callbacks.iter() {
-                callback(event.clone());
-            }
-            sender
-                .send(event)
-                .unwrap_or_else(|e| error!("Could not send event {:?}", e));
-        })
-        .expect("Could not listen");
-    }
-
-    fn spawn(&self) -> thread::JoinHandle<()> {
-        let sender = self.sender.clone();
-        let receiver = self.receiver.clone();
-        let callbacks = Arc::clone(&self.callbacks);
-        thread::spawn(move || {
-            let listener = Listener {
-                sender,
-                receiver,
-                callbacks,
-            };
-            listener.listen();
-        })
-    }
-
-    fn add_callback(&mut self, callback: Callback) {
-        let mut callbacks = self.callbacks.lock().unwrap();
-        callbacks.push(callback);
-    }
-}
-
-pub struct InputListener {
-    pub listener: Listener,
     last_mouse_position: Arc<Mutex<Option<(i32, i32)>>>,
     last_click_time: Arc<Mutex<Option<Instant>>>,
     button_pressed: Arc<Mutex<Option<rdev::Button>>>,
@@ -82,17 +18,13 @@ pub struct InputListener {
     last_keys_pressed: Arc<Mutex<Vec<rdev::Key>>>,
 }
 
-impl Default for InputListener {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl InputListener {
     pub fn new() -> Self {
-        let listener = Listener::new();
+        let (sender, receiver) = mpsc::channel();
         InputListener {
-            listener,
+            sender,
+            receiver: Arc::new(Mutex::new(receiver)),
+            callbacks: Arc::new(Mutex::new(Vec::new())),
             last_mouse_position: Arc::new(Mutex::new(None)),
             last_click_time: Arc::new(Mutex::new(None)),
             button_pressed: Arc::new(Mutex::new(None)),
@@ -136,12 +68,13 @@ impl InputListener {
     }
 
     pub fn add_callback(&mut self, callback: Callback) {
-        self.listener.add_callback(callback);
+        let mut callbacks = self.callbacks.lock().unwrap();
+        callbacks.push(callback);
     }
 
     pub fn spawn(&self) -> thread::JoinHandle<()> {
-        let sender = self.listener.sender.clone();
-        let callbacks = Arc::clone(&self.listener.callbacks);
+        let sender = self.sender.clone();
+        let callbacks = Arc::clone(&self.callbacks);
         let last_mouse_position = Arc::clone(&self.last_mouse_position);
         let last_click_time = Arc::clone(&self.last_click_time);
         let button_pressed = Arc::clone(&self.button_pressed);
@@ -194,5 +127,11 @@ impl InputListener {
             })
             .expect("Could not listen");
         })
+    }
+}
+
+impl Default for InputListener {
+    fn default() -> Self {
+        Self::new()
     }
 }
