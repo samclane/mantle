@@ -110,6 +110,7 @@ pub fn handle_screencap(
     } else {
         ui.visuals().widgets.inactive.bg_fill
     };
+    handle_get_subregion_bounds(app, ui, device.id());
     if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
@@ -297,6 +298,8 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
             if subregion.x == 0 && subregion.y == 0 {
                 subregion.x = mouse_pos.0;
                 subregion.y = mouse_pos.1;
+                // debounce the click (dirty but only way I can think of)
+                thread::sleep(Duration::from_millis(100));
             } else {
                 subregion.width = (mouse_pos.0 - subregion.x).unsigned_abs();
                 subregion.height = (mouse_pos.1 - subregion.y).unsigned_abs();

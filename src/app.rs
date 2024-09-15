@@ -16,7 +16,7 @@ use crate::{
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
     toggle_button,
-    ui::{handle_eyedropper, handle_get_subregion_bounds, handle_screencap},
+    ui::{handle_eyedropper, handle_screencap},
     BulbInfo, Manager, ScreencapManager,
 };
 
@@ -167,7 +167,6 @@ impl MantleApp {
                     ui.horizontal(|ui| {
                         after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
-                        handle_get_subregion_bounds(self, ui, device.id());
                     });
                     if before_color != after_color.next {
                         match device {
