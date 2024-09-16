@@ -31,7 +31,7 @@ jobs:
     - name: Install stable toolchain
       uses: dtolnay/rust-toolchain@stable
     - name: Install Dependencies
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libx11-dev libssh-dev cmake
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev --assume-yes
       if: runner.os == 'linux'
     - name: Run tests
       run: cargo test --verbose
@@ -61,7 +61,7 @@ jobs:
         with:
           components: clippy
       - name: Install Dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libx11-dev libssh-dev cmake
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev --assume-yes
         if: runner.os == 'linux'
       - name: Run clippy
         run: cargo clippy -- -D warnings
@@ -104,7 +104,7 @@ jobs:
     - name: Install stable toolchain
       uses: dtolnay/rust-toolchain@stable
     - name: Install Dependencies
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libx11-dev libssh-dev cmake
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev --assume-yes
       if: runner.os == 'linux'
     - name: Run builds
       run: cargo build --verbose
