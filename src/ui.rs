@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     ops::RangeInclusive,
-    sync::{mpsc, MutexGuard},
+    sync::{mpsc, Arc, Mutex, MutexGuard},
     thread,
     time::{Duration, Instant},
 };
@@ -9,16 +9,15 @@ use std::{
 use crate::{
     app::{
         MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON, MAIN_WINDOW_SIZE,
-        MIN_WINDOW_SIZE, MONITOR_ICON,
+        MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
     color::DeltaColor,
     contrast_color,
     device_info::DeviceInfo,
-    screencap::{FollowType, ScreencapManager},
+    screencap::{FollowType, ScreenSubregion, ScreencapManager},
     AngleIter, BulbInfo, Manager, RGB8,
 };
 
-use device_query::{DeviceQuery, DeviceState};
 use eframe::{
     egui::{
         self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Sense, Shape, Stroke,
@@ -50,9 +49,15 @@ pub fn load_icon(icon: &[u8]) -> egui::IconData {
     }
 }
 
-pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor> {
+pub fn handle_eyedropper(
+    app: &mut MantleApp,
+    ui: &mut Ui,
+    device: &DeviceInfo,
+) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
-    let highlight = if app.show_eyedropper {
+    // let mut show_eyedropper = app.show_eyedropper[&device.id()];
+    let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
+    let highlight = if *show_eyedropper {
         ui.visuals().widgets.hovered.bg_stroke.color
     } else {
         ui.visuals().widgets.inactive.bg_fill
@@ -68,19 +73,18 @@ pub fn handle_eyedropper(app: &mut MantleApp, ui: &mut Ui) -> Option<DeltaColor>
         )
         .clicked()
     {
-        app.show_eyedropper = !app.show_eyedropper;
+        // show_eyedropper = !show_eyedropper;
+        *show_eyedropper = !*show_eyedropper;
     }
-    if app.show_eyedropper {
+    if *show_eyedropper {
         let screencap = ScreencapManager::new().unwrap();
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
-        let device_state = DeviceState::new();
-        let mouse = device_state.get_mouse();
-        if mouse.button_pressed[1] {
-            let position = mouse.coords;
+        if app.input_listener.is_button_pressed(rdev::Button::Left) {
+            let position = app.input_listener.get_last_mouse_position().unwrap();
             color = Some(screencap.from_click(position.0, position.1));
-            app.show_eyedropper = false;
+            *show_eyedropper = false;
         }
     }
     color.map(|color| DeltaColor {
@@ -106,6 +110,7 @@ pub fn handle_screencap(
     } else {
         ui.visuals().widgets.inactive.bg_fill
     };
+    handle_get_subregion_bounds(app, ui, device.id());
     if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
@@ -198,31 +203,112 @@ pub fn handle_screencap(
             }
         }
     }
+    if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
+                for monitor in app.screen_manager.monitors.iter() {
+                    ui.radio_value(
+                        &mut waveform.follow_type,
+                        FollowType::Monitor(vec![monitor.clone()]),
+                        monitor.name(),
+                    );
+                }
+            });
 
-    ui.horizontal(|ui| {
-        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
-            ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
-            for monitor in app.screen_manager.monitors.iter() {
-                ui.radio_value(
-                    &mut waveform.follow_type,
-                    FollowType::Monitor(vec![monitor.clone()]),
-                    monitor.name(),
-                );
-            }
-            for window in app.screen_manager.windows.iter() {
-                ui.radio_value(
-                    &mut waveform.follow_type,
-                    FollowType::Window(vec![window.clone()]),
-                    window.title(),
-                );
-            }
-        }
-    });
+            ui.horizontal(|ui| {
+                for window in app.screen_manager.windows.iter() {
+                    ui.radio_value(
+                        &mut waveform.follow_type,
+                        FollowType::Window(vec![window.clone()]),
+                        window.title(),
+                    );
+                }
+            });
+
+            let mut subregion = app
+                .subregion_points
+                .entry(device.id())
+                .or_default()
+                .lock()
+                .unwrap();
+            ui.radio_value(
+                &mut waveform.follow_type,
+                FollowType::Subregion(vec![subregion.clone()]),
+                "Subregion",
+            );
+            // add numerical fields for subregion
+            ui.horizontal(|ui| {
+                ui.label("X:");
+                ui.add(egui::DragValue::new(&mut subregion.x));
+
+                ui.label("Y:");
+                ui.add(egui::DragValue::new(&mut subregion.y));
+
+                ui.label("Width:");
+                ui.add(egui::DragValue::new(&mut subregion.width));
+
+                ui.label("Height:");
+                ui.add(egui::DragValue::new(&mut subregion.height));
+            });
+        });
+    }
 
     color.map(|color| DeltaColor {
         next: color,
         duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
     })
+}
+
+pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
+    // Get or create the subregion
+    let subregion_lock = app
+        .subregion_points
+        .entry(device_id)
+        .or_insert_with(|| Arc::new(Mutex::new(ScreenSubregion::default())));
+    let show_subregion = app.show_subregion.entry(device_id).or_insert(false);
+
+    let mut subregion = subregion_lock.lock().unwrap();
+
+    let highlight = if *show_subregion {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+
+    if ui
+        .add(
+            egui::Button::image(
+                egui::Image::from_bytes("subregion", SUBREGION_ICON)
+                    .fit_to_exact_size(Vec2::new(15., 15.)),
+            )
+            .sense(egui::Sense::click())
+            .fill(highlight),
+        )
+        .clicked()
+    {
+        *show_subregion = !*show_subregion;
+        if *show_subregion {
+            subregion.reset();
+        }
+    }
+    if *show_subregion {
+        if app.input_listener.is_button_pressed(rdev::Button::Left) {
+            let mouse_pos = app.input_listener.get_last_mouse_position().unwrap();
+            if subregion.x == 0 && subregion.y == 0 {
+                subregion.x = mouse_pos.0;
+                subregion.y = mouse_pos.1;
+                // debounce the click (dirty but only way I can think of)
+                thread::sleep(Duration::from_millis(100));
+            } else {
+                subregion.width = (mouse_pos.0 - subregion.x).unsigned_abs();
+                subregion.height = (mouse_pos.1 - subregion.y).unsigned_abs();
+                *show_subregion = false;
+            }
+        } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
+            *show_subregion = false;
+        }
+    }
 }
 
 pub fn display_color_circle(

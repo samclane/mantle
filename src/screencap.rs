@@ -1,15 +1,28 @@
+use std::sync::Arc;
+
 use lifx_core::HSBK;
+use serde::{Deserialize, Serialize};
 use xcap::{image::RgbaImage, Monitor, Window, XCapError};
 
 use crate::RGB8;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScreenSubregion {
-    pub monitor: Monitor,
+    #[serde(skip)]
+    pub monitor: Option<Arc<Monitor>>,
     pub x: i32,
     pub y: i32,
     pub width: u32,
     pub height: u32,
+}
+impl ScreenSubregion {
+    pub fn reset(&mut self) {
+        self.monitor = None;
+        self.x = 0;
+        self.y = 0;
+        self.width = 0;
+        self.height = 0;
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -50,7 +63,7 @@ impl PartialEq for FollowType {
                     return false;
                 }
                 for (a, b) in s1.iter().zip(s2.iter()) {
-                    if a.monitor.id() != b.monitor.id()
+                    if a.monitor.as_ref().map(|m| m.id()) != b.monitor.as_ref().map(|m| m.id())
                         || a.x != b.x
                         || a.y != b.y
                         || a.width != b.width
@@ -169,7 +182,14 @@ impl ScreencapManager {
             }
             FollowType::Subregion(subregions) => {
                 for subregion in subregions {
-                    let image = subregion.monitor.capture_image().unwrap();
+                    let image = if let Some(monitor) = &subregion.monitor {
+                        monitor.capture_image().unwrap()
+                    } else {
+                        // Handle the case when subregion.monitor is None
+                        // For example, return a default image or handle the error
+                        // This is just a placeholder, replace it with the appropriate code
+                        RgbaImage::new(0, 0)
+                    };
                     calculate_image_pixel_average(&image, subregion.width, subregion.height);
                 }
             }

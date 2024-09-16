@@ -2,7 +2,7 @@
 name = "mantle"
 authors = ["Sawyer McLane"]
 description = "A simple LIFX control application"
-version = "0.0.3"
+version = "0.0.4"
 repository = "https://github.com/samclane/mantle"
 readme = "README.md"
 keywords = ["lifx", "home", "automation", "lighting"]
@@ -29,6 +29,6 @@ log = "0.4.22"
 log4rs = "1.3.0"
 image = "0.23.14"
 xcap = "0.0.12"
-device_query = "2.1.0"
 puffin = { "version" = "0.19.1" }
 puffin_http = { "version" = "0.16.1" }
+rdev = { version = "0.5.3" }

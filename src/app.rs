@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::RangeInclusive,
-    sync::{mpsc, MutexGuard},
+    sync::{mpsc, Arc, Mutex, MutexGuard},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -12,8 +12,9 @@ use crate::{
     color_slider,
     device_info::DeviceInfo,
     display_color_circle,
+    listener::InputListener,
     products::TemperatureRange,
-    screencap::FollowType,
+    screencap::{FollowType, ScreenSubregion},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
     BulbInfo, Manager, ScreencapManager,
@@ -41,6 +42,7 @@ pub const FOLLOW_RATE: Duration = Duration::from_millis(500);
 pub const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 pub const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 pub const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
+pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png");
 
 #[derive(Debug, Clone)]
 pub struct RunningWaveform {
@@ -65,8 +67,14 @@ pub struct MantleApp {
     pub mgr: Manager,
     #[serde(skip)]
     pub screen_manager: ScreencapManager,
+    #[serde(skip)]
+    pub input_listener: InputListener,
+    #[serde(skip)]
+    pub listener_handle: Option<JoinHandle<()>>,
     pub show_about: bool,
-    pub show_eyedropper: bool,
+    pub show_eyedropper: HashMap<u64, bool>,
+    pub show_subregion: HashMap<u64, bool>,
+    pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
@@ -77,11 +85,17 @@ impl Default for MantleApp {
     fn default() -> Self {
         let mgr = Manager::new().expect("Failed to create manager");
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
+        let input_listener = InputListener::new();
+        let listener_handle = Some(input_listener.spawn());
         Self {
             mgr,
             screen_manager,
+            input_listener,
+            listener_handle,
             show_about: false,
-            show_eyedropper: false,
+            show_eyedropper: HashMap::new(),
+            show_subregion: HashMap::new(),
+            subregion_points: HashMap::new(),
             waveform_map: HashMap::new(),
             waveform_trx: HashMap::new(),
         }
@@ -151,7 +165,7 @@ impl MantleApp {
                     let mut after_color =
                         self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
                     ui.horizontal(|ui| {
-                        after_color = handle_eyedropper(self, ui).unwrap_or(after_color);
+                        after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
                     });
                     if before_color != after_color.next {
