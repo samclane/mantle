@@ -55,7 +55,6 @@ pub fn handle_eyedropper(
     device: &DeviceInfo,
 ) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
-    // let mut show_eyedropper = app.show_eyedropper[&device.id()];
     let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
     let highlight = if *show_eyedropper {
         ui.visuals().widgets.hovered.bg_stroke.color
@@ -73,7 +72,6 @@ pub fn handle_eyedropper(
         )
         .clicked()
     {
-        // show_eyedropper = !show_eyedropper;
         *show_eyedropper = !*show_eyedropper;
     }
     if *show_eyedropper {
