@@ -24,7 +24,7 @@ impl Clone for Manager {
             bulbs: self.bulbs.clone(),
             all: self.all.clone(),
             last_discovery: self.last_discovery,
-            sock: self.sock.try_clone().unwrap(),
+            sock: self.sock.try_clone().expect("Failed to clone socket"),
             source: self.source,
         }
     }

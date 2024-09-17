@@ -116,12 +116,12 @@ impl ScreencapManager {
     }
 
     pub fn from_click(&self, x: i32, y: i32) -> HSBK {
-        let monitor = Monitor::from_point(x, y).unwrap();
+        let monitor = Monitor::from_point(x, y).expect("Failed to get monitor from point");
         let new_x = x - monitor.x();
         let new_y = y - monitor.y();
         let rgba = *monitor
             .capture_image()
-            .unwrap()
+            .expect("Failed to capture image")
             .get_pixel(new_x as u32, new_y as u32);
         RGB8 {
             red: rgba[0],
@@ -170,20 +170,20 @@ impl ScreencapManager {
         match follow {
             FollowType::Monitor(monitors) => {
                 for monitor in monitors {
-                    let image = monitor.capture_image().unwrap();
+                    let image = monitor.capture_image().expect("Failed to capture image");
                     calculate_image_pixel_average(&image, monitor.width(), monitor.height());
                 }
             }
             FollowType::Window(windows) => {
                 for window in windows {
-                    let image = window.capture_image().unwrap();
+                    let image = window.capture_image().expect("Failed to capture image");
                     calculate_image_pixel_average(&image, window.width(), window.height());
                 }
             }
             FollowType::Subregion(subregions) => {
                 for subregion in subregions {
                     let image = if let Some(monitor) = &subregion.monitor {
-                        monitor.capture_image().unwrap()
+                        monitor.capture_image().expect("Failed to capture image")
                     } else {
                         // Handle the case when subregion.monitor is None
                         // For example, return a default image or handle the error
@@ -195,7 +195,7 @@ impl ScreencapManager {
             }
             FollowType::All => {
                 for monitor in &self.monitors {
-                    let image = monitor.capture_image().unwrap();
+                    let image = monitor.capture_image().expect("Failed to capture image");
                     calculate_image_pixel_average(&image, monitor.width(), monitor.height());
                 }
             }

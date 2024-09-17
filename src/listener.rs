@@ -133,30 +133,63 @@ impl InputListener {
     }
 
     pub fn get_last_mouse_position(&self) -> Option<(i32, i32)> {
-        *self.state.last_mouse_position.lock().unwrap()
+        match self.state.last_mouse_position.lock() {
+            Ok(guard) => *guard,
+            Err(e) => {
+                error!("Failed to lock last_mouse_position mutex: {}", e);
+                None
+            }
+        }
     }
 
     pub fn get_last_click_time(&self) -> Option<Instant> {
-        *self.state.last_click_time.lock().unwrap()
+        match self.state.last_click_time.lock() {
+            Ok(guard) => *guard,
+            Err(e) => {
+                error!("Failed to lock last_click_time mutex: {}", e);
+                None
+            }
+        }
     }
 
     pub fn get_last_button_pressed(&self) -> Option<rdev::Button> {
-        *self.state.last_button_pressed.lock().unwrap()
+        match self.state.last_button_pressed.lock() {
+            Ok(guard) => *guard,
+            Err(e) => {
+                error!("Failed to lock last_button_pressed mutex: {}", e);
+                None
+            }
+        }
     }
 
     pub fn is_button_pressed(&self, button: rdev::Button) -> bool {
-        match *self.state.button_pressed.lock().unwrap() {
-            Some(b) => b == button,
-            None => false,
+        match self.state.button_pressed.lock() {
+            Ok(guard) => guard.map_or(false, |b| b == button),
+            Err(e) => {
+                error!("Failed to lock button_pressed mutex: {}", e);
+                false
+            }
         }
     }
 
     pub fn is_key_pressed(&self, key: rdev::Key) -> bool {
-        self.state.keys_pressed.lock().unwrap().contains(&key)
+        match self.state.keys_pressed.lock() {
+            Ok(guard) => guard.contains(&key),
+            Err(e) => {
+                error!("Failed to lock keys_pressed mutex: {}", e);
+                false
+            }
+        }
     }
 
     pub fn get_keys_pressed(&self) -> Vec<rdev::Key> {
-        self.state.keys_pressed.lock().unwrap().clone()
+        match self.state.keys_pressed.lock() {
+            Ok(guard) => guard.clone(),
+            Err(e) => {
+                error!("Failed to lock keys_pressed mutex: {}", e);
+                Vec::new()
+            }
+        }
     }
 
     pub fn add_callback(&self, callback: Callback) {
@@ -167,7 +200,7 @@ impl InputListener {
         let state = Arc::clone(&self.state);
 
         thread::spawn(move || {
-            listen(move |event| {
+            if let Err(e) = listen(move |event| {
                 match event.event_type {
                     EventType::MouseMove { x, y } => {
                         state.update_mouse_position(x as i32, y as i32);
@@ -189,8 +222,9 @@ impl InputListener {
 
                 // Execute all registered callbacks
                 state.execute_callbacks(&event);
-            })
-            .expect("Could not listen");
+            }) {
+                error!("Error in listen: {:?}", e);
+            }
         })
     }
 }

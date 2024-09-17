@@ -77,12 +77,15 @@ pub fn handle_eyedropper(
         *show_eyedropper = !*show_eyedropper;
     }
     if *show_eyedropper {
-        let screencap = ScreencapManager::new().unwrap();
+        let screencap = ScreencapManager::new().expect("Failed to create screencap manager");
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
-            let position = app.input_listener.get_last_mouse_position().unwrap();
+            let position = app
+                .input_listener
+                .get_last_mouse_position()
+                .expect("Failed to get mouse position");
             color = Some(screencap.from_click(position.0, position.1));
             *show_eyedropper = false;
         }
@@ -158,7 +161,12 @@ pub fn handle_screencap(
         // if the waveform is active, we need to spawn a thread to get the color
         if app.waveform_map[&device.id()].active {
             let screen_manager = app.screen_manager.clone();
-            let tx = app.waveform_trx.get(&device.id()).unwrap().0.clone();
+            let tx = app
+                .waveform_trx
+                .get(&device.id())
+                .expect("Failed to get color sender for device")
+                .0
+                .clone();
             let follow_type = app.waveform_map[&device.id()].follow_type.clone();
             let mgr = app.mgr.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
             let device_id = device.id();
@@ -171,7 +179,8 @@ pub fn handle_screencap(
 
                     let avg_color = screen_manager.avg_color(follow_type.clone());
 
-                    mgr.set_color_by_id(device_id, avg_color).unwrap();
+                    mgr.set_color_by_id(device_id, avg_color)
+                        .expect("Failed to set color");
 
                     if let Err(err) = tx.send(avg_color) {
                         eprintln!("Failed to send color data: {}", err);
@@ -182,7 +191,10 @@ pub fn handle_screencap(
                     }
                 }));
             }
-            app.waveform_map.get_mut(&device.id()).unwrap().stop_tx = Some(stop_tx);
+            app.waveform_map
+                .get_mut(&device.id())
+                .expect("Failed to get stop tx for waveform")
+                .stop_tx = Some(stop_tx);
         } else {
             // kill thread
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
@@ -191,14 +203,14 @@ pub fn handle_screencap(
                     if let Some(stop_tx) = app
                         .waveform_map
                         .get_mut(&device.id())
-                        .unwrap()
+                        .expect("Failed to get waveform")
                         .stop_tx
                         .take()
                     {
-                        stop_tx.send(()).unwrap();
+                        stop_tx.send(()).expect("Failed to send stop signal");
                     }
                     // Wait for the thread to finish
-                    thread.join().unwrap();
+                    thread.join().expect("Failed to join thread");
                 }
             }
         }
@@ -231,7 +243,7 @@ pub fn handle_screencap(
                 .entry(device.id())
                 .or_default()
                 .lock()
-                .unwrap();
+                .expect("Failed to get subregion");
             ui.radio_value(
                 &mut waveform.follow_type,
                 FollowType::Subregion(vec![subregion.clone()]),
@@ -268,7 +280,7 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
         .or_insert_with(|| Arc::new(Mutex::new(ScreenSubregion::default())));
     let show_subregion = app.show_subregion.entry(device_id).or_insert(false);
 
-    let mut subregion = subregion_lock.lock().unwrap();
+    let mut subregion = subregion_lock.lock().expect("Failed to get subregion");
 
     let highlight = if *show_subregion {
         ui.visuals().widgets.hovered.bg_stroke.color
@@ -294,7 +306,10 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
     }
     if *show_subregion {
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
-            let mouse_pos = app.input_listener.get_last_mouse_position().unwrap();
+            let mouse_pos = app
+                .input_listener
+                .get_last_mouse_position()
+                .expect("Failed to get mouse position");
             if subregion.x == 0 && subregion.y == 0 {
                 subregion.x = mouse_pos.0;
                 subregion.y = mouse_pos.1;

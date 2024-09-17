@@ -86,8 +86,14 @@ impl From<HSBK> for RGB8 {
 
 impl From<RGB8> for HSBK {
     fn from(color: RGB8) -> HSBK {
-        let cmax = *[color.red, color.green, color.blue].iter().max().unwrap() as f32;
-        let cmin = *[color.red, color.green, color.blue].iter().min().unwrap() as f32;
+        let cmax = *[color.red, color.green, color.blue]
+            .iter()
+            .max()
+            .expect("Invalid color tuple") as f32;
+        let cmin = *[color.red, color.green, color.blue]
+            .iter()
+            .min()
+            .expect("Invalid color tuple") as f32;
         let cdel = cmax - cmin;
 
         let brightness = ((cmax / 255.0) * u16::MAX as f32) as u16;

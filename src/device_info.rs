@@ -41,7 +41,11 @@ impl DeviceInfo<'_> {
     pub fn id(&self) -> u64 {
         match self {
             DeviceInfo::Bulb(b) => b.target,
-            DeviceInfo::Group(g) => u64::from_le_bytes(g.group.0[0..8].try_into().unwrap()),
+            DeviceInfo::Group(g) => u64::from_le_bytes(
+                g.group.0[0..8]
+                    .try_into()
+                    .expect("Failed to convert ident to u64"),
+            ),
         }
     }
 }
@@ -184,7 +188,7 @@ impl GroupInfo {
 
     pub fn id(&self) -> u64 {
         // convert ident to u64
-        u64::from_le_bytes(self.group.0[0..8].try_into().unwrap())
+        u64::from_le_bytes(self.group.0[0..8].try_into().unwrap_or([0u8; 8]))
     }
 }
 
