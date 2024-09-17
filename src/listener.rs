@@ -1,10 +1,12 @@
 use log::error;
 use rdev::{listen, Event, EventType};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
 type Callback = Box<dyn Fn(Event) + Send>;
+type ShortcutCallback = Arc<dyn Fn(HashSet<rdev::Key>) + Send + Sync>;
 
 #[derive(Clone, Copy)]
 pub struct MousePosition {
@@ -12,14 +14,35 @@ pub struct MousePosition {
     pub y: i32,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct KeyboardShortcut {
+    pub keys: HashSet<rdev::Key>,
+}
+
+impl std::hash::Hash for KeyboardShortcut {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for key in &self.keys {
+            key.hash(state);
+        }
+    }
+}
+
+impl KeyboardShortcut {
+    fn is_matched(&self, keys_pressed: &HashSet<rdev::Key>) -> bool {
+        self.keys.is_subset(keys_pressed)
+    }
+}
+
 pub struct SharedInputState {
     last_mouse_position: Mutex<Option<MousePosition>>,
     last_click_time: Mutex<Option<Instant>>,
     button_pressed: Mutex<Option<rdev::Button>>,
     last_button_pressed: Mutex<Option<rdev::Button>>,
-    keys_pressed: Mutex<Vec<rdev::Key>>,
-    last_keys_pressed: Mutex<Vec<rdev::Key>>,
+    keys_pressed: Mutex<HashSet<rdev::Key>>,
+    last_keys_pressed: Mutex<HashSet<rdev::Key>>,
     callbacks: Mutex<Vec<Callback>>,
+    shortcuts: Mutex<Vec<(KeyboardShortcut, ShortcutCallback)>>,
+    active_shortcuts: Mutex<HashSet<KeyboardShortcut>>,
 }
 
 impl SharedInputState {
@@ -29,9 +52,11 @@ impl SharedInputState {
             last_click_time: Mutex::new(None),
             button_pressed: Mutex::new(None),
             last_button_pressed: Mutex::new(None),
-            keys_pressed: Mutex::new(Vec::new()),
-            last_keys_pressed: Mutex::new(Vec::new()),
+            keys_pressed: Mutex::new(HashSet::new()),
+            last_keys_pressed: Mutex::new(HashSet::new()),
             callbacks: Mutex::new(Vec::new()),
+            shortcuts: Mutex::new(Vec::new()),
+            active_shortcuts: Mutex::new(HashSet::new()),
         }
     }
 
@@ -69,7 +94,7 @@ impl SharedInputState {
     fn update_key_press(&self, key: rdev::Key) {
         match self.keys_pressed.lock() {
             Ok(mut keys) => {
-                keys.push(key);
+                keys.insert(key);
 
                 if let Ok(mut last) = self.last_keys_pressed.lock() {
                     *last = keys.clone();
@@ -86,7 +111,7 @@ impl SharedInputState {
     fn update_key_release(&self, key: rdev::Key) {
         match self.keys_pressed.lock() {
             Ok(mut keys) => {
-                keys.retain(|&k| k != key);
+                keys.remove(&key);
             }
             Err(e) => {
                 error!("Failed to lock keys_pressed mutex: {}", e);
@@ -122,6 +147,70 @@ impl SharedInputState {
             }
             Err(e) => {
                 error!("Failed to lock callbacks mutex: {}", e);
+            }
+        }
+    }
+
+    fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
+    where
+        F: Fn(HashSet<rdev::Key>) + Send + Sync + 'static,
+    {
+        let callback = Arc::new(callback);
+        match self.shortcuts.lock() {
+            Ok(mut shortcuts) => {
+                shortcuts.push((shortcut, callback));
+            }
+            Err(e) => {
+                error!("Failed to lock shortcuts mutex: {}", e);
+            }
+        }
+    }
+
+    fn check_shortcuts(&self) {
+        let keys_pressed = match self.keys_pressed.lock() {
+            Ok(guard) => guard.clone(),
+            Err(e) => {
+                error!("Failed to lock keys_pressed mutex: {}", e);
+                HashSet::new()
+            }
+        };
+
+        let shortcuts = match self.shortcuts.lock() {
+            Ok(guard) => guard.clone(),
+            Err(e) => {
+                error!("Failed to lock shortcuts mutex: {}", e);
+                Vec::new()
+            }
+        };
+
+        let active_shortcuts = match self.active_shortcuts.lock() {
+            Ok(guard) => guard.clone(),
+            Err(e) => {
+                error!("Failed to lock active_shortcuts mutex: {}", e);
+                HashSet::new()
+            }
+        };
+
+        for (shortcut, callback) in &shortcuts {
+            if shortcut.is_matched(&keys_pressed) {
+                if !active_shortcuts.contains(shortcut) {
+                    // Shortcut is newly activated
+                    callback(keys_pressed.clone());
+
+                    // Add to active_shortcuts
+                    if let Ok(mut guard) = self.active_shortcuts.lock() {
+                        guard.insert(shortcut.clone());
+                    } else {
+                        error!("Failed to lock active_shortcuts mutex");
+                    }
+                }
+            } else {
+                // Remove from active_shortcuts if present
+                if let Ok(mut guard) = self.active_shortcuts.lock() {
+                    guard.remove(shortcut);
+                } else {
+                    error!("Failed to lock active_shortcuts mutex");
+                }
             }
         }
     }
@@ -188,18 +277,25 @@ impl InputListener {
         }
     }
 
-    pub fn get_keys_pressed(&self) -> Vec<rdev::Key> {
+    pub fn get_keys_pressed(&self) -> HashSet<rdev::Key> {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.clone(),
             Err(e) => {
                 error!("Failed to lock keys_pressed mutex: {}", e);
-                Vec::new()
+                HashSet::new()
             }
         }
     }
 
     pub fn add_callback(&self, callback: Callback) {
         self.state.add_callback(callback);
+    }
+
+    pub fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
+    where
+        F: Fn(HashSet<rdev::Key>) + Send + Sync + 'static,
+    {
+        self.state.add_shortcut_callback(shortcut, callback);
     }
 
     pub fn spawn(&self) -> thread::JoinHandle<()> {
@@ -228,6 +324,9 @@ impl InputListener {
 
                 // Execute all registered callbacks
                 state.execute_callbacks(&event);
+
+                // Check for keyboard shortcuts
+                state.check_shortcuts();
             }) {
                 error!("Error in listen: {:?}", e);
             }
