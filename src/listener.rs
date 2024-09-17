@@ -6,8 +6,14 @@ use std::time::Instant;
 
 type Callback = Box<dyn Fn(Event) + Send>;
 
+#[derive(Clone, Copy)]
+pub struct MousePosition {
+    pub x: i32,
+    pub y: i32,
+}
+
 pub struct SharedInputState {
-    last_mouse_position: Mutex<Option<(i32, i32)>>,
+    last_mouse_position: Mutex<Option<MousePosition>>,
     last_click_time: Mutex<Option<Instant>>,
     button_pressed: Mutex<Option<rdev::Button>>,
     last_button_pressed: Mutex<Option<rdev::Button>>,
@@ -32,7 +38,7 @@ impl SharedInputState {
     fn update_mouse_position(&self, x: i32, y: i32) {
         match self.last_mouse_position.lock() {
             Ok(mut pos) => {
-                *pos = Some((x, y));
+                *pos = Some(MousePosition { x, y });
             }
             Err(e) => {
                 error!("Failed to lock last_mouse_position mutex: {}", e);
@@ -132,7 +138,7 @@ impl InputListener {
         }
     }
 
-    pub fn get_last_mouse_position(&self) -> Option<(i32, i32)> {
+    pub fn get_last_mouse_position(&self) -> Option<MousePosition> {
         match self.state.last_mouse_position.lock() {
             Ok(guard) => *guard,
             Err(e) => {

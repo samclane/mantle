@@ -86,7 +86,7 @@ pub fn handle_eyedropper(
                 .input_listener
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
-            color = Some(screencap.from_click(position.0, position.1));
+            color = Some(screencap.from_click(position.x, position.y));
             *show_eyedropper = false;
         }
     }
@@ -311,13 +311,13 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
             if subregion.x == 0 && subregion.y == 0 {
-                subregion.x = mouse_pos.0;
-                subregion.y = mouse_pos.1;
+                subregion.x = mouse_pos.x;
+                subregion.y = mouse_pos.y;
                 // debounce the click (dirty but only way I can think of)
                 thread::sleep(Duration::from_millis(100));
             } else {
-                subregion.width = (mouse_pos.0 - subregion.x).unsigned_abs();
-                subregion.height = (mouse_pos.1 - subregion.y).unsigned_abs();
+                subregion.width = (mouse_pos.x - subregion.x).unsigned_abs();
+                subregion.height = (mouse_pos.y - subregion.y).unsigned_abs();
                 *show_subregion = false;
             }
         } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
