@@ -8,8 +8,8 @@ use std::{
 
 use crate::{
     app::{
-        MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON, MAIN_WINDOW_SIZE,
-        MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
+        ColorChannelEntry, MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON,
+        MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
     color::DeltaColor,
     contrast_color,
@@ -114,7 +114,7 @@ pub fn handle_screencap(
         ui.visuals().widgets.inactive.bg_fill
     };
     handle_get_subregion_bounds(app, ui, device.id());
-    if let Some((_tx, rx, _thread)) = app.waveform_trx.get(&device.id()) {
+    if let Some(chan) = app.waveform_trx.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
                 .entry(device.id())
@@ -125,14 +125,21 @@ pub fn handle_screencap(
                     stop_tx: None,
                 });
         if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
-            if let Ok(computed_color) = rx.try_recv() {
+            if let Ok(computed_color) = chan.rx.try_recv() {
                 color = Some(computed_color);
                 follow_state.last_update = Instant::now();
             }
         }
     } else {
         let (tx, rx) = mpsc::channel();
-        app.waveform_trx.insert(device.id(), (tx, rx, None));
+        app.waveform_trx.insert(
+            device.id(),
+            ColorChannelEntry {
+                tx,
+                rx,
+                handle: None,
+            },
+        );
     }
 
     if ui
@@ -165,7 +172,7 @@ pub fn handle_screencap(
                 .waveform_trx
                 .get(&device.id())
                 .expect("Failed to get color sender for device")
-                .0
+                .tx
                 .clone();
             let follow_type = app.waveform_map[&device.id()].follow_type.clone();
             let mgr = app.mgr.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
@@ -173,7 +180,7 @@ pub fn handle_screencap(
 
             let (stop_tx, stop_rx) = mpsc::channel::<()>();
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
-                waveform_trx.2 = Some(thread::spawn(move || loop {
+                waveform_trx.handle = Some(thread::spawn(move || loop {
                     #[cfg(debug_assertions)]
                     puffin::profile_function!();
 
@@ -198,7 +205,7 @@ pub fn handle_screencap(
         } else {
             // kill thread
             if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
-                if let Some(thread) = waveform_trx.2.take() {
+                if let Some(thread) = waveform_trx.handle.take() {
                     // Send a signal to stop the thread
                     if let Some(stop_tx) = app
                         .waveform_map

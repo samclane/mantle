@@ -51,14 +51,12 @@ pub struct RunningWaveform {
     pub follow_type: FollowType,
     pub stop_tx: Option<mpsc::Sender<()>>,
 }
-pub type ColorChannel = HashMap<
-    u64,
-    (
-        mpsc::Sender<HSBK>,
-        mpsc::Receiver<HSBK>,
-        Option<JoinHandle<()>>,
-    ),
->;
+pub struct ColorChannelEntry {
+    pub tx: mpsc::Sender<HSBK>,
+    pub rx: mpsc::Receiver<HSBK>,
+    pub handle: Option<JoinHandle<()>>,
+}
+pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
