@@ -17,7 +17,7 @@ use crate::{
     screencap::{FollowType, ScreenSubregion},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
-    BulbInfo, Manager, ScreencapManager,
+    BulbInfo, LifxManager, ScreencapManager,
 };
 
 use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
@@ -62,7 +62,7 @@ pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 #[serde(default)]
 pub struct MantleApp {
     #[serde(skip)]
-    pub mgr: Manager,
+    pub mgr: LifxManager,
     #[serde(skip)]
     pub screen_manager: ScreencapManager,
     #[serde(skip)]
@@ -81,7 +81,7 @@ pub struct MantleApp {
 
 impl Default for MantleApp {
     fn default() -> Self {
-        let mgr = Manager::new().expect("Failed to create manager");
+        let mgr = LifxManager::new().expect("Failed to create manager");
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         let input_listener = InputListener::new();
         let listener_handle = Some(input_listener.spawn());

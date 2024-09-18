@@ -11,7 +11,7 @@ pub mod utils;
 
 pub use color::{contrast_color, HSBK32, RGB8};
 pub use device_info::{BulbInfo, DeviceColor};
-pub use manager::Manager;
+pub use manager::LifxManager;
 pub use products::{get_products, Product};
 pub use refreshable_data::RefreshableData;
 pub use screencap::ScreencapManager;

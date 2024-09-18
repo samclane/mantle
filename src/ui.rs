@@ -15,7 +15,7 @@ use crate::{
     contrast_color,
     device_info::DeviceInfo,
     screencap::{FollowType, ScreenSubregion, ScreencapManager},
-    AngleIter, BulbInfo, Manager, RGB8,
+    AngleIter, BulbInfo, LifxManager, RGB8,
 };
 
 use eframe::{
@@ -386,7 +386,7 @@ pub fn display_color_circle(
 
 pub fn toggle_button(
     ui: &mut Ui,
-    mgr: &Manager,
+    mgr: &LifxManager,
     device: &DeviceInfo,
     scale: Vec2,
     bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,

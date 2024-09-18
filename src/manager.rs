@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::spawn;
 use std::time::{Duration, Instant};
 
-pub struct Manager {
+pub struct LifxManager {
     pub bulbs: Arc<Mutex<HashMap<u64, BulbInfo>>>,
     pub all: GroupInfo,
     pub last_discovery: Instant,
@@ -18,9 +18,9 @@ pub struct Manager {
     pub source: u32,
 }
 
-impl Clone for Manager {
+impl Clone for LifxManager {
     fn clone(&self) -> Self {
-        Manager {
+        LifxManager {
             bulbs: self.bulbs.clone(),
             all: self.all.clone(),
             last_discovery: self.last_discovery,
@@ -30,8 +30,8 @@ impl Clone for Manager {
     }
 }
 
-impl Manager {
-    pub fn new() -> Result<Manager, failure::Error> {
+impl LifxManager {
+    pub fn new() -> Result<LifxManager, failure::Error> {
         let sock = UdpSocket::bind("0.0.0.0:56700")?;
         sock.set_broadcast(true)?;
 
@@ -43,7 +43,7 @@ impl Manager {
 
         spawn(move || Self::worker(recv_sock, source, receiver_bulbs));
 
-        let mut mgr = Manager {
+        let mut mgr = LifxManager {
             bulbs,
             last_discovery: Instant::now(),
             sock,
