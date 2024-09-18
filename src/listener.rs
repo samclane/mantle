@@ -27,6 +27,19 @@ impl std::hash::Hash for KeyboardShortcut {
     }
 }
 
+impl std::fmt::Debug for KeyboardShortcut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "KeyboardShortcut({:?})", self.keys)
+    }
+}
+
+impl std::fmt::Display for KeyboardShortcut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let keys: Vec<String> = self.keys.iter().map(|k| format!("{:?}", k)).collect();
+        write!(f, "{}", keys.join(" + "))
+    }
+}
+
 impl KeyboardShortcut {
     fn is_matched(&self, keys_pressed: &HashSet<rdev::Key>) -> bool {
         self.keys.is_subset(keys_pressed)
@@ -331,6 +344,14 @@ impl InputListener {
                 error!("Error in listen: {:?}", e);
             }
         })
+    }
+
+    pub fn get_active_items(&self) -> impl Iterator<Item = (rdev::Key, KeyboardShortcut)> {
+        let key = rdev::Key::KeyA;
+        let shortcut = KeyboardShortcut {
+            keys: vec![key].into_iter().collect(),
+        };
+        vec![(key, shortcut)].into_iter()
     }
 }
 

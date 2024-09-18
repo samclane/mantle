@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 // UI and window size constants
 pub const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
 pub const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
+pub const SETTINGS_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
 pub const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
 
 // Color and refresh constants
@@ -70,6 +71,7 @@ pub struct MantleApp {
     #[serde(skip)]
     pub listener_handle: Option<JoinHandle<()>>,
     pub show_about: bool,
+    pub show_settings: bool,
     pub show_eyedropper: HashMap<u64, bool>,
     pub show_subregion: HashMap<u64, bool>,
     pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
@@ -91,6 +93,7 @@ impl Default for MantleApp {
             input_listener,
             listener_handle,
             show_about: false,
+            show_settings: false,
             show_eyedropper: HashMap::new(),
             show_subregion: HashMap::new(),
             subregion_points: HashMap::new(),
@@ -283,7 +286,7 @@ impl MantleApp {
         }
     }
 
-    fn file_menu_button(&self, ui: &mut Ui) {
+    fn file_menu_button(&mut self, ui: &mut Ui) {
         let close_shortcut = egui::KeyboardShortcut::new(Modifiers::CTRL, egui::Key::Q);
         let refresh_shortcut = egui::KeyboardShortcut::new(Modifiers::NONE, egui::Key::F5);
         if ui.input_mut(|i| i.consume_shortcut(&close_shortcut)) {
@@ -303,6 +306,10 @@ impl MantleApp {
                 .clicked()
             {
                 self.mgr.refresh();
+                ui.close_menu();
+            }
+            if ui.add(egui::Button::new("Settings")).clicked() {
+                self.show_settings = true;
                 ui.close_menu();
             }
             if ui
@@ -381,6 +388,35 @@ impl MantleApp {
                 });
         }
     }
+
+    fn show_settings_window(&mut self, ctx: &egui::Context) {
+        if self.show_settings {
+            egui::Window::new("Settings")
+                .default_width(SETTINGS_WINDOW_SIZE[0])
+                .default_height(SETTINGS_WINDOW_SIZE[1])
+                .open(&mut self.show_settings)
+                .resizable([true, false])
+                .show(ctx, |ui| {
+                    ui.heading("Settings");
+                    ui.add_space(8.0);
+                    // allow user to register keyboard shortcuts
+                    ui.horizontal(|ui| {
+                        ui.label("Keyboard Shortcuts");
+                        ui.separator();
+                        ui.label("Action");
+                        ui.separator();
+                        ui.label("Shortcut");
+                    });
+                    for (action, shortcut) in self.input_listener.get_active_items() {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{:?}", action));
+                            ui.separator();
+                            ui.label(format!("{:?}", shortcut));
+                        });
+                    }
+                });
+        }
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -397,5 +433,6 @@ impl eframe::App for MantleApp {
         self.mgr.refresh();
         self.update_ui(_ctx);
         self.show_about_window(_ctx);
+        self.show_settings_window(_ctx);
     }
 }
