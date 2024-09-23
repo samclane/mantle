@@ -407,11 +407,11 @@ impl MantleApp {
                         ui.separator();
                         ui.label("Shortcut");
                     });
-                    for (action, shortcut) in self.input_listener.get_active_items() {
+                    for shortcut in self.input_listener.get_active_items() {
                         ui.horizontal(|ui| {
-                            ui.label(format!("{:?}", action));
+                            ui.label(format!("{:?}", shortcut.name));
                             ui.separator();
-                            ui.label(format!("{:?}", shortcut));
+                            ui.label(format!("{:?}", shortcut.callback_name));
                         });
                     }
                 });

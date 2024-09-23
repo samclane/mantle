@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
-type Callback = Box<dyn Fn(Event) + Send>;
+type BackgroundCallback = Box<dyn Fn(Event) + Send>;
 type ShortcutCallback = Arc<dyn Fn(HashSet<rdev::Key>) + Send + Sync>;
 
 #[derive(Clone, Copy)]
@@ -17,6 +17,14 @@ pub struct MousePosition {
 #[derive(Clone, PartialEq, Eq)]
 pub struct KeyboardShortcut {
     pub keys: HashSet<rdev::Key>,
+}
+
+#[derive(Clone)]
+pub struct KeyboardShortcutCallback {
+    pub shortcut: KeyboardShortcut,
+    pub callback: ShortcutCallback,
+    pub name: String,
+    pub callback_name: String,
 }
 
 impl std::hash::Hash for KeyboardShortcut {
@@ -53,8 +61,8 @@ pub struct SharedInputState {
     last_button_pressed: Mutex<Option<rdev::Button>>,
     keys_pressed: Mutex<HashSet<rdev::Key>>,
     last_keys_pressed: Mutex<HashSet<rdev::Key>>,
-    callbacks: Mutex<Vec<Callback>>,
-    shortcuts: Mutex<Vec<(KeyboardShortcut, ShortcutCallback)>>,
+    callbacks: Mutex<Vec<BackgroundCallback>>,
+    shortcuts: Mutex<Vec<KeyboardShortcutCallback>>,
     active_shortcuts: Mutex<HashSet<KeyboardShortcut>>,
 }
 
@@ -153,7 +161,7 @@ impl SharedInputState {
         }
     }
 
-    fn add_callback(&self, callback: Callback) {
+    fn add_callback(&self, callback: BackgroundCallback) {
         match self.callbacks.lock() {
             Ok(mut callbacks) => {
                 callbacks.push(callback);
@@ -171,7 +179,18 @@ impl SharedInputState {
         let callback = Arc::new(callback);
         match self.shortcuts.lock() {
             Ok(mut shortcuts) => {
-                shortcuts.push((shortcut, callback));
+                let keys = shortcut
+                    .keys
+                    .iter()
+                    .map(|k| format!("{:?}", k))
+                    .collect::<Vec<_>>();
+                let name = format!("{}", shortcut);
+                shortcuts.push(KeyboardShortcutCallback {
+                    shortcut,
+                    callback,
+                    name,
+                    callback_name: format!("{:?}", keys),
+                });
             }
             Err(e) => {
                 error!("Failed to lock shortcuts mutex: {}", e);
@@ -204,15 +223,15 @@ impl SharedInputState {
             }
         };
 
-        for (shortcut, callback) in &shortcuts {
-            if shortcut.is_matched(&keys_pressed) {
-                if !active_shortcuts.contains(shortcut) {
+        for shortcut in &shortcuts {
+            if shortcut.shortcut.is_matched(&keys_pressed) {
+                if !active_shortcuts.contains(&shortcut.shortcut) {
                     // Shortcut is newly activated
-                    callback(keys_pressed.clone());
+                    (shortcut.callback)(keys_pressed.clone());
 
                     // Add to active_shortcuts
                     if let Ok(mut guard) = self.active_shortcuts.lock() {
-                        guard.insert(shortcut.clone());
+                        guard.insert(shortcut.shortcut.clone());
                     } else {
                         error!("Failed to lock active_shortcuts mutex");
                     }
@@ -220,7 +239,7 @@ impl SharedInputState {
             } else {
                 // Remove from active_shortcuts if present
                 if let Ok(mut guard) = self.active_shortcuts.lock() {
-                    guard.remove(shortcut);
+                    guard.remove(&shortcut.shortcut);
                 } else {
                     error!("Failed to lock active_shortcuts mutex");
                 }
@@ -300,7 +319,7 @@ impl InputListener {
         }
     }
 
-    pub fn add_callback(&self, callback: Callback) {
+    pub fn add_callback(&self, callback: BackgroundCallback) {
         self.state.add_callback(callback);
     }
 
@@ -346,12 +365,15 @@ impl InputListener {
         })
     }
 
-    pub fn get_active_items(&self) -> impl Iterator<Item = (rdev::Key, KeyboardShortcut)> {
-        let key = rdev::Key::KeyA;
-        let shortcut = KeyboardShortcut {
-            keys: vec![key].into_iter().collect(),
-        };
-        vec![(key, shortcut)].into_iter()
+    pub fn get_active_items(&self) -> impl Iterator<Item = KeyboardShortcutCallback> {
+        self.state
+            .shortcuts
+            .lock()
+            .unwrap()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
