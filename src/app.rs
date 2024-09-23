@@ -86,7 +86,7 @@ impl Default for MantleApp {
         let mgr = LifxManager::new().expect("Failed to create manager");
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         let input_listener = InputListener::new();
-        let listener_handle = Some(input_listener.spawn());
+        let listener_handle = Some(input_listener.start());
         Self {
             mgr,
             screen_manager,

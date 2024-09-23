@@ -1,8 +1,10 @@
 use log::error;
-use rdev::{listen, Event, EventType, Key};
+use rdev::{listen, Button, Event, EventType, Key};
 use std::collections::HashSet;
+use std::fmt::{Debug, Display, Formatter, Result};
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
 
 type BackgroundCallback = Box<dyn Fn(Event) + Send>;
@@ -14,7 +16,7 @@ pub struct MousePosition {
     pub y: i32,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct KeyboardShortcut {
     pub keys: HashSet<Key>,
 }
@@ -27,22 +29,22 @@ pub struct KeyboardShortcutCallback {
     pub callback_name: String,
 }
 
-impl std::hash::Hash for KeyboardShortcut {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for KeyboardShortcut {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         for key in &self.keys {
             key.hash(state);
         }
     }
 }
 
-impl std::fmt::Debug for KeyboardShortcut {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for KeyboardShortcut {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "KeyboardShortcut({:?})", self.keys)
     }
 }
 
-impl std::fmt::Display for KeyboardShortcut {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for KeyboardShortcut {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let keys: Vec<String> = self.keys.iter().map(|k| format!("{:?}", k)).collect();
         write!(f, "{}", keys.join(" + "))
     }
@@ -57,8 +59,8 @@ impl KeyboardShortcut {
 pub struct SharedInputState {
     last_mouse_position: Mutex<Option<MousePosition>>,
     last_click_time: Mutex<Option<Instant>>,
-    button_pressed: Mutex<Option<rdev::Button>>,
-    last_button_pressed: Mutex<Option<rdev::Button>>,
+    button_pressed: Mutex<Option<Button>>,
+    last_button_pressed: Mutex<Option<Button>>,
     keys_pressed: Mutex<HashSet<Key>>,
     last_keys_pressed: Mutex<HashSet<Key>>,
     callbacks: Mutex<Vec<BackgroundCallback>>,
@@ -92,7 +94,7 @@ impl SharedInputState {
         }
     }
 
-    fn update_button_press(&self, button: rdev::Button) {
+    fn update_button_press(&self, button: Button) {
         if let Err(e) = self.button_pressed.lock().map(|mut pressed| {
             *pressed = Some(button);
         }) {
@@ -279,7 +281,7 @@ impl InputListener {
         }
     }
 
-    pub fn get_last_button_pressed(&self) -> Option<rdev::Button> {
+    pub fn get_last_button_pressed(&self) -> Option<Button> {
         match self.state.last_button_pressed.lock() {
             Ok(guard) => *guard,
             Err(e) => {
@@ -289,7 +291,7 @@ impl InputListener {
         }
     }
 
-    pub fn is_button_pressed(&self, button: rdev::Button) -> bool {
+    pub fn is_button_pressed(&self, button: Button) -> bool {
         match self.state.button_pressed.lock() {
             Ok(guard) => guard.map_or(false, |b| b == button),
             Err(e) => {
@@ -330,10 +332,10 @@ impl InputListener {
         self.state.add_shortcut_callback(shortcut, callback);
     }
 
-    pub fn spawn(&self) -> thread::JoinHandle<()> {
+    pub fn start(&self) -> JoinHandle<()> {
         let state = Arc::clone(&self.state);
 
-        thread::spawn(move || {
+        spawn(move || {
             if let Err(e) = listen(move |event| {
                 match event.event_type {
                     EventType::MouseMove { x, y } => {
