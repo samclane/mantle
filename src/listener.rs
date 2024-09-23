@@ -1,12 +1,12 @@
 use log::error;
-use rdev::{listen, Event, EventType};
+use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
 type BackgroundCallback = Box<dyn Fn(Event) + Send>;
-type ShortcutCallback = Arc<dyn Fn(HashSet<rdev::Key>) + Send + Sync>;
+type ShortcutCallback = Arc<dyn Fn(HashSet<Key>) + Send + Sync>;
 
 #[derive(Clone, Copy)]
 pub struct MousePosition {
@@ -16,7 +16,7 @@ pub struct MousePosition {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct KeyboardShortcut {
-    pub keys: HashSet<rdev::Key>,
+    pub keys: HashSet<Key>,
 }
 
 #[derive(Clone)]
@@ -49,7 +49,7 @@ impl std::fmt::Display for KeyboardShortcut {
 }
 
 impl KeyboardShortcut {
-    fn is_matched(&self, keys_pressed: &HashSet<rdev::Key>) -> bool {
+    fn is_matched(&self, keys_pressed: &HashSet<Key>) -> bool {
         self.keys.is_subset(keys_pressed)
     }
 }
@@ -59,8 +59,8 @@ pub struct SharedInputState {
     last_click_time: Mutex<Option<Instant>>,
     button_pressed: Mutex<Option<rdev::Button>>,
     last_button_pressed: Mutex<Option<rdev::Button>>,
-    keys_pressed: Mutex<HashSet<rdev::Key>>,
-    last_keys_pressed: Mutex<HashSet<rdev::Key>>,
+    keys_pressed: Mutex<HashSet<Key>>,
+    last_keys_pressed: Mutex<HashSet<Key>>,
     callbacks: Mutex<Vec<BackgroundCallback>>,
     shortcuts: Mutex<Vec<KeyboardShortcutCallback>>,
     active_shortcuts: Mutex<HashSet<KeyboardShortcut>>,
@@ -112,7 +112,7 @@ impl SharedInputState {
         }
     }
 
-    fn update_key_press(&self, key: rdev::Key) {
+    fn update_key_press(&self, key: Key) {
         match self.keys_pressed.lock() {
             Ok(mut keys) => {
                 keys.insert(key);
@@ -129,7 +129,7 @@ impl SharedInputState {
         }
     }
 
-    fn update_key_release(&self, key: rdev::Key) {
+    fn update_key_release(&self, key: Key) {
         match self.keys_pressed.lock() {
             Ok(mut keys) => {
                 keys.remove(&key);
@@ -174,7 +174,7 @@ impl SharedInputState {
 
     fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
     where
-        F: Fn(HashSet<rdev::Key>) + Send + Sync + 'static,
+        F: Fn(HashSet<Key>) + Send + Sync + 'static,
     {
         let callback = Arc::new(callback);
         match self.shortcuts.lock() {
@@ -299,7 +299,7 @@ impl InputListener {
         }
     }
 
-    pub fn is_key_pressed(&self, key: rdev::Key) -> bool {
+    pub fn is_key_pressed(&self, key: Key) -> bool {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.contains(&key),
             Err(e) => {
@@ -309,7 +309,7 @@ impl InputListener {
         }
     }
 
-    pub fn get_keys_pressed(&self) -> HashSet<rdev::Key> {
+    pub fn get_keys_pressed(&self) -> HashSet<Key> {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.clone(),
             Err(e) => {
@@ -325,7 +325,7 @@ impl InputListener {
 
     pub fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
     where
-        F: Fn(HashSet<rdev::Key>) + Send + Sync + 'static,
+        F: Fn(HashSet<Key>) + Send + Sync + 'static,
     {
         self.state.add_shortcut_callback(shortcut, callback);
     }
