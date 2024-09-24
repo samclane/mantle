@@ -9,60 +9,62 @@ use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
 
 type BackgroundCallback = Box<dyn Fn(Event) + Send>;
-type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputKey>) + Send + Sync>;
+type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync>;
 
 #[derive(Clone, Copy, Debug)]
-pub enum InputKey {
+pub enum InputAction {
     Key(Key),
     Button(Button),
 }
 
-impl PartialEq for InputKey {
+impl PartialEq for InputAction {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (InputKey::Key(k1), InputKey::Key(k2)) => k1 == k2,
-            (InputKey::Button(b1), InputKey::Button(b2)) => b1 == b2,
+            (InputAction::Key(k1), InputAction::Key(k2)) => k1 == k2,
+            (InputAction::Button(b1), InputAction::Button(b2)) => b1 == b2,
             _ => false,
         }
     }
 }
 
-impl Eq for InputKey {}
+impl Eq for InputAction {}
 
-impl Hash for InputKey {
+impl Hash for InputAction {
     fn hash<H: Hasher>(&self, state: &mut H) {
         std::mem::discriminant(self).hash(state);
         match self {
-            InputKey::Key(k) => k.hash(state),
-            InputKey::Button(b) => b.hash(state),
+            InputAction::Key(k) => k.hash(state),
+            InputAction::Button(b) => b.hash(state),
         }
     }
 }
 
-impl Ord for InputKey {
+impl Ord for InputAction {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (InputKey::Key(k1), InputKey::Key(k2)) => format!("{:?}", k1).cmp(&format!("{:?}", k2)),
-            (InputKey::Button(b1), InputKey::Button(b2)) => {
+            (InputAction::Key(k1), InputAction::Key(k2)) => {
+                format!("{:?}", k1).cmp(&format!("{:?}", k2))
+            }
+            (InputAction::Button(b1), InputAction::Button(b2)) => {
                 format!("{:?}", b1).cmp(&format!("{:?}", b2))
             }
-            (InputKey::Key(_), InputKey::Button(_)) => Ordering::Less,
-            (InputKey::Button(_), InputKey::Key(_)) => Ordering::Greater,
+            (InputAction::Key(_), InputAction::Button(_)) => Ordering::Less,
+            (InputAction::Button(_), InputAction::Key(_)) => Ordering::Greater,
         }
     }
 }
 
-impl PartialOrd for InputKey {
+impl PartialOrd for InputAction {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Display for InputKey {
+impl Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            InputKey::Key(k) => write!(f, "{:?}", k),
-            InputKey::Button(b) => write!(f, "{:?}", b),
+            InputAction::Key(k) => write!(f, "{:?}", k),
+            InputAction::Button(b) => write!(f, "{:?}", b),
         }
     }
 }
@@ -75,7 +77,7 @@ pub struct MousePosition {
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct KeyboardShortcut {
-    pub keys: BTreeSet<InputKey>,
+    pub keys: BTreeSet<InputAction>,
 }
 
 #[derive(Clone)]
@@ -100,7 +102,7 @@ impl Display for KeyboardShortcut {
 }
 
 impl KeyboardShortcut {
-    fn is_matched(&self, keys_pressed: &BTreeSet<InputKey>) -> bool {
+    fn is_matched(&self, keys_pressed: &BTreeSet<InputAction>) -> bool {
         self.keys.is_subset(keys_pressed)
     }
 }
@@ -108,7 +110,7 @@ impl KeyboardShortcut {
 pub struct SharedInputState {
     last_mouse_position: Mutex<Option<MousePosition>>,
     last_click_time: Mutex<Option<Instant>>,
-    keys_pressed: Mutex<BTreeSet<InputKey>>,
+    keys_pressed: Mutex<BTreeSet<InputAction>>,
     callbacks: Mutex<Vec<BackgroundCallback>>,
     shortcuts: Mutex<Vec<KeyboardShortcutCallback>>,
     active_shortcuts: Mutex<BTreeSet<KeyboardShortcut>>,
@@ -126,7 +128,7 @@ impl SharedInputState {
         }
     }
 
-    fn update_input_key_press(&self, input_key: InputKey) {
+    fn update_input_key_press(&self, input_key: InputAction) {
         if let Ok(mut keys) = self.keys_pressed.lock() {
             keys.insert(input_key);
         } else {
@@ -134,7 +136,7 @@ impl SharedInputState {
         }
     }
 
-    fn update_input_key_release(&self, input_key: InputKey) {
+    fn update_input_key_release(&self, input_key: InputAction) {
         if let Ok(mut keys) = self.keys_pressed.lock() {
             keys.remove(&input_key);
         } else {
@@ -151,7 +153,7 @@ impl SharedInputState {
     }
 
     fn update_button_press(&self, button: Button) {
-        self.update_input_key_press(InputKey::Button(button));
+        self.update_input_key_press(InputAction::Button(button));
 
         if let Ok(mut time) = self.last_click_time.lock() {
             *time = Some(Instant::now());
@@ -161,15 +163,15 @@ impl SharedInputState {
     }
 
     fn update_button_release(&self, button: Button) {
-        self.update_input_key_release(InputKey::Button(button));
+        self.update_input_key_release(InputAction::Button(button));
     }
 
     fn update_key_press(&self, key: Key) {
-        self.update_input_key_press(InputKey::Key(key));
+        self.update_input_key_press(InputAction::Key(key));
     }
 
     fn update_key_release(&self, key: Key) {
-        self.update_input_key_release(InputKey::Key(key));
+        self.update_input_key_release(InputAction::Key(key));
     }
 
     fn execute_callbacks(&self, event: &Event) {
@@ -196,7 +198,7 @@ impl SharedInputState {
         callback: F,
         callback_name: String,
     ) where
-        F: Fn(BTreeSet<InputKey>) + Send + Sync + 'static,
+        F: Fn(BTreeSet<InputAction>) + Send + Sync + 'static,
     {
         let callback = Arc::new(callback);
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
@@ -287,7 +289,7 @@ impl InputListener {
         }
     }
 
-    pub fn is_input_key_pressed(&self, input_key: InputKey) -> bool {
+    pub fn is_input_key_pressed(&self, input_key: InputAction) -> bool {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.contains(&input_key),
             Err(e) => {
@@ -298,14 +300,14 @@ impl InputListener {
     }
 
     pub fn is_key_pressed(&self, key: Key) -> bool {
-        self.is_input_key_pressed(InputKey::Key(key))
+        self.is_input_key_pressed(InputAction::Key(key))
     }
 
     pub fn is_button_pressed(&self, button: Button) -> bool {
-        self.is_input_key_pressed(InputKey::Button(button))
+        self.is_input_key_pressed(InputAction::Button(button))
     }
 
-    pub fn get_keys_pressed(&self) -> BTreeSet<InputKey> {
+    pub fn get_keys_pressed(&self) -> BTreeSet<InputAction> {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.clone(),
             Err(e) => {
@@ -325,7 +327,7 @@ impl InputListener {
         callback: F,
         callback_name: String,
     ) where
-        F: Fn(BTreeSet<InputKey>) + Send + Sync + 'static,
+        F: Fn(BTreeSet<InputAction>) + Send + Sync + 'static,
     {
         self.state
             .add_shortcut_callback(shortcut, callback, callback_name);
