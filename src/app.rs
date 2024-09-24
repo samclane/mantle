@@ -407,9 +407,9 @@ impl MantleApp {
                         ui.separator();
                         ui.label("Shortcut");
                     });
-                    for shortcut in self.input_listener.get_active_items() {
+                    for shortcut in self.input_listener.get_active_shortcuts() {
                         ui.horizontal(|ui| {
-                            ui.label(format!("{:?}", shortcut.name));
+                            ui.label(format!("{:?}", shortcut.shortcut));
                             ui.separator();
                             ui.label(format!("{:?}", shortcut.callback_name));
                         });

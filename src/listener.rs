@@ -1,14 +1,71 @@
 use log::error;
 use rdev::{listen, Button, Event, EventType, Key};
-use std::collections::HashSet;
-use std::fmt::{Debug, Display, Formatter, Result};
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
 
 type BackgroundCallback = Box<dyn Fn(Event) + Send>;
-type ShortcutCallback = Arc<dyn Fn(HashSet<Key>) + Send + Sync>;
+type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputKey>) + Send + Sync>;
+
+#[derive(Clone, Copy, Debug)]
+pub enum InputKey {
+    Key(Key),
+    Button(Button),
+}
+
+impl PartialEq for InputKey {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (InputKey::Key(k1), InputKey::Key(k2)) => k1 == k2,
+            (InputKey::Button(b1), InputKey::Button(b2)) => b1 == b2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for InputKey {}
+
+impl Hash for InputKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            InputKey::Key(k) => k.hash(state),
+            InputKey::Button(b) => b.hash(state),
+        }
+    }
+}
+
+impl Ord for InputKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (InputKey::Key(k1), InputKey::Key(k2)) => format!("{:?}", k1).cmp(&format!("{:?}", k2)),
+            (InputKey::Button(b1), InputKey::Button(b2)) => {
+                format!("{:?}", b1).cmp(&format!("{:?}", b2))
+            }
+            (InputKey::Key(_), InputKey::Button(_)) => Ordering::Less,
+            (InputKey::Button(_), InputKey::Key(_)) => Ordering::Greater,
+        }
+    }
+}
+
+impl PartialOrd for InputKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Display for InputKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            InputKey::Key(k) => write!(f, "{:?}", k),
+            InputKey::Button(b) => write!(f, "{:?}", b),
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct MousePosition {
@@ -16,42 +73,34 @@ pub struct MousePosition {
     pub y: i32,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct KeyboardShortcut {
-    pub keys: HashSet<Key>,
+    pub keys: BTreeSet<InputKey>,
 }
 
 #[derive(Clone)]
 pub struct KeyboardShortcutCallback {
     pub shortcut: KeyboardShortcut,
     pub callback: ShortcutCallback,
-    pub name: String,
     pub callback_name: String,
 }
 
-impl Hash for KeyboardShortcut {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for key in &self.keys {
-            key.hash(state);
-        }
-    }
-}
-
 impl Debug for KeyboardShortcut {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "KeyboardShortcut({:?})", self.keys)
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
+        write!(f, "KeyboardShortcut({})", keys.join(" + "))
     }
 }
 
 impl Display for KeyboardShortcut {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let keys: Vec<String> = self.keys.iter().map(|k| format!("{:?}", k)).collect();
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
         write!(f, "{}", keys.join(" + "))
     }
 }
 
 impl KeyboardShortcut {
-    fn is_matched(&self, keys_pressed: &HashSet<Key>) -> bool {
+    fn is_matched(&self, keys_pressed: &BTreeSet<InputKey>) -> bool {
         self.keys.is_subset(keys_pressed)
     }
 }
@@ -59,13 +108,10 @@ impl KeyboardShortcut {
 pub struct SharedInputState {
     last_mouse_position: Mutex<Option<MousePosition>>,
     last_click_time: Mutex<Option<Instant>>,
-    button_pressed: Mutex<Option<Button>>,
-    last_button_pressed: Mutex<Option<Button>>,
-    keys_pressed: Mutex<HashSet<Key>>,
-    last_keys_pressed: Mutex<HashSet<Key>>,
+    keys_pressed: Mutex<BTreeSet<InputKey>>,
     callbacks: Mutex<Vec<BackgroundCallback>>,
     shortcuts: Mutex<Vec<KeyboardShortcutCallback>>,
-    active_shortcuts: Mutex<HashSet<KeyboardShortcut>>,
+    active_shortcuts: Mutex<BTreeSet<KeyboardShortcut>>,
 }
 
 impl SharedInputState {
@@ -73,130 +119,94 @@ impl SharedInputState {
         SharedInputState {
             last_mouse_position: Mutex::new(None),
             last_click_time: Mutex::new(None),
-            button_pressed: Mutex::new(None),
-            last_button_pressed: Mutex::new(None),
-            keys_pressed: Mutex::new(HashSet::new()),
-            last_keys_pressed: Mutex::new(HashSet::new()),
+            keys_pressed: Mutex::new(BTreeSet::new()),
             callbacks: Mutex::new(Vec::new()),
             shortcuts: Mutex::new(Vec::new()),
-            active_shortcuts: Mutex::new(HashSet::new()),
+            active_shortcuts: Mutex::new(BTreeSet::new()),
+        }
+    }
+
+    fn update_input_key_press(&self, input_key: InputKey) {
+        if let Ok(mut keys) = self.keys_pressed.lock() {
+            keys.insert(input_key);
+        } else {
+            error!("Failed to lock keys_pressed mutex");
+        }
+    }
+
+    fn update_input_key_release(&self, input_key: InputKey) {
+        if let Ok(mut keys) = self.keys_pressed.lock() {
+            keys.remove(&input_key);
+        } else {
+            error!("Failed to lock keys_pressed mutex");
         }
     }
 
     fn update_mouse_position(&self, x: i32, y: i32) {
-        match self.last_mouse_position.lock() {
-            Ok(mut pos) => {
-                *pos = Some(MousePosition { x, y });
-            }
-            Err(e) => {
-                error!("Failed to lock last_mouse_position mutex: {}", e);
-            }
+        if let Ok(mut pos) = self.last_mouse_position.lock() {
+            *pos = Some(MousePosition { x, y });
+        } else {
+            error!("Failed to lock last_mouse_position mutex");
         }
     }
 
     fn update_button_press(&self, button: Button) {
-        if let Err(e) = self.button_pressed.lock().map(|mut pressed| {
-            *pressed = Some(button);
-        }) {
-            error!("Failed to lock button_pressed mutex: {}", e);
-        }
+        self.update_input_key_press(InputKey::Button(button));
 
-        if let Err(e) = self.last_click_time.lock().map(|mut time| {
+        if let Ok(mut time) = self.last_click_time.lock() {
             *time = Some(Instant::now());
-        }) {
-            error!("Failed to lock last_click_time mutex: {}", e);
+        } else {
+            error!("Failed to lock last_click_time mutex");
         }
+    }
 
-        if let Err(e) = self.last_button_pressed.lock().map(|mut last| {
-            *last = Some(button);
-        }) {
-            error!("Failed to lock last_button_pressed mutex: {}", e);
-        }
+    fn update_button_release(&self, button: Button) {
+        self.update_input_key_release(InputKey::Button(button));
     }
 
     fn update_key_press(&self, key: Key) {
-        match self.keys_pressed.lock() {
-            Ok(mut keys) => {
-                keys.insert(key);
-
-                if let Ok(mut last) = self.last_keys_pressed.lock() {
-                    *last = keys.clone();
-                } else {
-                    error!("Failed to lock last_keys_pressed mutex");
-                }
-            }
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-            }
-        }
+        self.update_input_key_press(InputKey::Key(key));
     }
 
     fn update_key_release(&self, key: Key) {
-        match self.keys_pressed.lock() {
-            Ok(mut keys) => {
-                keys.remove(&key);
-            }
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-            }
-        }
-    }
-
-    fn update_button_release(&self) {
-        if let Err(e) = self.button_pressed.lock().map(|mut pressed| {
-            *pressed = None;
-        }) {
-            error!("Failed to lock button_pressed mutex: {}", e);
-        }
+        self.update_input_key_release(InputKey::Key(key));
     }
 
     fn execute_callbacks(&self, event: &Event) {
-        match self.callbacks.lock() {
-            Ok(callbacks) => {
-                for callback in callbacks.iter() {
-                    callback(event.clone());
-                }
+        if let Ok(callbacks) = self.callbacks.lock() {
+            for callback in callbacks.iter() {
+                callback(event.clone());
             }
-            Err(e) => {
-                error!("Failed to lock callbacks mutex: {}", e);
-            }
+        } else {
+            error!("Failed to lock callbacks mutex");
         }
     }
 
     fn add_callback(&self, callback: BackgroundCallback) {
-        match self.callbacks.lock() {
-            Ok(mut callbacks) => {
-                callbacks.push(callback);
-            }
-            Err(e) => {
-                error!("Failed to lock callbacks mutex: {}", e);
-            }
+        if let Ok(mut callbacks) = self.callbacks.lock() {
+            callbacks.push(callback);
+        } else {
+            error!("Failed to lock callbacks mutex");
         }
     }
 
-    fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
-    where
-        F: Fn(HashSet<Key>) + Send + Sync + 'static,
+    fn add_shortcut_callback<F>(
+        &self,
+        shortcut: KeyboardShortcut,
+        callback: F,
+        callback_name: String,
+    ) where
+        F: Fn(BTreeSet<InputKey>) + Send + Sync + 'static,
     {
         let callback = Arc::new(callback);
-        match self.shortcuts.lock() {
-            Ok(mut shortcuts) => {
-                let keys = shortcut
-                    .keys
-                    .iter()
-                    .map(|k| format!("{:?}", k))
-                    .collect::<Vec<_>>();
-                let name = format!("{}", shortcut);
-                shortcuts.push(KeyboardShortcutCallback {
-                    shortcut,
-                    callback,
-                    name,
-                    callback_name: format!("{:?}", keys),
-                });
-            }
-            Err(e) => {
-                error!("Failed to lock shortcuts mutex: {}", e);
-            }
+        if let Ok(mut shortcuts) = self.shortcuts.lock() {
+            shortcuts.push(KeyboardShortcutCallback {
+                shortcut,
+                callback,
+                callback_name,
+            });
+        } else {
+            error!("Failed to lock shortcuts mutex");
         }
     }
 
@@ -205,7 +215,7 @@ impl SharedInputState {
             Ok(guard) => guard.clone(),
             Err(e) => {
                 error!("Failed to lock keys_pressed mutex: {}", e);
-                HashSet::new()
+                BTreeSet::new()
             }
         };
 
@@ -217,11 +227,11 @@ impl SharedInputState {
             }
         };
 
-        let active_shortcuts = match self.active_shortcuts.lock() {
+        let mut active_shortcuts = match self.active_shortcuts.lock() {
             Ok(guard) => guard.clone(),
             Err(e) => {
                 error!("Failed to lock active_shortcuts mutex: {}", e);
-                HashSet::new()
+                BTreeSet::new()
             }
         };
 
@@ -231,21 +241,17 @@ impl SharedInputState {
                     // Shortcut is newly activated
                     (shortcut.callback)(keys_pressed.clone());
 
-                    // Add to active_shortcuts
-                    if let Ok(mut guard) = self.active_shortcuts.lock() {
-                        guard.insert(shortcut.shortcut.clone());
-                    } else {
-                        error!("Failed to lock active_shortcuts mutex");
-                    }
+                    active_shortcuts.insert(shortcut.shortcut.clone());
                 }
             } else {
-                // Remove from active_shortcuts if present
-                if let Ok(mut guard) = self.active_shortcuts.lock() {
-                    guard.remove(&shortcut.shortcut);
-                } else {
-                    error!("Failed to lock active_shortcuts mutex");
-                }
+                active_shortcuts.remove(&shortcut.shortcut);
             }
+        }
+
+        if let Ok(mut guard) = self.active_shortcuts.lock() {
+            *guard = active_shortcuts;
+        } else {
+            error!("Failed to lock active_shortcuts mutex");
         }
     }
 }
@@ -281,42 +287,30 @@ impl InputListener {
         }
     }
 
-    pub fn get_last_button_pressed(&self) -> Option<Button> {
-        match self.state.last_button_pressed.lock() {
-            Ok(guard) => *guard,
+    pub fn is_input_key_pressed(&self, input_key: InputKey) -> bool {
+        match self.state.keys_pressed.lock() {
+            Ok(guard) => guard.contains(&input_key),
             Err(e) => {
-                error!("Failed to lock last_button_pressed mutex: {}", e);
-                None
-            }
-        }
-    }
-
-    pub fn is_button_pressed(&self, button: Button) -> bool {
-        match self.state.button_pressed.lock() {
-            Ok(guard) => guard.map_or(false, |b| b == button),
-            Err(e) => {
-                error!("Failed to lock button_pressed mutex: {}", e);
+                error!("Failed to lock keys_pressed mutex: {}", e);
                 false
             }
         }
     }
 
     pub fn is_key_pressed(&self, key: Key) -> bool {
-        match self.state.keys_pressed.lock() {
-            Ok(guard) => guard.contains(&key),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                false
-            }
-        }
+        self.is_input_key_pressed(InputKey::Key(key))
     }
 
-    pub fn get_keys_pressed(&self) -> HashSet<Key> {
+    pub fn is_button_pressed(&self, button: Button) -> bool {
+        self.is_input_key_pressed(InputKey::Button(button))
+    }
+
+    pub fn get_keys_pressed(&self) -> BTreeSet<InputKey> {
         match self.state.keys_pressed.lock() {
             Ok(guard) => guard.clone(),
             Err(e) => {
                 error!("Failed to lock keys_pressed mutex: {}", e);
-                HashSet::new()
+                BTreeSet::new()
             }
         }
     }
@@ -325,11 +319,16 @@ impl InputListener {
         self.state.add_callback(callback);
     }
 
-    pub fn add_shortcut_callback<F>(&self, shortcut: KeyboardShortcut, callback: F)
-    where
-        F: Fn(HashSet<Key>) + Send + Sync + 'static,
+    pub fn add_shortcut_callback<F>(
+        &self,
+        shortcut: KeyboardShortcut,
+        callback: F,
+        callback_name: String,
+    ) where
+        F: Fn(BTreeSet<InputKey>) + Send + Sync + 'static,
     {
-        self.state.add_shortcut_callback(shortcut, callback);
+        self.state
+            .add_shortcut_callback(shortcut, callback, callback_name);
     }
 
     pub fn start(&self) -> JoinHandle<()> {
@@ -344,14 +343,14 @@ impl InputListener {
                     EventType::ButtonPress(button) => {
                         state.update_button_press(button);
                     }
+                    EventType::ButtonRelease(button) => {
+                        state.update_button_release(button);
+                    }
                     EventType::KeyPress(key) => {
                         state.update_key_press(key);
                     }
                     EventType::KeyRelease(key) => {
                         state.update_key_release(key);
-                    }
-                    EventType::ButtonRelease(_) => {
-                        state.update_button_release();
                     }
                     _ => {}
                 }
@@ -367,15 +366,14 @@ impl InputListener {
         })
     }
 
-    pub fn get_active_items(&self) -> impl Iterator<Item = KeyboardShortcutCallback> {
-        self.state
-            .shortcuts
-            .lock()
-            .unwrap()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
+    pub fn get_active_shortcuts(&self) -> Vec<KeyboardShortcutCallback> {
+        match self.state.shortcuts.lock() {
+            Ok(guard) => guard.clone(),
+            Err(e) => {
+                error!("Failed to lock shortcuts mutex: {}", e);
+                Vec::new()
+            }
+        }
     }
 }
 
