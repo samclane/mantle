@@ -71,7 +71,7 @@ impl From<HSBK> for RGB8 {
         let a = saturation as f64 / u16::MAX as f64;
         let b = (1.0 - a) / 255.0;
 
-        let red: u8 = (rgb_hsb.red as f64 * (a + rgb_k.red as f64 * b)).round() as u8;
+        let red = (rgb_hsb.red as f64 * (a + rgb_k.red as f64 * b)).round() as u8;
         let green = (rgb_hsb.green as f64 * (a + rgb_k.green as f64 * b)).round() as u8;
         let blue = (rgb_hsb.blue as f64 * (a + rgb_k.blue as f64 * b)).round() as u8;
 
@@ -255,4 +255,56 @@ pub fn contrast_color(color: impl Into<Rgba>) -> Color32 {
 pub struct DeltaColor {
     pub next: HSBK,
     pub duration: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kelvin_to_rgb() {
+        let color = kelvin_to_rgb(3500);
+        assert_eq!(color.red, 255);
+        assert_eq!(color.green, 192);
+        assert_eq!(color.blue, 140);
+    }
+
+    #[test]
+    fn test_rgb_to_hsbk() {
+        let color = RGB8 {
+            red: 255,
+            green: 191,
+            blue: 0,
+            temperature: Some(3500),
+        };
+        let hsbk: HSBK = color.into();
+        assert_eq!(hsbk.hue, 8181);
+        assert_eq!(hsbk.saturation, 65535);
+        assert_eq!(hsbk.brightness, 65535);
+        assert_eq!(hsbk.kelvin, 3500);
+    }
+
+    #[test]
+    fn test_hsbk_to_rgb() {
+        let hsbk = HSBK {
+            hue: 0,
+            saturation: 65535,
+            brightness: 65535,
+            kelvin: 3500,
+        };
+        let color: RGB8 = hsbk.into();
+        assert_eq!(color.red, 255);
+        assert_eq!(color.green, 0);
+        assert_eq!(color.blue, 0);
+        assert_eq!(color.temperature, Some(3500));
+    }
+
+    #[test]
+    fn test_contrast_color() {
+        let color = Color32::BLACK;
+        assert_eq!(contrast_color(color), Color32::WHITE);
+
+        let color = Color32::WHITE;
+        assert_eq!(contrast_color(color), Color32::BLACK);
+    }
 }

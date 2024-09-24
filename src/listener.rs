@@ -384,3 +384,241 @@ impl Default for InputListener {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rdev::{Button, Key};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn test_input_action_equality() {
+        let key_a = InputAction::Key(Key::KeyA);
+        let key_a2 = InputAction::Key(Key::KeyA);
+        let key_b = InputAction::Key(Key::KeyB);
+        let button_left = InputAction::Button(Button::Left);
+        let button_right = InputAction::Button(Button::Right);
+
+        assert_eq!(key_a, key_a2);
+        assert_ne!(key_a, key_b);
+        assert_ne!(key_a, button_left);
+        assert_ne!(button_left, button_right);
+    }
+
+    #[test]
+    fn test_input_action_ordering() {
+        let mut actions = vec![
+            InputAction::Key(Key::KeyB),
+            InputAction::Button(Button::Left),
+            InputAction::Key(Key::KeyA),
+            InputAction::Button(Button::Right),
+        ];
+
+        actions.sort();
+
+        assert_eq!(
+            actions,
+            vec![
+                InputAction::Key(Key::KeyA),
+                InputAction::Key(Key::KeyB),
+                InputAction::Button(Button::Left),
+                InputAction::Button(Button::Right),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_keyboard_shortcut_matching() {
+        let shortcut = KeyboardShortcut {
+            keys: vec![
+                InputAction::Key(Key::ControlLeft),
+                InputAction::Key(Key::KeyC),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let mut keys_pressed = BTreeSet::new();
+        keys_pressed.insert(InputAction::Key(Key::ControlLeft));
+        keys_pressed.insert(InputAction::Key(Key::KeyC));
+
+        assert!(shortcut.is_matched(&keys_pressed));
+
+        keys_pressed.remove(&InputAction::Key(Key::ControlLeft));
+        assert!(!shortcut.is_matched(&keys_pressed));
+    }
+
+    #[test]
+    fn test_shared_input_state_key_press_release() {
+        let state = SharedInputState::new();
+
+        // Simulate key press
+        state.update_key_press(Key::KeyA);
+        {
+            let keys_pressed = state.keys_pressed.lock().unwrap();
+            assert!(keys_pressed.contains(&InputAction::Key(Key::KeyA)));
+        }
+
+        // Simulate key release
+        state.update_key_release(Key::KeyA);
+        {
+            let keys_pressed = state.keys_pressed.lock().unwrap();
+            assert!(!keys_pressed.contains(&InputAction::Key(Key::KeyA)));
+        }
+    }
+
+    #[test]
+    fn test_shared_input_state_button_press_release() {
+        let state = SharedInputState::new();
+
+        // Simulate button press
+        state.update_button_press(Button::Left);
+        {
+            let keys_pressed = state.keys_pressed.lock().unwrap();
+            assert!(keys_pressed.contains(&InputAction::Button(Button::Left)));
+        }
+
+        // Simulate button release
+        state.update_button_release(Button::Left);
+        {
+            let keys_pressed = state.keys_pressed.lock().unwrap();
+            assert!(!keys_pressed.contains(&InputAction::Button(Button::Left)));
+        }
+    }
+
+    #[test]
+    fn test_shared_input_state_shortcut_activation() {
+        let state = SharedInputState::new();
+
+        let shortcut = KeyboardShortcut {
+            keys: vec![
+                InputAction::Key(Key::ControlLeft),
+                InputAction::Key(Key::KeyV),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let shortcut_activated = Arc::new(Mutex::new(false));
+        let shortcut_activated_clone = Arc::clone(&shortcut_activated);
+
+        state.add_shortcut_callback(
+            shortcut.clone(),
+            move |_keys_pressed| {
+                let mut activated = shortcut_activated_clone.lock().unwrap();
+                *activated = true;
+            },
+            "Paste Shortcut".to_string(),
+        );
+
+        // Simulate pressing keys
+        state.update_key_press(Key::ControlLeft);
+        state.update_key_press(Key::KeyV);
+
+        // Check if shortcut was activated
+        state.check_shortcuts();
+        assert!(*shortcut_activated.lock().unwrap());
+
+        // Reset activation flag
+        *shortcut_activated.lock().unwrap() = false;
+
+        // Simulate releasing a key
+        state.update_key_release(Key::KeyV);
+
+        // Check if shortcut is no longer active
+        state.check_shortcuts();
+        assert!(!*shortcut_activated.lock().unwrap());
+    }
+
+    #[test]
+    fn test_input_listener_is_key_pressed() {
+        let listener = InputListener::new();
+
+        // Simulate key press
+        listener.state.update_key_press(Key::KeyA);
+        assert!(listener.is_key_pressed(Key::KeyA));
+
+        // Simulate key release
+        listener.state.update_key_release(Key::KeyA);
+        assert!(!listener.is_key_pressed(Key::KeyA));
+    }
+
+    #[test]
+    fn test_input_listener_is_button_pressed() {
+        let listener = InputListener::new();
+
+        // Simulate button press
+        listener.state.update_button_press(Button::Left);
+        assert!(listener.is_button_pressed(Button::Left));
+
+        // Simulate button release
+        listener.state.update_button_release(Button::Left);
+        assert!(!listener.is_button_pressed(Button::Left));
+    }
+
+    #[test]
+    fn test_input_listener_get_keys_pressed() {
+        let listener = InputListener::new();
+
+        // Simulate key presses
+        listener.state.update_key_press(Key::KeyA);
+        listener.state.update_key_press(Key::KeyB);
+
+        let keys_pressed = listener.get_keys_pressed();
+        let expected_keys: BTreeSet<_> =
+            vec![InputAction::Key(Key::KeyA), InputAction::Key(Key::KeyB)]
+                .into_iter()
+                .collect();
+
+        assert_eq!(keys_pressed, expected_keys);
+    }
+
+    #[test]
+    fn test_keyboard_shortcut_display() {
+        let shortcut = KeyboardShortcut {
+            keys: vec![
+                InputAction::Key(Key::ControlLeft),
+                InputAction::Key(Key::Alt),
+                InputAction::Key(Key::Delete),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let display_str = format!("{}", shortcut);
+        assert_eq!(display_str, "Alt + ControlLeft + Delete");
+    }
+
+    #[test]
+    fn test_input_action_display() {
+        let key = InputAction::Key(Key::KeyA);
+        let button = InputAction::Button(Button::Left);
+
+        assert_eq!(format!("{}", key), "KeyA");
+        assert_eq!(format!("{}", button), "Left");
+    }
+
+    #[test]
+    fn test_input_action_hash() {
+        use std::collections::hash_map::DefaultHasher;
+
+        let key_a1 = InputAction::Key(Key::KeyA);
+        let key_a2 = InputAction::Key(Key::KeyA);
+        let button_left = InputAction::Button(Button::Left);
+
+        let mut hasher1 = DefaultHasher::new();
+        key_a1.hash(&mut hasher1);
+        let hash1 = hasher1.finish();
+
+        let mut hasher2 = DefaultHasher::new();
+        key_a2.hash(&mut hasher2);
+        let hash2 = hasher2.finish();
+
+        let mut hasher3 = DefaultHasher::new();
+        button_left.hash(&mut hasher3);
+        let hash3 = hasher3.finish();
+
+        assert_eq!(hash1, hash2);
+        assert_ne!(hash1, hash3);
+    }
+}
