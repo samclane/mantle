@@ -6,6 +6,7 @@ pub mod manager;
 pub mod products;
 pub mod refreshable_data;
 pub mod screencap;
+pub mod shortcut;
 pub mod ui;
 pub mod utils;
 

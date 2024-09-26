@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
 
-type BackgroundCallback = Box<dyn Fn(Event) + Send>;
-type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync>;
+pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
+pub type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync + 'static>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum InputAction {
@@ -78,6 +78,12 @@ pub struct MousePosition {
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct KeyboardShortcut {
     pub keys: BTreeSet<InputAction>,
+}
+
+impl KeyboardShortcut {
+    pub fn new(keys: BTreeSet<InputAction>) -> Self {
+        KeyboardShortcut { keys }
+    }
 }
 
 #[derive(Clone)]
@@ -184,23 +190,12 @@ impl SharedInputState {
         }
     }
 
-    fn add_callback(&self, callback: BackgroundCallback) {
-        if let Ok(mut callbacks) = self.callbacks.lock() {
-            callbacks.push(callback);
-        } else {
-            error!("Failed to lock callbacks mutex");
-        }
-    }
-
-    fn add_shortcut_callback<F>(
+    fn add_shortcut_callback(
         &self,
         shortcut: KeyboardShortcut,
-        callback: F,
+        callback: ShortcutCallback,
         callback_name: String,
-    ) where
-        F: Fn(BTreeSet<InputAction>) + Send + Sync + 'static,
-    {
-        let callback = Arc::new(callback);
+    ) {
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
             shortcuts.push(KeyboardShortcutCallback {
                 shortcut,
@@ -317,18 +312,12 @@ impl InputListener {
         }
     }
 
-    pub fn add_callback(&self, callback: BackgroundCallback) {
-        self.state.add_callback(callback);
-    }
-
-    pub fn add_shortcut_callback<F>(
+    pub fn add_shortcut_callback(
         &self,
         shortcut: KeyboardShortcut,
-        callback: F,
+        callback: ShortcutCallback,
         callback_name: String,
-    ) where
-        F: Fn(BTreeSet<InputAction>) + Send + Sync + 'static,
-    {
+    ) {
         self.state
             .add_shortcut_callback(shortcut, callback, callback_name);
     }
@@ -366,16 +355,6 @@ impl InputListener {
                 error!("Error in listen: {:?}", e);
             }
         })
-    }
-
-    pub fn get_active_shortcuts(&self) -> Vec<KeyboardShortcutCallback> {
-        match self.state.shortcuts.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock shortcuts mutex: {}", e);
-                Vec::new()
-            }
-        }
     }
 }
 
@@ -501,15 +480,12 @@ mod tests {
 
         let shortcut_activated = Arc::new(Mutex::new(false));
         let shortcut_activated_clone = Arc::clone(&shortcut_activated);
+        let callback = Arc::new(move |_keys_pressed: BTreeSet<InputAction>| {
+            let mut activated = shortcut_activated_clone.lock().unwrap();
+            *activated = true;
+        });
 
-        state.add_shortcut_callback(
-            shortcut.clone(),
-            move |_keys_pressed| {
-                let mut activated = shortcut_activated_clone.lock().unwrap();
-                *activated = true;
-            },
-            "Paste Shortcut".to_string(),
-        );
+        state.add_shortcut_callback(shortcut.clone(), callback, "Paste Shortcut".to_string());
 
         // Simulate pressing keys
         state.update_key_press(Key::ControlLeft);

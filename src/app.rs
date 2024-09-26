@@ -15,6 +15,7 @@ use crate::{
     listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
+    shortcut::ShortcutManager,
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
     BulbInfo, LifxManager, ScreencapManager,
@@ -69,6 +70,10 @@ pub struct MantleApp {
     #[serde(skip)]
     pub input_listener: InputListener,
     #[serde(skip)]
+    pub shortcut_manager: ShortcutManager,
+    #[serde(skip)]
+    pub shortcut_handle: Option<JoinHandle<()>>,
+    #[serde(skip)]
     pub listener_handle: Option<JoinHandle<()>>,
     pub show_about: bool,
     pub show_settings: bool,
@@ -87,10 +92,14 @@ impl Default for MantleApp {
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         let input_listener = InputListener::new();
         let listener_handle = Some(input_listener.start());
+        let shortcut_manager = ShortcutManager::default();
+        let shortcut_handle = Some(shortcut_manager.start());
         Self {
             mgr,
             screen_manager,
             input_listener,
+            shortcut_manager,
+            shortcut_handle,
             listener_handle,
             show_about: false,
             show_settings: false,
@@ -407,7 +416,7 @@ impl MantleApp {
                         ui.separator();
                         ui.label("Shortcut");
                     });
-                    for shortcut in self.input_listener.get_active_shortcuts() {
+                    for shortcut in self.shortcut_manager.get_active_shortcuts() {
                         ui.horizontal(|ui| {
                             ui.label(format!("{:?}", shortcut.shortcut));
                             ui.separator();
