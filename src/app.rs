@@ -92,7 +92,7 @@ impl Default for MantleApp {
         let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         let input_listener = InputListener::new();
         let listener_handle = Some(input_listener.start());
-        let shortcut_manager = ShortcutManager::default();
+        let shortcut_manager = ShortcutManager::new(input_listener.clone());
         let shortcut_handle = Some(shortcut_manager.start());
         Self {
             mgr,
