@@ -437,7 +437,7 @@ pub fn toggle_button(
     response
 }
 
-const N: u32 = 6 * 6;
+const SLIDER_RESOLUTION: u32 = 6 * 6;
 
 pub fn color_slider(
     ui: &mut Ui,
@@ -473,19 +473,19 @@ pub fn color_slider(
         {
             // fill color:
             let mut mesh = Mesh::default();
-            for i in 0..=N {
-                let t = i as f32 / (N as f32);
+            for i in 0..=SLIDER_RESOLUTION {
+                let t = i as f32 / (SLIDER_RESOLUTION as f32);
                 let color = color_at((t * u16::MAX as f32) as u16);
                 let x = lerp(rect.left()..=rect.right(), t);
                 // round edges:
-                let y_offset = if i == 0 || i == N {
+                let y_offset = if i == 0 || i == SLIDER_RESOLUTION {
                     (ui.spacing().slider_rail_height / 2.0) - 2.
                 } else {
                     ui.spacing().slider_rail_height / 2.0
                 };
                 mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
                 mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
-                if i < N {
+                if i < SLIDER_RESOLUTION {
                     mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
                     mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
                 }
