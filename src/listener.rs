@@ -1,15 +1,13 @@
 use log::error;
 use rdev::{listen, Button, Event, EventType, Key};
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
 
 pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
-pub type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync + 'static>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum InputAction {
@@ -40,7 +38,7 @@ impl Hash for InputAction {
 }
 
 impl Ord for InputAction {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
             (InputAction::Key(k1), InputAction::Key(k2)) => {
                 format!("{:?}", k1).cmp(&format!("{:?}", k2))
@@ -48,14 +46,14 @@ impl Ord for InputAction {
             (InputAction::Button(b1), InputAction::Button(b2)) => {
                 format!("{:?}", b1).cmp(&format!("{:?}", b2))
             }
-            (InputAction::Key(_), InputAction::Button(_)) => Ordering::Less,
-            (InputAction::Button(_), InputAction::Key(_)) => Ordering::Greater,
+            (InputAction::Key(_), InputAction::Button(_)) => std::cmp::Ordering::Less,
+            (InputAction::Button(_), InputAction::Key(_)) => std::cmp::Ordering::Greater,
         }
     }
 }
 
 impl PartialOrd for InputAction {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -69,48 +67,10 @@ impl Display for InputAction {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct MousePosition {
     pub x: i32,
     pub y: i32,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct KeyboardShortcut {
-    pub keys: BTreeSet<InputAction>,
-}
-
-impl KeyboardShortcut {
-    pub fn new(keys: BTreeSet<InputAction>) -> Self {
-        KeyboardShortcut { keys }
-    }
-}
-
-#[derive(Clone)]
-pub struct KeyboardShortcutCallback {
-    pub shortcut: KeyboardShortcut,
-    pub callback: ShortcutCallback,
-    pub callback_name: String,
-}
-
-impl Debug for KeyboardShortcut {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
-        write!(f, "KeyboardShortcut({})", keys.join(" + "))
-    }
-}
-
-impl Display for KeyboardShortcut {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
-        write!(f, "{}", keys.join(" + "))
-    }
-}
-
-impl KeyboardShortcut {
-    fn is_matched(&self, keys_pressed: &BTreeSet<InputAction>) -> bool {
-        self.keys.is_subset(keys_pressed)
-    }
 }
 
 pub struct SharedInputState {
@@ -118,8 +78,6 @@ pub struct SharedInputState {
     last_click_time: Mutex<Option<Instant>>,
     keys_pressed: Mutex<BTreeSet<InputAction>>,
     callbacks: Mutex<Vec<BackgroundCallback>>,
-    shortcuts: Mutex<Vec<KeyboardShortcutCallback>>,
-    active_shortcuts: Mutex<BTreeSet<KeyboardShortcut>>,
 }
 
 impl SharedInputState {
@@ -129,8 +87,6 @@ impl SharedInputState {
             last_click_time: Mutex::new(None),
             keys_pressed: Mutex::new(BTreeSet::new()),
             callbacks: Mutex::new(Vec::new()),
-            shortcuts: Mutex::new(Vec::new()),
-            active_shortcuts: Mutex::new(BTreeSet::new()),
         }
     }
 
@@ -189,70 +145,9 @@ impl SharedInputState {
             error!("Failed to lock callbacks mutex");
         }
     }
-
-    fn add_shortcut_callback(
-        &self,
-        shortcut: KeyboardShortcut,
-        callback: ShortcutCallback,
-        callback_name: String,
-    ) {
-        if let Ok(mut shortcuts) = self.shortcuts.lock() {
-            shortcuts.push(KeyboardShortcutCallback {
-                shortcut,
-                callback,
-                callback_name,
-            });
-        } else {
-            error!("Failed to lock shortcuts mutex");
-        }
-    }
-
-    fn check_shortcuts(&self) {
-        let keys_pressed = match self.keys_pressed.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                BTreeSet::new()
-            }
-        };
-
-        let shortcuts = match self.shortcuts.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock shortcuts mutex: {}", e);
-                Vec::new()
-            }
-        };
-
-        let mut active_shortcuts = match self.active_shortcuts.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock active_shortcuts mutex: {}", e);
-                BTreeSet::new()
-            }
-        };
-
-        for shortcut in &shortcuts {
-            if shortcut.shortcut.is_matched(&keys_pressed) {
-                if !active_shortcuts.contains(&shortcut.shortcut) {
-                    // Shortcut is newly activated
-                    (shortcut.callback)(keys_pressed.clone());
-
-                    active_shortcuts.insert(shortcut.shortcut.clone());
-                }
-            } else {
-                active_shortcuts.remove(&shortcut.shortcut);
-            }
-        }
-
-        if let Ok(mut guard) = self.active_shortcuts.lock() {
-            *guard = active_shortcuts;
-        } else {
-            error!("Failed to lock active_shortcuts mutex");
-        }
-    }
 }
 
+#[derive(Clone)]
 pub struct InputListener {
     state: Arc<SharedInputState>,
 }
@@ -312,14 +207,12 @@ impl InputListener {
         }
     }
 
-    pub fn add_shortcut_callback(
-        &self,
-        shortcut: KeyboardShortcut,
-        callback: ShortcutCallback,
-        callback_name: String,
-    ) {
-        self.state
-            .add_shortcut_callback(shortcut, callback, callback_name);
+    pub fn add_callback(&self, callback: BackgroundCallback) {
+        if let Ok(mut callbacks) = self.state.callbacks.lock() {
+            callbacks.push(callback);
+        } else {
+            error!("Failed to lock callbacks mutex");
+        }
     }
 
     pub fn start(&self) -> JoinHandle<()> {
@@ -348,9 +241,6 @@ impl InputListener {
 
                 // Execute all registered callbacks
                 state.execute_callbacks(&event);
-
-                // Check for keyboard shortcuts
-                state.check_shortcuts();
             }) {
                 error!("Error in listen: {:?}", e);
             }
@@ -366,9 +256,10 @@ impl Default for InputListener {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
-    use rdev::{Button, Key};
-    use std::collections::BTreeSet;
+    use rdev::{Button, Event, EventType, Key};
 
     #[test]
     fn test_input_action_equality() {
@@ -407,24 +298,36 @@ mod tests {
     }
 
     #[test]
-    fn test_keyboard_shortcut_matching() {
-        let shortcut = KeyboardShortcut {
-            keys: vec![
-                InputAction::Key(Key::ControlLeft),
-                InputAction::Key(Key::KeyC),
-            ]
-            .into_iter()
-            .collect(),
-        };
+    fn test_input_action_display() {
+        let key = InputAction::Key(Key::KeyA);
+        let button = InputAction::Button(Button::Left);
 
-        let mut keys_pressed = BTreeSet::new();
-        keys_pressed.insert(InputAction::Key(Key::ControlLeft));
-        keys_pressed.insert(InputAction::Key(Key::KeyC));
+        assert_eq!(format!("{}", key), "KeyA");
+        assert_eq!(format!("{}", button), "Left");
+    }
 
-        assert!(shortcut.is_matched(&keys_pressed));
+    #[test]
+    fn test_input_action_hash() {
+        use std::collections::hash_map::DefaultHasher;
 
-        keys_pressed.remove(&InputAction::Key(Key::ControlLeft));
-        assert!(!shortcut.is_matched(&keys_pressed));
+        let key_a1 = InputAction::Key(Key::KeyA);
+        let key_a2 = InputAction::Key(Key::KeyA);
+        let button_left = InputAction::Button(Button::Left);
+
+        let mut hasher1 = DefaultHasher::new();
+        key_a1.hash(&mut hasher1);
+        let hash1 = hasher1.finish();
+
+        let mut hasher2 = DefaultHasher::new();
+        key_a2.hash(&mut hasher2);
+        let hash2 = hasher2.finish();
+
+        let mut hasher3 = DefaultHasher::new();
+        button_left.hash(&mut hasher3);
+        let hash3 = hasher3.finish();
+
+        assert_eq!(hash1, hash2);
+        assert_ne!(hash1, hash3);
     }
 
     #[test]
@@ -466,44 +369,55 @@ mod tests {
     }
 
     #[test]
-    fn test_shared_input_state_shortcut_activation() {
+    fn test_shared_input_state_mouse_position() {
         let state = SharedInputState::new();
 
-        let shortcut = KeyboardShortcut {
-            keys: vec![
-                InputAction::Key(Key::ControlLeft),
-                InputAction::Key(Key::KeyV),
-            ]
-            .into_iter()
-            .collect(),
-        };
+        // Simulate mouse move
+        state.update_mouse_position(100, 200);
+        {
+            let pos = state.last_mouse_position.lock().unwrap();
+            assert_eq!(*pos, Some(MousePosition { x: 100, y: 200 }));
+        }
+    }
 
-        let shortcut_activated = Arc::new(Mutex::new(false));
-        let shortcut_activated_clone = Arc::clone(&shortcut_activated);
-        let callback = Arc::new(move |_keys_pressed: BTreeSet<InputAction>| {
-            let mut activated = shortcut_activated_clone.lock().unwrap();
-            *activated = true;
+    #[test]
+    fn test_shared_input_state_last_click_time() {
+        let state = SharedInputState::new();
+
+        // Simulate button press
+        state.update_button_press(Button::Left);
+        {
+            let last_click_time = state.last_click_time.lock().unwrap();
+            assert!(last_click_time.is_some());
+        }
+    }
+
+    #[test]
+    fn test_shared_input_state_execute_callbacks() {
+        let state = SharedInputState::new();
+
+        let callback_called = Arc::new(Mutex::new(false));
+        let callback_called_clone = Arc::clone(&callback_called);
+
+        let callback = Box::new(move |_event: Event| {
+            let mut called = callback_called_clone.lock().unwrap();
+            *called = true;
         });
 
-        state.add_shortcut_callback(shortcut.clone(), callback, "Paste Shortcut".to_string());
+        {
+            let mut callbacks = state.callbacks.lock().unwrap();
+            callbacks.push(callback);
+        }
 
-        // Simulate pressing keys
-        state.update_key_press(Key::ControlLeft);
-        state.update_key_press(Key::KeyV);
+        let event = Event {
+            event_type: EventType::KeyPress(Key::KeyA),
+            time: SystemTime::now(),
+            name: None,
+        };
 
-        // Check if shortcut was activated
-        state.check_shortcuts();
-        assert!(*shortcut_activated.lock().unwrap());
+        state.execute_callbacks(&event);
 
-        // Reset activation flag
-        *shortcut_activated.lock().unwrap() = false;
-
-        // Simulate releasing a key
-        state.update_key_release(Key::KeyV);
-
-        // Check if shortcut is no longer active
-        state.check_shortcuts();
-        assert!(!*shortcut_activated.lock().unwrap());
+        assert!(*callback_called.lock().unwrap());
     }
 
     #[test]
@@ -550,51 +464,48 @@ mod tests {
     }
 
     #[test]
-    fn test_keyboard_shortcut_display() {
-        let shortcut = KeyboardShortcut {
-            keys: vec![
-                InputAction::Key(Key::ControlLeft),
-                InputAction::Key(Key::Alt),
-                InputAction::Key(Key::Delete),
-            ]
-            .into_iter()
-            .collect(),
+    fn test_input_listener_get_last_mouse_position() {
+        let listener = InputListener::new();
+
+        // Simulate mouse move
+        listener.state.update_mouse_position(150, 250);
+
+        let position = listener.get_last_mouse_position();
+        assert_eq!(position, Some(MousePosition { x: 150, y: 250 }));
+    }
+
+    #[test]
+    fn test_input_listener_get_last_click_time() {
+        let listener = InputListener::new();
+
+        // Simulate button press
+        listener.state.update_button_press(Button::Left);
+
+        let last_click_time = listener.get_last_click_time();
+        assert!(last_click_time.is_some());
+    }
+
+    #[test]
+    fn test_input_listener_add_callback() {
+        let listener = InputListener::new();
+
+        let callback_called = Arc::new(Mutex::new(false));
+        let callback_called_clone = Arc::clone(&callback_called);
+
+        listener.add_callback(Box::new(move |_event: Event| {
+            let mut called = callback_called_clone.lock().unwrap();
+            *called = true;
+        }));
+
+        let event = Event {
+            event_type: EventType::KeyPress(Key::KeyA),
+            time: SystemTime::now(),
+            name: None,
         };
 
-        let display_str = format!("{}", shortcut);
-        assert_eq!(display_str, "Alt + ControlLeft + Delete");
-    }
+        // Directly execute callbacks for testing
+        listener.state.execute_callbacks(&event);
 
-    #[test]
-    fn test_input_action_display() {
-        let key = InputAction::Key(Key::KeyA);
-        let button = InputAction::Button(Button::Left);
-
-        assert_eq!(format!("{}", key), "KeyA");
-        assert_eq!(format!("{}", button), "Left");
-    }
-
-    #[test]
-    fn test_input_action_hash() {
-        use std::collections::hash_map::DefaultHasher;
-
-        let key_a1 = InputAction::Key(Key::KeyA);
-        let key_a2 = InputAction::Key(Key::KeyA);
-        let button_left = InputAction::Button(Button::Left);
-
-        let mut hasher1 = DefaultHasher::new();
-        key_a1.hash(&mut hasher1);
-        let hash1 = hasher1.finish();
-
-        let mut hasher2 = DefaultHasher::new();
-        key_a2.hash(&mut hasher2);
-        let hash2 = hasher2.finish();
-
-        let mut hasher3 = DefaultHasher::new();
-        button_left.hash(&mut hasher3);
-        let hash3 = hasher3.finish();
-
-        assert_eq!(hash1, hash2);
-        assert_ne!(hash1, hash3);
+        assert!(*callback_called.lock().unwrap());
     }
 }
