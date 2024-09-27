@@ -3,6 +3,7 @@ use rdev::{listen, Button, Event, EventType, Key};
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
 use std::time::Instant;
@@ -13,6 +14,42 @@ pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
 pub enum InputAction {
     Key(Key),
     Button(Button),
+}
+
+impl FromStr for InputAction {
+    fn from_str(s: &str) -> Result<InputAction, ()> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "a" => InputAction::Key(Key::KeyA),
+            "b" => InputAction::Key(Key::KeyB),
+            "c" => InputAction::Key(Key::KeyC),
+            "d" => InputAction::Key(Key::KeyD),
+            "e" => InputAction::Key(Key::KeyE),
+            "f" => InputAction::Key(Key::KeyF),
+            "g" => InputAction::Key(Key::KeyG),
+            "h" => InputAction::Key(Key::KeyH),
+            "i" => InputAction::Key(Key::KeyI),
+            "j" => InputAction::Key(Key::KeyJ),
+            "k" => InputAction::Key(Key::KeyK),
+            "l" => InputAction::Key(Key::KeyL),
+            "m" => InputAction::Key(Key::KeyM),
+            "n" => InputAction::Key(Key::KeyN),
+            "o" => InputAction::Key(Key::KeyO),
+            "p" => InputAction::Key(Key::KeyP),
+            "q" => InputAction::Key(Key::KeyQ),
+            "r" => InputAction::Key(Key::KeyR),
+            "s" => InputAction::Key(Key::KeyS),
+            "t" => InputAction::Key(Key::KeyT),
+            "u" => InputAction::Key(Key::KeyU),
+            "v" => InputAction::Key(Key::KeyV),
+            "w" => InputAction::Key(Key::KeyW),
+            "x" => InputAction::Key(Key::KeyX),
+            "y" => InputAction::Key(Key::KeyY),
+            "z" => InputAction::Key(Key::KeyZ),
+            _ => return Err(error!("Failed to parse InputAction from string: {}", s)),
+        })
+    }
+
+    type Err = ();
 }
 
 impl PartialEq for InputAction {

@@ -1,7 +1,8 @@
-// shortcut.rs
 use crate::listener::{InputAction, InputListener};
+use eframe::egui::TextBuffer;
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 pub type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync + 'static>;
@@ -21,11 +22,45 @@ impl KeyboardShortcut {
     }
 }
 
-#[derive(Clone)]
-pub struct KeyboardShortcutCallback {
-    pub shortcut: KeyboardShortcut,
-    pub callback: ShortcutCallback,
-    pub callback_name: String,
+impl TextBuffer for KeyboardShortcut {
+    fn is_mutable(&self) -> bool {
+        true
+    }
+
+    fn as_str(&self) -> &str {
+        Box::leak(
+            self.keys
+                .iter()
+                .fold(String::new(), |acc, k| acc + &format!("{}", k))
+                .into_boxed_str(),
+        )
+    }
+
+    fn insert_text(&mut self, text: &str, char_index: usize) -> usize {
+        let mut new_keys: BTreeSet<InputAction> = BTreeSet::new();
+        let mut index = 0;
+        for (i, key) in self.keys.iter().enumerate() {
+            if i == char_index {
+                for c in text.chars() {
+                    new_keys.insert(InputAction::from_str(&c.to_string()).unwrap());
+                    index += 1;
+                }
+            }
+            new_keys.insert(*key);
+        }
+        self.keys = new_keys;
+        index
+    }
+
+    fn delete_char_range(&mut self, char_range: std::ops::Range<usize>) {
+        let mut new_keys: BTreeSet<InputAction> = BTreeSet::new();
+        for (i, key) in self.keys.iter().enumerate() {
+            if i < char_range.start || i >= char_range.end {
+                new_keys.insert(*key);
+            }
+        }
+        self.keys = new_keys;
+    }
 }
 
 impl Debug for KeyboardShortcut {
@@ -42,10 +77,18 @@ impl Display for KeyboardShortcut {
     }
 }
 
+#[derive(Clone)]
+pub struct KeyboardShortcutCallback {
+    pub shortcut: KeyboardShortcut,
+    pub callback: ShortcutCallback,
+    pub callback_name: String,
+}
+
 pub struct ShortcutManager {
     input_listener: InputListener,
     shortcuts: Arc<Mutex<Vec<KeyboardShortcutCallback>>>,
     active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>>,
+    pub new_shortcut: KeyboardShortcutCallback,
 }
 
 impl ShortcutManager {
@@ -54,6 +97,13 @@ impl ShortcutManager {
             input_listener,
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
+            new_shortcut: KeyboardShortcutCallback {
+                shortcut: KeyboardShortcut {
+                    keys: BTreeSet::new(),
+                },
+                callback: Arc::new(|_keys_pressed| {}),
+                callback_name: "".to_string(),
+            },
         }
     }
 
@@ -137,6 +187,13 @@ impl Default for ShortcutManager {
             input_listener: InputListener::new(),
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
+            new_shortcut: KeyboardShortcutCallback {
+                shortcut: KeyboardShortcut {
+                    keys: BTreeSet::new(),
+                },
+                callback: Arc::new(|_keys_pressed| {}),
+                callback_name: "".to_string(),
+            },
         }
     }
 }
