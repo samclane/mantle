@@ -15,6 +15,10 @@ impl KeyboardShortcut {
     pub fn new(keys: BTreeSet<InputAction>) -> Self {
         KeyboardShortcut { keys }
     }
+
+    fn is_matched(&self, keys_pressed: &BTreeSet<InputAction>) -> bool {
+        self.keys.is_subset(keys_pressed)
+    }
 }
 
 #[derive(Clone)]
@@ -35,12 +39,6 @@ impl Display for KeyboardShortcut {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
         write!(f, "{}", keys.join(" + "))
-    }
-}
-
-impl KeyboardShortcut {
-    fn is_matched(&self, keys_pressed: &BTreeSet<InputAction>) -> bool {
-        self.keys.is_subset(keys_pressed)
     }
 }
 
@@ -140,5 +138,101 @@ impl Default for ShortcutManager {
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::listener::{InputAction, InputListener};
+    use rdev::Key;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[test]
+    fn test_keyboard_shortcut_new() {
+        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(keys.clone());
+        assert_eq!(shortcut.keys, keys);
+    }
+
+    #[test]
+    fn test_keyboard_shortcut_is_matched() {
+        let shortcut_keys: BTreeSet<_> = vec![
+            InputAction::Key(Key::ControlLeft),
+            InputAction::Key(Key::KeyC),
+        ]
+        .into_iter()
+        .collect();
+        let shortcut = KeyboardShortcut::new(shortcut_keys.clone());
+
+        // Test with matching keys_pressed
+        let keys_pressed = shortcut_keys.clone();
+        assert!(shortcut.is_matched(&keys_pressed));
+
+        // Test with extra keys in keys_pressed
+        let mut keys_pressed_extra = keys_pressed.clone();
+        keys_pressed_extra.insert(InputAction::Key(Key::ShiftLeft));
+        assert!(shortcut.is_matched(&keys_pressed_extra));
+
+        // Test with missing keys in keys_pressed
+        let keys_pressed_missing: BTreeSet<_> = vec![InputAction::Key(Key::ControlLeft)]
+            .into_iter()
+            .collect();
+        assert!(!shortcut.is_matched(&keys_pressed_missing));
+    }
+
+    #[test]
+    fn test_keyboard_shortcut_display() {
+        let keys: BTreeSet<_> = vec![
+            InputAction::Key(Key::ControlLeft),
+            InputAction::Key(Key::KeyA),
+        ]
+        .into_iter()
+        .collect();
+        let shortcut = KeyboardShortcut::new(keys);
+        let display_str = format!("{}", shortcut);
+        assert!(display_str.contains("ControlLeft"));
+        assert!(display_str.contains("KeyA"));
+    }
+
+    #[test]
+    fn test_keyboard_shortcut_callback_creation() {
+        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(keys);
+        let callback_called = Arc::new(AtomicBool::new(false));
+        let callback_called_clone = Arc::clone(&callback_called);
+
+        let callback: ShortcutCallback = Arc::new(move |_keys_pressed| {
+            callback_called_clone.store(true, Ordering::SeqCst);
+        });
+
+        let shortcut_callback = KeyboardShortcutCallback {
+            shortcut,
+            callback,
+            callback_name: "TestAction".to_string(),
+        };
+
+        // Simulate calling the callback
+        (shortcut_callback.callback)(BTreeSet::new());
+        assert!(callback_called.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_shortcut_manager_add_shortcut() {
+        let input_listener = InputListener::new();
+        let shortcut_manager = ShortcutManager::new(input_listener);
+        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(keys.clone());
+
+        shortcut_manager.add_shortcut(
+            "TestAction".to_string(),
+            shortcut.clone(),
+            |_keys_pressed| {},
+        );
+
+        let shortcuts = shortcut_manager.get_active_shortcuts();
+        assert_eq!(shortcuts.len(), 1);
+        assert_eq!(shortcuts[0].shortcut, shortcut);
+        assert_eq!(shortcuts[0].callback_name, "TestAction");
     }
 }
