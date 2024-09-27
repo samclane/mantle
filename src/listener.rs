@@ -14,6 +14,7 @@ pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
 pub enum InputAction {
     Key(Key),
     Button(Button),
+    Unknown,
 }
 
 impl FromStr for InputAction {
@@ -70,6 +71,7 @@ impl Hash for InputAction {
         match self {
             InputAction::Key(k) => k.hash(state),
             InputAction::Button(b) => b.hash(state),
+            InputAction::Unknown => "Unknown".hash(state),
         }
     }
 }
@@ -85,6 +87,9 @@ impl Ord for InputAction {
             }
             (InputAction::Key(_), InputAction::Button(_)) => std::cmp::Ordering::Less,
             (InputAction::Button(_), InputAction::Key(_)) => std::cmp::Ordering::Greater,
+            (InputAction::Unknown, InputAction::Unknown) => std::cmp::Ordering::Equal,
+            (InputAction::Unknown, _) => std::cmp::Ordering::Less,
+            (_, InputAction::Unknown) => std::cmp::Ordering::Greater,
         }
     }
 }
@@ -100,6 +105,7 @@ impl Display for InputAction {
         match self {
             InputAction::Key(k) => write!(f, "{:?}", k),
             InputAction::Button(b) => write!(f, "{:?}", b),
+            InputAction::Unknown => write!(f, "Unknown"),
         }
     }
 }
