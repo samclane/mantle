@@ -112,7 +112,7 @@ pub fn handle_screencap(
         ui.visuals().widgets.inactive.bg_fill
     };
     handle_get_subregion_bounds(app, ui, device.id());
-    if let Some(chan) = app.waveform_trx.get(&device.id()) {
+    if let Some(chan) = app.waveform_channel.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
                 .entry(device.id())
@@ -130,7 +130,7 @@ pub fn handle_screencap(
         }
     } else {
         let (tx, rx) = mpsc::channel();
-        app.waveform_trx.insert(
+        app.waveform_channel.insert(
             device.id(),
             ColorChannelEntry {
                 tx,
@@ -167,7 +167,7 @@ pub fn handle_screencap(
         if app.waveform_map[&device.id()].active {
             let screen_manager = app.screen_manager.clone();
             let tx = app
-                .waveform_trx
+                .waveform_channel
                 .get(&device.id())
                 .expect("Failed to get color sender for device")
                 .tx
@@ -177,7 +177,7 @@ pub fn handle_screencap(
             let device_id = device.id();
 
             let (stop_tx, stop_rx) = mpsc::channel::<()>();
-            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+            if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
                 waveform_trx.handle = Some(thread::spawn(move || loop {
                     #[cfg(debug_assertions)]
                     puffin::profile_function!();
@@ -202,7 +202,7 @@ pub fn handle_screencap(
                 .stop_tx = Some(stop_tx);
         } else {
             // kill thread
-            if let Some(waveform_trx) = app.waveform_trx.get_mut(&device.id()) {
+            if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
                 if let Some(thread) = waveform_trx.handle.take() {
                     // Send a signal to stop the thread
                     if let Some(stop_tx) = app

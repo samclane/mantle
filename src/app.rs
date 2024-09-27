@@ -83,7 +83,7 @@ pub struct MantleApp {
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
-    pub waveform_trx: ColorChannel,
+    pub waveform_channel: ColorChannel,
 }
 
 impl Default for MantleApp {
@@ -107,7 +107,7 @@ impl Default for MantleApp {
             show_subregion: HashMap::new(),
             subregion_points: HashMap::new(),
             waveform_map: HashMap::new(),
-            waveform_trx: HashMap::new(),
+            waveform_channel: HashMap::new(),
         }
     }
 }
