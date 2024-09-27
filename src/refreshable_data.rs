@@ -31,4 +31,13 @@ impl<T> RefreshableData<T> {
     pub fn as_ref(&self) -> Option<&T> {
         self.data.as_ref()
     }
+
+    pub fn new(data: T, max_age: Duration, refresh_msg: Message) -> RefreshableData<T> {
+        RefreshableData {
+            data: Some(data),
+            max_age,
+            last_updated: Instant::now(),
+            refresh_msg,
+        }
+    }
 }

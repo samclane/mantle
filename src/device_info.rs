@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::fmt::Formatter;
 use std::net::{SocketAddr, UdpSocket};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
@@ -108,7 +108,7 @@ impl BulbInfo {
         self.refresh_if_needed(sock, &self.power_level)?;
         self.refresh_if_needed(sock, &self.group)?;
         match &self.color {
-            DeviceColor::Unknown => (), // we'll need to wait to get info about this bulb's model, so we'll know if it's multizone or not
+            DeviceColor::Unknown => (), // We'll need to wait to get info about this bulb's model.
             DeviceColor::Single(d) => self.refresh_if_needed(sock, d)?,
             DeviceColor::Multi(d) => self.refresh_if_needed(sock, d)?,
         }
@@ -162,7 +162,11 @@ impl GroupInfo {
     }
 
     pub fn update(&mut self) {
-        self.updated_at = Instant::now().elapsed().as_secs();
+        // update time as current datetime
+        self.updated_at = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Failed to get time since epoch")
+            .as_secs();
     }
 
     pub fn get_bulbs<'a>(&self, bulbs: &'a HashMap<u64, BulbInfo>) -> Vec<&'a BulbInfo> {
@@ -187,7 +191,7 @@ impl GroupInfo {
     }
 
     pub fn id(&self) -> u64 {
-        // convert ident to u64
+        // Convert ident to u64
         u64::from_le_bytes(self.group.0[0..8].try_into().unwrap_or([0u8; 8]))
     }
 }
@@ -273,5 +277,244 @@ impl std::fmt::Debug for DeviceInfo<'_> {
             DeviceInfo::Bulb(b) => write!(f, "{:?}", b),
             DeviceInfo::Group(g) => write!(f, "{:?}", g),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::refreshable_data::RefreshableData;
+    use lifx_core::{LifxIdent, LifxString, HSBK};
+    use std::ffi::CString;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::u8;
+
+    #[test]
+    fn test_bulbinfo_new() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let bulb = BulbInfo::new(source, target, addr);
+
+        assert_eq!(bulb.source, source);
+        assert_eq!(bulb.target, target);
+        assert_eq!(bulb.addr, addr);
+        assert!(bulb.last_seen.elapsed() < Duration::from_secs(1));
+        assert!(matches!(bulb.color, DeviceColor::Unknown));
+        assert!(bulb.name.data.is_none());
+        assert!(bulb.model.data.is_none());
+        assert!(bulb.location.data.is_none());
+    }
+
+    #[test]
+    fn test_bulbinfo_update() {
+        let source = 1234;
+        let target = 5678;
+        let addr1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let addr2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56701);
+        let mut bulb = BulbInfo::new(source, target, addr1);
+
+        std::thread::sleep(Duration::from_millis(10));
+        bulb.update(addr2);
+
+        assert_eq!(bulb.addr, addr2);
+        assert!(bulb.last_seen.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_bulbinfo_get_color_single() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(source, target, addr);
+
+        let hsbk = HSBK {
+            hue: 120,
+            saturation: 65535,
+            brightness: 32768,
+            kelvin: 3500,
+        };
+        bulb.color = DeviceColor::Single(RefreshableData::new(
+            hsbk,
+            Duration::from_secs(60),
+            Message::GetColorZones {
+                start_index: 0,
+                end_index: u8::MAX,
+            },
+        ));
+
+        let color = bulb.get_color();
+        assert!(color.is_some());
+        assert_eq!(color.unwrap().hue, 120);
+    }
+
+    #[test]
+    fn test_bulbinfo_get_color_multi() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(source, target, addr);
+
+        let hsbk1 = Some(HSBK {
+            hue: 120,
+            saturation: 65535,
+            brightness: 32768,
+            kelvin: 3500,
+        });
+        let hsbk2 = Some(HSBK {
+            hue: 240,
+            saturation: 65535,
+            brightness: 32768,
+            kelvin: 3500,
+        });
+        bulb.color = DeviceColor::Multi(RefreshableData::new(
+            vec![hsbk1, hsbk2],
+            Duration::from_secs(60),
+            Message::GetColorZones {
+                start_index: 0,
+                end_index: u8::MAX,
+            },
+        ));
+
+        let color = bulb.get_color();
+        assert!(color.is_some());
+        assert_eq!(color.unwrap().hue, 120);
+    }
+
+    #[test]
+    fn test_groupinfo_new() {
+        let ident = LifxIdent([1u8; 16]);
+        let label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let group = GroupInfo::new(ident, label.clone());
+
+        assert_eq!(group.group, ident);
+        assert_eq!(group.label, label);
+        assert_eq!(group.updated_at, 0);
+    }
+
+    #[test]
+    fn test_groupinfo_build_all_group() {
+        let group = GroupInfo::build_all_group();
+        let expected_ident = LifxIdent([0u8; 16]);
+        let expected_label = LifxString::new(&CString::new("All").unwrap());
+
+        assert_eq!(group.group, expected_ident);
+        assert_eq!(group.label, expected_label);
+    }
+
+    #[test]
+    fn test_groupinfo_update() {
+        let ident = LifxIdent([1u8; 16]);
+        let label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let mut group = GroupInfo::new(ident, label);
+
+        group.update();
+        assert!(group.updated_at > 0);
+    }
+
+    #[test]
+    fn test_groupinfo_get_bulbs() {
+        let ident = LifxIdent([1u8; 16]);
+        let label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let group = GroupInfo::new(ident.clone(), label);
+
+        let bulb1 = BulbInfo::new(
+            1,
+            1,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
+        );
+        let bulb2 = BulbInfo::new(
+            1,
+            2,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56701),
+        );
+
+        let mut bulb_map = HashMap::new();
+
+        let mut bulb1 = bulb1;
+        bulb1.group.data = Some(group.clone());
+        bulb_map.insert(bulb1.target, bulb1);
+
+        bulb_map.insert(bulb2.target, bulb2);
+
+        let bulbs = group.get_bulbs(&bulb_map);
+        assert_eq!(bulbs.len(), 1);
+        assert_eq!(bulbs[0].target, 1);
+    }
+
+    #[test]
+    fn test_bulbinfo_name_label() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(source, target, addr);
+
+        let name = CString::new("TestBulb").unwrap();
+        bulb.name.data = Some(name.clone());
+
+        let label = bulb.name_label();
+        assert!(label.is_some());
+        assert_eq!(label.unwrap(), "TestBulb");
+    }
+
+    #[test]
+    fn test_bulbinfo_group_label() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(source, target, addr);
+
+        let group_label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let group_info = GroupInfo::new(LifxIdent([1u8; 16]), group_label.clone());
+
+        bulb.group.data = Some(group_info);
+
+        let label = bulb.group_label();
+        assert!(label.is_some());
+        assert_eq!(label.unwrap(), "TestGroup");
+    }
+
+    #[test]
+    fn test_deviceinfo_id() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let bulb = BulbInfo::new(source, target, addr);
+
+        let device_info = DeviceInfo::Bulb(&bulb);
+        assert_eq!(device_info.id(), target);
+
+        let group_ident = LifxIdent([1u8; 16]);
+        let group_label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let group = GroupInfo::new(group_ident, group_label);
+
+        let device_info = DeviceInfo::Group(group.clone());
+        let expected_id = u64::from_le_bytes(group_ident.0[0..8].try_into().unwrap());
+        assert_eq!(device_info.id(), expected_id);
+    }
+
+    #[test]
+    fn test_handle_multizone() {
+        let hsbk1 = Some(HSBK {
+            hue: 1000,
+            saturation: 2000,
+            brightness: 3000,
+            kelvin: 4000,
+        });
+        let hsbk2 = Some(HSBK {
+            hue: 5000,
+            saturation: 6000,
+            brightness: 7000,
+            kelvin: 8000,
+        });
+        let data = Some(vec![hsbk1.clone(), hsbk2.clone()]);
+
+        let color = handle_multizone(data.as_ref());
+        assert!(color.is_some());
+        assert_eq!(color.unwrap(), hsbk1.as_ref().unwrap());
+
+        let empty_data: Option<&Vec<Option<HSBK>>> = None;
+        let color = handle_multizone(empty_data);
+        assert!(color.is_none());
     }
 }

@@ -145,14 +145,12 @@ impl LifxManager {
                     if v.len() < (index + 8) as usize {
                         v.resize((index + 8) as usize, None);
                     }
-                    v[index as usize] = Some(color0);
-                    v[index as usize + 1] = Some(color1);
-                    v[index as usize + 2] = Some(color2);
-                    v[index as usize + 3] = Some(color3);
-                    v[index as usize + 4] = Some(color4);
-                    v[index as usize + 5] = Some(color5);
-                    v[index as usize + 6] = Some(color6);
-                    v[index as usize + 7] = Some(color7);
+                    let colors = [
+                        color0, color1, color2, color3, color4, color5, color6, color7,
+                    ];
+                    for (i, &color) in colors.iter().enumerate() {
+                        v[index as usize + i] = Some(color);
+                    }
                 }
             }
             Message::Acknowledgement { seq } => {
