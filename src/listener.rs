@@ -1,28 +1,58 @@
+use std::{
+    collections::BTreeSet,
+    fmt::{Display, Formatter, Result as FmtResult},
+    str::FromStr,
+    sync::{Arc, Mutex},
+    thread::{spawn, JoinHandle},
+    time::Instant,
+};
+
 use eframe::egui;
 use log::error;
 use rdev::{listen, Button, Event, EventType, Key};
-use std::collections::BTreeSet;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::thread::{spawn, JoinHandle};
-use std::time::Instant;
 
 pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InputItem {
     Key(Key),
     Button(Button),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InputAction(pub BTreeSet<InputItem>);
+impl Display for InputItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            InputItem::Key(k) => write!(f, "{:?}", k),
+            InputItem::Button(b) => write!(f, "{:?}", b),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum InputItemParseError {
+    InvalidInput(String),
+}
+
+impl Display for InputItemParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{}",
+            match self {
+                InputItemParseError::InvalidInput(s) => s,
+            }
+        )
+    }
+}
+
+impl std::error::Error for InputItemParseError {}
 
 impl FromStr for InputItem {
-    fn from_str(s: &str) -> Result<InputItem, ()> {
-        match s.to_ascii_lowercase().as_str() {
+    type Err = InputItemParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_ascii_lowercase();
+        match s_lower.as_str() {
             "ctrl" => Ok(InputItem::Key(Key::ControlLeft)),
             "alt" => Ok(InputItem::Key(Key::Alt)),
             "shift" => Ok(InputItem::Key(Key::ShiftLeft)),
@@ -34,36 +64,118 @@ impl FromStr for InputItem {
             "enter" | "return" => Ok(InputItem::Key(Key::Return)),
             "escape" => Ok(InputItem::Key(Key::Escape)),
             "tab" => Ok(InputItem::Key(Key::Tab)),
-            "a" => Ok(InputItem::Key(Key::KeyA)),
-            "b" => Ok(InputItem::Key(Key::KeyB)),
-            "c" => Ok(InputItem::Key(Key::KeyC)),
-            "d" => Ok(InputItem::Key(Key::KeyD)),
-            "e" => Ok(InputItem::Key(Key::KeyE)),
-            "f" => Ok(InputItem::Key(Key::KeyF)),
-            "g" => Ok(InputItem::Key(Key::KeyG)),
-            "h" => Ok(InputItem::Key(Key::KeyH)),
-            "i" => Ok(InputItem::Key(Key::KeyI)),
-            "j" => Ok(InputItem::Key(Key::KeyJ)),
-            "k" => Ok(InputItem::Key(Key::KeyK)),
-            "l" => Ok(InputItem::Key(Key::KeyL)),
-            "m" => Ok(InputItem::Key(Key::KeyM)),
-            "n" => Ok(InputItem::Key(Key::KeyN)),
-            "o" => Ok(InputItem::Key(Key::KeyO)),
-            "p" => Ok(InputItem::Key(Key::KeyP)),
-            "q" => Ok(InputItem::Key(Key::KeyQ)),
-            "r" => Ok(InputItem::Key(Key::KeyR)),
-            "s" => Ok(InputItem::Key(Key::KeyS)),
-            "t" => Ok(InputItem::Key(Key::KeyT)),
-            "u" => Ok(InputItem::Key(Key::KeyU)),
-            "v" => Ok(InputItem::Key(Key::KeyV)),
-            "w" => Ok(InputItem::Key(Key::KeyW)),
-            "x" => Ok(InputItem::Key(Key::KeyX)),
-            "y" => Ok(InputItem::Key(Key::KeyY)),
-            "z" => Ok(InputItem::Key(Key::KeyZ)),
-            _ => Err(error!("Failed to parse InputAction from string: {}", s)),
+            s if s.len() == 1 && s.chars().all(|c| c.is_ascii_alphabetic()) => {
+                let c = s.chars().next().unwrap().to_ascii_uppercase();
+                let key = match c {
+                    'A' => Key::KeyA,
+                    'B' => Key::KeyB,
+                    'C' => Key::KeyC,
+                    'D' => Key::KeyD,
+                    'E' => Key::KeyE,
+                    'F' => Key::KeyF,
+                    'G' => Key::KeyG,
+                    'H' => Key::KeyH,
+                    'I' => Key::KeyI,
+                    'J' => Key::KeyJ,
+                    'K' => Key::KeyK,
+                    'L' => Key::KeyL,
+                    'M' => Key::KeyM,
+                    'N' => Key::KeyN,
+                    'O' => Key::KeyO,
+                    'P' => Key::KeyP,
+                    'Q' => Key::KeyQ,
+                    'R' => Key::KeyR,
+                    'S' => Key::KeyS,
+                    'T' => Key::KeyT,
+                    'U' => Key::KeyU,
+                    'V' => Key::KeyV,
+                    'W' => Key::KeyW,
+                    'X' => Key::KeyX,
+                    'Y' => Key::KeyY,
+                    'Z' => Key::KeyZ,
+                    _ => unreachable!(),
+                };
+                Ok(InputItem::Key(key))
+            }
+            _ => Err(InputItemParseError::InvalidInput(s.to_string())),
         }
     }
-    type Err = ();
+}
+
+impl PartialOrd for InputItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for InputItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
+        match (self, other) {
+            (InputItem::Key(k1), InputItem::Key(k2)) => {
+                format!("{:?}", k1).cmp(&format!("{:?}", k2))
+            }
+            (InputItem::Button(b1), InputItem::Button(b2)) => {
+                format!("{:?}", b1).cmp(&format!("{:?}", b2))
+            }
+            (InputItem::Key(_), InputItem::Button(_)) => Ordering::Less,
+            (InputItem::Button(_), InputItem::Key(_)) => Ordering::Greater,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InputAction(pub BTreeSet<InputItem>);
+
+impl Display for InputAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let mut items: Vec<String> = self.0.iter().map(|item| item.to_string()).collect();
+        items.sort();
+        write!(f, "{}", items.join("+"))
+    }
+}
+
+#[derive(Debug)]
+pub enum InputActionParseError {
+    InvalidItem(String),
+}
+
+impl Display for InputActionParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{}",
+            match self {
+                InputActionParseError::InvalidItem(s) => s,
+            }
+        )
+    }
+}
+
+impl std::error::Error for InputActionParseError {}
+
+impl FromStr for InputAction {
+    type Err = InputActionParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split('+');
+        let mut items = BTreeSet::new();
+
+        for part in parts {
+            let part = part.trim();
+            match InputItem::from_str(part) {
+                Ok(item) => {
+                    items.insert(item);
+                }
+                Err(_) => {
+                    return Err(InputActionParseError::InvalidItem(part.to_string()));
+                }
+            }
+        }
+
+        Ok(InputAction(items))
+    }
 }
 
 #[derive(Debug)]
@@ -76,6 +188,8 @@ impl Display for KeyMappingError {
         write!(f, "Failed to map egui::Key to rdev::Key: {:?}", self.key)
     }
 }
+
+impl std::error::Error for KeyMappingError {}
 
 pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> {
     match key {
@@ -124,74 +238,6 @@ pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> 
     }
 }
 
-impl Hash for InputItem {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
-        match self {
-            InputItem::Key(k) => k.hash(state),
-            InputItem::Button(b) => b.hash(state),
-        }
-    }
-}
-
-impl Ord for InputItem {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self, other) {
-            (InputItem::Key(k1), InputItem::Key(k2)) => {
-                format!("{:?}", k1).cmp(&format!("{:?}", k2))
-            }
-            (InputItem::Button(b1), InputItem::Button(b2)) => {
-                format!("{:?}", b1).cmp(&format!("{:?}", b2))
-            }
-            (InputItem::Key(_), InputItem::Button(_)) => std::cmp::Ordering::Less,
-            (InputItem::Button(_), InputItem::Key(_)) => std::cmp::Ordering::Greater,
-        }
-    }
-}
-
-impl PartialOrd for InputItem {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Display for InputItem {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            InputItem::Key(k) => write!(f, "{:?}", k),
-            InputItem::Button(b) => write!(f, "{:?}", b),
-        }
-    }
-}
-
-impl FromStr for InputAction {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split('+');
-        let mut items = BTreeSet::new();
-
-        for part in parts {
-            let part = part.trim();
-            if let Ok(item) = InputItem::from_str(part) {
-                items.insert(item);
-            } else {
-                return Err(format!("Failed to parse InputAction from string: {}", s));
-            }
-        }
-
-        Ok(InputAction(items))
-    }
-}
-
-impl Display for InputAction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let mut items: Vec<String> = self.0.iter().map(|item| format!("{}", item)).collect();
-        items.sort(); // Ensure consistent order
-        write!(f, "{}", items.join("+"))
-    }
-}
-
 pub fn from_egui(key: egui::Key, modifiers: egui::Modifiers) -> InputAction {
     let mut items = BTreeSet::new();
 
@@ -208,10 +254,13 @@ pub fn from_egui(key: egui::Key, modifiers: egui::Modifiers) -> InputAction {
         items.insert(InputItem::Key(Key::MetaLeft));
     }
 
-    if let Ok(rdev_key) = map_egui_key_to_rdev_key(key) {
-        items.insert(InputItem::Key(rdev_key));
-    } else {
-        error!("Failed to map egui::Key to rdev::Key: {:?}", key);
+    match map_egui_key_to_rdev_key(key) {
+        Ok(rdev_key) => {
+            items.insert(InputItem::Key(rdev_key));
+        }
+        Err(err) => {
+            error!("{}", err);
+        }
     }
 
     InputAction(items)
@@ -241,37 +290,37 @@ impl SharedInputState {
     }
 
     fn update_input_key_press(&self, input_key: InputItem) {
-        if let Ok(mut keys) = self.keys_pressed.lock() {
-            keys.insert(input_key);
-        } else {
-            error!("Failed to lock keys_pressed mutex");
-        }
+        let mut keys = self
+            .keys_pressed
+            .lock()
+            .expect("Failed to lock keys_pressed mutex");
+        keys.insert(input_key);
     }
 
     fn update_input_key_release(&self, input_key: InputItem) {
-        if let Ok(mut keys) = self.keys_pressed.lock() {
-            keys.remove(&input_key);
-        } else {
-            error!("Failed to lock keys_pressed mutex");
-        }
+        let mut keys = self
+            .keys_pressed
+            .lock()
+            .expect("Failed to lock keys_pressed mutex");
+        keys.remove(&input_key);
     }
 
     fn update_mouse_position(&self, x: i32, y: i32) {
-        if let Ok(mut pos) = self.last_mouse_position.lock() {
-            *pos = Some(MousePosition { x, y });
-        } else {
-            error!("Failed to lock last_mouse_position mutex");
-        }
+        let mut pos = self
+            .last_mouse_position
+            .lock()
+            .expect("Failed to lock last_mouse_position mutex");
+        *pos = Some(MousePosition { x, y });
     }
 
     fn update_button_press(&self, button: Button) {
         self.update_input_key_press(InputItem::Button(button));
 
-        if let Ok(mut time) = self.last_click_time.lock() {
-            *time = Some(Instant::now());
-        } else {
-            error!("Failed to lock last_click_time mutex");
-        }
+        let mut time = self
+            .last_click_time
+            .lock()
+            .expect("Failed to lock last_click_time mutex");
+        *time = Some(Instant::now());
     }
 
     fn update_button_release(&self, button: Button) {
@@ -287,12 +336,12 @@ impl SharedInputState {
     }
 
     fn execute_callbacks(&self, event: &Event) {
-        if let Ok(callbacks) = self.callbacks.lock() {
-            for callback in callbacks.iter() {
-                callback(event.clone());
-            }
-        } else {
-            error!("Failed to lock callbacks mutex");
+        let callbacks = self
+            .callbacks
+            .lock()
+            .expect("Failed to lock callbacks mutex");
+        for callback in callbacks.iter() {
+            callback(event.clone());
         }
     }
 }
@@ -310,33 +359,30 @@ impl InputListener {
     }
 
     pub fn get_last_mouse_position(&self) -> Option<MousePosition> {
-        match self.state.last_mouse_position.lock() {
-            Ok(guard) => *guard,
-            Err(e) => {
-                error!("Failed to lock last_mouse_position mutex: {}", e);
-                None
-            }
-        }
+        let pos = self
+            .state
+            .last_mouse_position
+            .lock()
+            .expect("Failed to lock last_mouse_position mutex");
+        *pos
     }
 
     pub fn get_last_click_time(&self) -> Option<Instant> {
-        match self.state.last_click_time.lock() {
-            Ok(guard) => *guard,
-            Err(e) => {
-                error!("Failed to lock last_click_time mutex: {}", e);
-                None
-            }
-        }
+        let time = self
+            .state
+            .last_click_time
+            .lock()
+            .expect("Failed to lock last_click_time mutex");
+        *time
     }
 
     pub fn is_input_key_pressed(&self, input_key: InputItem) -> bool {
-        match self.state.keys_pressed.lock() {
-            Ok(guard) => guard.contains(&input_key),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                false
-            }
-        }
+        let keys = self
+            .state
+            .keys_pressed
+            .lock()
+            .expect("Failed to lock keys_pressed mutex");
+        keys.contains(&input_key)
     }
 
     pub fn is_key_pressed(&self, key: Key) -> bool {
@@ -348,41 +394,30 @@ impl InputListener {
     }
 
     pub fn get_keys_pressed(&self) -> BTreeSet<InputItem> {
-        match self.state.keys_pressed.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                BTreeSet::new()
-            }
-        }
+        let keys = self
+            .state
+            .keys_pressed
+            .lock()
+            .expect("Failed to lock keys_pressed mutex");
+        keys.clone()
     }
 
     pub fn is_input_action_pressed(&self, input_action: &InputAction) -> bool {
-        match self.state.keys_pressed.lock() {
-            Ok(guard) => input_action.0.is_subset(&guard),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                false
-            }
-        }
-    }
-
-    pub fn get_items_pressed(&self) -> BTreeSet<InputItem> {
-        match self.state.keys_pressed.lock() {
-            Ok(guard) => guard.clone(),
-            Err(e) => {
-                error!("Failed to lock keys_pressed mutex: {}", e);
-                BTreeSet::new()
-            }
-        }
+        let keys = self
+            .state
+            .keys_pressed
+            .lock()
+            .expect("Failed to lock keys_pressed mutex");
+        input_action.0.is_subset(&keys)
     }
 
     pub fn add_callback(&self, callback: BackgroundCallback) {
-        if let Ok(mut callbacks) = self.state.callbacks.lock() {
-            callbacks.push(callback);
-        } else {
-            error!("Failed to lock callbacks mutex");
-        }
+        let mut callbacks = self
+            .state
+            .callbacks
+            .lock()
+            .expect("Failed to lock callbacks mutex");
+        callbacks.push(callback);
     }
 
     pub fn start(&self) -> JoinHandle<()> {
@@ -409,7 +444,6 @@ impl InputListener {
                     _ => {}
                 }
 
-                // Execute all registered callbacks
                 state.execute_callbacks(&event);
             }) {
                 error!("Error in listen: {:?}", e);
@@ -426,7 +460,10 @@ impl Default for InputListener {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::{
+        hash::{Hash, Hasher},
+        time::SystemTime,
+    };
 
     use super::*;
     use rdev::{Button, Event, EventType, Key};
