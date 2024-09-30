@@ -1,20 +1,20 @@
-use crate::listener::{InputAction, InputListener};
+use crate::listener::{InputItem, InputListener};
 use eframe::egui::TextBuffer;
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-pub type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputAction>) + Send + Sync + 'static>;
+pub type ShortcutCallback = Arc<dyn Fn(BTreeSet<InputItem>) + Send + Sync + 'static>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct KeyboardShortcut {
-    pub keys: BTreeSet<InputAction>,
+    pub keys: BTreeSet<InputItem>,
     display_name: String,
 }
 
 impl KeyboardShortcut {
-    pub fn new(keys: BTreeSet<InputAction>, display_name: String) -> Self {
+    pub fn new(keys: BTreeSet<InputItem>, display_name: String) -> Self {
         KeyboardShortcut { keys, display_name }
     }
 
@@ -25,7 +25,7 @@ impl KeyboardShortcut {
             .fold(String::new(), |acc, key| acc + &format!("{} + ", key));
     }
 
-    fn is_matched(&self, keys_pressed: &BTreeSet<InputAction>) -> bool {
+    fn is_matched(&self, keys_pressed: &BTreeSet<InputItem>) -> bool {
         self.keys.is_subset(keys_pressed)
     }
 }
@@ -45,7 +45,7 @@ impl TextBuffer for KeyboardShortcut {
             if offset != char_index {
                 continue;
             }
-            if let Ok(key) = InputAction::from_str(&c.to_string()) {
+            if let Ok(key) = InputItem::from_str(&c.to_string()) {
                 new_keys.insert(key);
             }
         }
@@ -112,7 +112,7 @@ impl ShortcutManager {
 
     pub fn add_shortcut<F>(&self, action_name: String, shortcut: KeyboardShortcut, callback: F)
     where
-        F: Fn(BTreeSet<InputAction>) + Send + Sync + 'static,
+        F: Fn(BTreeSet<InputItem>) + Send + Sync + 'static,
     {
         let arc_callback: ShortcutCallback = Arc::new(callback);
 
@@ -205,25 +205,23 @@ impl Default for ShortcutManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::listener::{InputAction, InputListener};
+    use crate::listener::{InputItem, InputListener};
     use rdev::Key;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
     fn test_keyboard_shortcut_new() {
-        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
         let shortcut = KeyboardShortcut::new(keys.clone(), "TestAction".to_string());
         assert_eq!(shortcut.keys, keys);
     }
 
     #[test]
     fn test_keyboard_shortcut_is_matched() {
-        let shortcut_keys: BTreeSet<_> = vec![
-            InputAction::Key(Key::ControlLeft),
-            InputAction::Key(Key::KeyC),
-        ]
-        .into_iter()
-        .collect();
+        let shortcut_keys: BTreeSet<_> =
+            vec![InputItem::Key(Key::ControlLeft), InputItem::Key(Key::KeyC)]
+                .into_iter()
+                .collect();
         let shortcut = KeyboardShortcut::new(shortcut_keys.clone(), "TestAction".to_string());
 
         // Test with matching keys_pressed
@@ -232,24 +230,20 @@ mod tests {
 
         // Test with extra keys in keys_pressed
         let mut keys_pressed_extra = keys_pressed.clone();
-        keys_pressed_extra.insert(InputAction::Key(Key::ShiftLeft));
+        keys_pressed_extra.insert(InputItem::Key(Key::ShiftLeft));
         assert!(shortcut.is_matched(&keys_pressed_extra));
 
         // Test with missing keys in keys_pressed
-        let keys_pressed_missing: BTreeSet<_> = vec![InputAction::Key(Key::ControlLeft)]
-            .into_iter()
-            .collect();
+        let keys_pressed_missing: BTreeSet<_> =
+            vec![InputItem::Key(Key::ControlLeft)].into_iter().collect();
         assert!(!shortcut.is_matched(&keys_pressed_missing));
     }
 
     #[test]
     fn test_keyboard_shortcut_display() {
-        let keys: BTreeSet<_> = vec![
-            InputAction::Key(Key::ControlLeft),
-            InputAction::Key(Key::KeyA),
-        ]
-        .into_iter()
-        .collect();
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::ControlLeft), InputItem::Key(Key::KeyA)]
+            .into_iter()
+            .collect();
         let shortcut = KeyboardShortcut::new(keys, "TestAction".to_string());
         let display_str = format!("{}", shortcut);
         assert!(display_str.contains("ControlLeft"));
@@ -258,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_keyboard_shortcut_callback_creation() {
-        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
         let shortcut = KeyboardShortcut::new(keys, "TestAction".to_string());
         let callback_called = Arc::new(AtomicBool::new(false));
         let callback_called_clone = Arc::clone(&callback_called);
@@ -282,7 +276,7 @@ mod tests {
     fn test_shortcut_manager_add_shortcut() {
         let input_listener = InputListener::new();
         let shortcut_manager = ShortcutManager::new(input_listener);
-        let keys: BTreeSet<_> = vec![InputAction::Key(Key::KeyA)].into_iter().collect();
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
         let shortcut = KeyboardShortcut::new(keys.clone(), "TestAction".to_string());
 
         shortcut_manager.add_shortcut(
