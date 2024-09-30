@@ -478,10 +478,7 @@ mod tests {
             InputItem::from_str("Shift").unwrap(),
             InputItem::Key(Key::ShiftLeft)
         );
-        assert_eq!(
-            InputItem::from_str("a").unwrap(),
-            InputItem::Key(Key::KeyA)
-        );
+        assert_eq!(InputItem::from_str("a").unwrap(), InputItem::Key(Key::KeyA));
         assert_eq!(
             InputItem::from_str("Left").unwrap(),
             InputItem::Button(Button::Left)
@@ -506,10 +503,7 @@ mod tests {
 
     #[test]
     fn test_map_egui_key_to_rdev_key() {
-        assert_eq!(
-            map_egui_key_to_rdev_key(egui::Key::A).unwrap(),
-            Key::KeyA
-        );
+        assert_eq!(map_egui_key_to_rdev_key(egui::Key::A).unwrap(), Key::KeyA);
         assert_eq!(
             map_egui_key_to_rdev_key(egui::Key::Enter).unwrap(),
             Key::Return
