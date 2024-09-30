@@ -462,11 +462,93 @@ impl Default for InputListener {
 mod tests {
     use std::{
         hash::{Hash, Hasher},
-        time::SystemTime,
+        time::{Duration, SystemTime},
     };
 
     use super::*;
     use rdev::{Button, Event, EventType, Key};
+
+    #[test]
+    fn test_input_item_from_str() {
+        assert_eq!(
+            InputItem::from_str("ctrl").unwrap(),
+            InputItem::Key(Key::ControlLeft)
+        );
+        assert_eq!(
+            InputItem::from_str("Shift").unwrap(),
+            InputItem::Key(Key::ShiftLeft)
+        );
+        assert_eq!(
+            InputItem::from_str("a").unwrap(),
+            InputItem::Key(Key::KeyA)
+        );
+        assert_eq!(
+            InputItem::from_str("Left").unwrap(),
+            InputItem::Button(Button::Left)
+        );
+        assert!(InputItem::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_input_action_from_str() {
+        let action = InputAction::from_str("ctrl+alt+a").unwrap();
+        let expected_items: BTreeSet<_> = vec![
+            InputItem::Key(Key::ControlLeft),
+            InputItem::Key(Key::Alt),
+            InputItem::Key(Key::KeyA),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(action.0, expected_items);
+
+        assert!(InputAction::from_str("ctrl+invalid").is_err());
+    }
+
+    #[test]
+    fn test_map_egui_key_to_rdev_key() {
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::A).unwrap(),
+            Key::KeyA
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Enter).unwrap(),
+            Key::Return
+        );
+        assert!(map_egui_key_to_rdev_key(egui::Key::F1).is_err());
+    }
+
+    #[test]
+    fn test_from_egui() {
+        let modifiers = egui::Modifiers {
+            alt: true,
+            ctrl: true,
+            shift: false,
+            mac_cmd: false,
+            command: false,
+        };
+        let input_action = from_egui(egui::Key::A, modifiers);
+        let expected_items: BTreeSet<_> = vec![
+            InputItem::Key(Key::Alt),
+            InputItem::Key(Key::ControlLeft),
+            InputItem::Key(Key::KeyA),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(input_action.0, expected_items);
+    }
+
+    #[test]
+    fn test_is_input_action_pressed() {
+        let listener = InputListener::new();
+        listener.state.update_key_press(Key::ControlLeft);
+        listener.state.update_key_press(Key::KeyA);
+
+        let action = InputAction::from_str("ctrl+a").unwrap();
+        assert!(listener.is_input_action_pressed(&action));
+
+        listener.state.update_key_release(Key::ControlLeft);
+        assert!(!listener.is_input_action_pressed(&action));
+    }
 
     #[test]
     fn test_input_action_equality() {
@@ -541,14 +623,12 @@ mod tests {
     fn test_shared_input_state_key_press_release() {
         let state = SharedInputState::new();
 
-        // Simulate key press
         state.update_key_press(Key::KeyA);
         {
             let keys_pressed = state.keys_pressed.lock().unwrap();
             assert!(keys_pressed.contains(&InputItem::Key(Key::KeyA)));
         }
 
-        // Simulate key release
         state.update_key_release(Key::KeyA);
         {
             let keys_pressed = state.keys_pressed.lock().unwrap();
@@ -560,14 +640,12 @@ mod tests {
     fn test_shared_input_state_button_press_release() {
         let state = SharedInputState::new();
 
-        // Simulate button press
         state.update_button_press(Button::Left);
         {
             let keys_pressed = state.keys_pressed.lock().unwrap();
             assert!(keys_pressed.contains(&InputItem::Button(Button::Left)));
         }
 
-        // Simulate button release
         state.update_button_release(Button::Left);
         {
             let keys_pressed = state.keys_pressed.lock().unwrap();
@@ -579,7 +657,6 @@ mod tests {
     fn test_shared_input_state_mouse_position() {
         let state = SharedInputState::new();
 
-        // Simulate mouse move
         state.update_mouse_position(100, 200);
         {
             let pos = state.last_mouse_position.lock().unwrap();
@@ -591,7 +668,6 @@ mod tests {
     fn test_shared_input_state_last_click_time() {
         let state = SharedInputState::new();
 
-        // Simulate button press
         state.update_button_press(Button::Left);
         {
             let last_click_time = state.last_click_time.lock().unwrap();
@@ -631,11 +707,9 @@ mod tests {
     fn test_input_listener_is_key_pressed() {
         let listener = InputListener::new();
 
-        // Simulate key press
         listener.state.update_key_press(Key::KeyA);
         assert!(listener.is_key_pressed(Key::KeyA));
 
-        // Simulate key release
         listener.state.update_key_release(Key::KeyA);
         assert!(!listener.is_key_pressed(Key::KeyA));
     }
@@ -644,11 +718,9 @@ mod tests {
     fn test_input_listener_is_button_pressed() {
         let listener = InputListener::new();
 
-        // Simulate button press
         listener.state.update_button_press(Button::Left);
         assert!(listener.is_button_pressed(Button::Left));
 
-        // Simulate button release
         listener.state.update_button_release(Button::Left);
         assert!(!listener.is_button_pressed(Button::Left));
     }
@@ -657,7 +729,6 @@ mod tests {
     fn test_input_listener_get_keys_pressed() {
         let listener = InputListener::new();
 
-        // Simulate key presses
         listener.state.update_key_press(Key::KeyA);
         listener.state.update_key_press(Key::KeyB);
 
@@ -673,7 +744,6 @@ mod tests {
     fn test_input_listener_get_last_mouse_position() {
         let listener = InputListener::new();
 
-        // Simulate mouse move
         listener.state.update_mouse_position(150, 250);
 
         let position = listener.get_last_mouse_position();
@@ -684,7 +754,6 @@ mod tests {
     fn test_input_listener_get_last_click_time() {
         let listener = InputListener::new();
 
-        // Simulate button press
         listener.state.update_button_press(Button::Left);
 
         let last_click_time = listener.get_last_click_time();
@@ -713,5 +782,34 @@ mod tests {
         listener.state.execute_callbacks(&event);
 
         assert!(*callback_called.lock().unwrap());
+    }
+
+    #[test]
+    fn test_mouse_position_equality() {
+        let pos1 = MousePosition { x: 100, y: 200 };
+        let pos2 = MousePosition { x: 100, y: 200 };
+        let pos3 = MousePosition { x: 150, y: 250 };
+
+        assert_eq!(pos1, pos2);
+        assert_ne!(pos1, pos3);
+    }
+
+    #[test]
+    fn test_last_click_time_update() {
+        let state = SharedInputState::new();
+
+        state.update_button_press(Button::Left);
+        let time1 = state.last_click_time.lock().unwrap().unwrap();
+        std::thread::sleep(Duration::from_millis(10));
+        state.update_button_press(Button::Right);
+        let time2 = state.last_click_time.lock().unwrap().unwrap();
+
+        assert!(time2 > time1);
+    }
+
+    #[test]
+    fn test_input_action_display_order() {
+        let action = InputAction::from_str("b+a+ctrl").unwrap();
+        assert_eq!(format!("{}", action), "ControlLeft+KeyA+KeyB");
     }
 }
