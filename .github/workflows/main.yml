@@ -31,10 +31,10 @@ jobs:
     - name: Install stable toolchain
       uses: dtolnay/rust-toolchain@stable
     - name: Install Dependencies
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev --assume-yes
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev xvfb --assume-yes
       if: runner.os == 'linux'
     - name: Run tests
-      run: cargo test --verbose
+      run: xvfb-run -a -s "-screen 0 640x480x8" cargo test --verbose
 
   clippy_check:
     name: Clippy
