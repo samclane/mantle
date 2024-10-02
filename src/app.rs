@@ -433,7 +433,6 @@ impl MantleApp {
                         ui.separator();
                         ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.shortcut);
                         ui.separator();
-                        // ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.callback);
                         ui.label("TODO: Add callback");
                         if ui.button("Add").clicked() {
                             self.shortcut_manager.add_shortcut(

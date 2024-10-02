@@ -84,7 +84,10 @@ pub fn handle_eyedropper(
                 .input_listener
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
-            color = Some(screencap.from_click(position.x, position.y));
+            match screencap.from_click(position.x, position.y) {
+                Ok(c) => color = Some(c),
+                Err(e) => eprintln!("Failed to get color: {}", e),
+            }
             *show_eyedropper = false;
         }
     }
@@ -182,14 +185,21 @@ pub fn handle_screencap(
                     #[cfg(debug_assertions)]
                     puffin::profile_function!();
 
-                    let avg_color = screen_manager.avg_color(follow_type.clone());
+                    match screen_manager.avg_color(follow_type.clone()) {
+                        Ok(avg_color) => {
+                            if let Err(err) = mgr.set_color_by_id(device_id, avg_color) {
+                                eprintln!("Failed to set color: {}", err);
+                            }
 
-                    mgr.set_color_by_id(device_id, avg_color)
-                        .expect("Failed to set color");
-
-                    if let Err(err) = tx.send(avg_color) {
-                        eprintln!("Failed to send color data: {}", err);
+                            if let Err(err) = tx.send(avg_color) {
+                                eprintln!("Failed to send color data: {}", err);
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Failed to get average color: {}", err);
+                        }
                     }
+
                     thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
                     if stop_rx.try_recv().is_ok() {
                         break;
