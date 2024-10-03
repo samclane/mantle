@@ -21,13 +21,12 @@ impl KeyboardShortcut {
     fn update_display_string(&mut self) {
         self.display_name = self
             .keys
-            .0
             .iter()
             .fold(String::new(), |acc, key| acc + &format!("{} + ", key));
     }
 
     fn is_matched(&self, keys_pressed: &InputAction) -> bool {
-        self.keys.0.is_subset(&keys_pressed.0)
+        self.keys.is_subset(keys_pressed)
     }
 }
 
@@ -48,7 +47,7 @@ impl TextBuffer for KeyboardShortcut {
             }
             if let Ok(keys) = InputAction::from_str(&c.to_string()) {
                 // combine the 2 sets
-                new_keys.0.extend(keys.0);
+                new_keys.extend(&keys);
             }
         }
         self.keys = new_keys;
@@ -57,10 +56,10 @@ impl TextBuffer for KeyboardShortcut {
     }
 
     fn delete_char_range(&mut self, char_range: std::ops::Range<usize>) {
-        let keys_vec: Vec<_> = self.keys.0.iter().cloned().collect();
+        let keys_vec: Vec<_> = self.keys.iter().cloned().collect();
         for i in char_range {
             if let Some(key) = keys_vec.get(i) {
-                self.keys.0.remove(key);
+                self.keys.remove(key);
             }
         }
         self.update_display_string();
@@ -69,14 +68,14 @@ impl TextBuffer for KeyboardShortcut {
 
 impl Debug for KeyboardShortcut {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.0.iter().map(|k| format!("{}", k)).collect();
+        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
         write!(f, "KeyboardShortcut({})", keys.join(" + "))
     }
 }
 
 impl Display for KeyboardShortcut {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.0.iter().map(|k| format!("{}", k)).collect();
+        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
         write!(f, "{}", keys.join(" + "))
     }
 }
@@ -245,21 +244,13 @@ impl<'a> Widget for ShortcutEdit<'a> {
                 for key in inputstate.keys_down.iter() {
                     let modifiers = inputstate.modifiers;
                     let input_item = from_egui(*key, modifiers);
-                    keys_pressed.0.extend(input_item.0);
+                    keys_pressed.extend(&input_item);
                 }
                 shortcut.keys = keys_pressed;
                 shortcut.update_display_string();
             });
         }
 
-        // Display the current shortcut
-        // let text_style = TextStyle::Button;
-        // let galley = ui.fonts(|_|{}).layout_single_line(
-        //     text_style.resolve(ui.style()),
-        //     shortcut.display_string.clone(),
-        // );
-        // let text_pos = rect.center() - galley.size() * 0.5;
-        // ui.painter().galley(text_pos, galley);
         let text = shortcut.display_name.clone();
         ui.label(text);
 

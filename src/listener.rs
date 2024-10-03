@@ -125,20 +125,87 @@ impl Ord for InputItem {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct InputAction(pub BTreeSet<InputItem>);
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InputAction {
+    items: BTreeSet<InputItem>,
+}
+
+impl InputAction {
+    pub fn new() -> Self {
+        InputAction {
+            items: BTreeSet::new(),
+        }
+    }
+
+    pub fn with_items(items: BTreeSet<InputItem>) -> Self {
+        InputAction { items }
+    }
+
+    pub fn insert(&mut self, item: InputItem) {
+        self.items.insert(item);
+    }
+
+    pub fn remove(&mut self, item: &InputItem) {
+        self.items.remove(item);
+    }
+
+    pub fn contains(&self, item: &InputItem) -> bool {
+        self.items.contains(item)
+    }
+
+    pub fn is_subset(&self, other: &Self) -> bool {
+        self.items.is_subset(&other.items)
+    }
+
+    pub fn iter(&self) -> std::collections::btree_set::Iter<'_, InputItem> {
+        self.items.iter()
+    }
+
+    pub fn extend(&mut self, other: &Self) {
+        self.items.extend(other.items.iter().cloned());
+    }
+}
+
+impl FromStr for InputAction {
+    type Err = InputActionParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split('+');
+        let mut items = BTreeSet::new();
+
+        for part in parts {
+            let part = part.trim();
+            match InputItem::from_str(part) {
+                Ok(item) => {
+                    items.insert(item);
+                }
+                Err(_) => {
+                    return Err(InputActionParseError::InvalidItem(part.to_string()));
+                }
+            }
+        }
+
+        Ok(InputAction { items })
+    }
+}
 
 impl Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let mut items: Vec<String> = self.0.iter().map(|item| item.to_string()).collect();
+        let mut items: Vec<String> = self.items.iter().map(|item| item.to_string()).collect();
         items.sort();
         write!(f, "{}", items.join("+"))
     }
 }
 
+impl Default for InputAction {
+    fn default() -> Self {
+        InputAction::new()
+    }
+}
+
 impl From<BTreeSet<InputItem>> for InputAction {
     fn from(items: BTreeSet<InputItem>) -> Self {
-        InputAction(items)
+        InputAction { items }
     }
 }
 
@@ -160,29 +227,6 @@ impl Display for InputActionParseError {
 }
 
 impl std::error::Error for InputActionParseError {}
-
-impl FromStr for InputAction {
-    type Err = InputActionParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split('+');
-        let mut items = BTreeSet::new();
-
-        for part in parts {
-            let part = part.trim();
-            match InputItem::from_str(part) {
-                Ok(item) => {
-                    items.insert(item);
-                }
-                Err(_) => {
-                    return Err(InputActionParseError::InvalidItem(part.to_string()));
-                }
-            }
-        }
-
-        Ok(InputAction(items))
-    }
-}
 
 #[derive(Debug)]
 pub struct KeyMappingError {
@@ -269,7 +313,7 @@ pub fn from_egui(key: egui::Key, modifiers: egui::Modifiers) -> InputAction {
         }
     }
 
-    InputAction(items)
+    InputAction::from(items)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -414,7 +458,7 @@ impl InputListener {
             .keys_pressed
             .lock()
             .expect("Failed to lock keys_pressed mutex");
-        input_action.0.is_subset(&keys)
+        input_action.items.is_subset(&keys)
     }
 
     pub fn add_callback(&self, callback: BackgroundCallback) {
@@ -502,7 +546,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(action.0, expected_items);
+        assert_eq!(action.items, expected_items);
 
         assert!(InputAction::from_str("ctrl+invalid").is_err());
     }
@@ -534,7 +578,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(input_action.0, expected_items);
+        assert_eq!(input_action.items, expected_items);
     }
 
     #[test]
