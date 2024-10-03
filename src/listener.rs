@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeSet,
     fmt::{Display, Formatter, Result as FmtResult},
+    ops::{Deref, DerefMut},
     str::FromStr,
     sync::{Arc, Mutex},
     thread::{spawn, JoinHandle},
@@ -125,44 +126,59 @@ impl Ord for InputItem {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InputAction {
-    items: BTreeSet<InputItem>,
-}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct InputAction(BTreeSet<InputItem>);
 
 impl InputAction {
     pub fn new() -> Self {
-        InputAction {
-            items: BTreeSet::new(),
-        }
+        InputAction(BTreeSet::new())
     }
+}
 
-    pub fn with_items(items: BTreeSet<InputItem>) -> Self {
-        InputAction { items }
+impl Deref for InputAction {
+    type Target = BTreeSet<InputItem>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
+}
 
-    pub fn insert(&mut self, item: InputItem) {
-        self.items.insert(item);
+impl DerefMut for InputAction {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
+}
 
-    pub fn remove(&mut self, item: &InputItem) {
-        self.items.remove(item);
+impl FromIterator<InputItem> for InputAction {
+    fn from_iter<I: IntoIterator<Item = InputItem>>(iter: I) -> Self {
+        InputAction(iter.into_iter().collect())
     }
+}
 
-    pub fn contains(&self, item: &InputItem) -> bool {
-        self.items.contains(item)
+impl IntoIterator for InputAction {
+    type Item = InputItem;
+    type IntoIter = std::collections::btree_set::IntoIter<InputItem>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
+}
 
-    pub fn is_subset(&self, other: &Self) -> bool {
-        self.items.is_subset(&other.items)
+impl Extend<InputItem> for InputAction {
+    fn extend<I: IntoIterator<Item = InputItem>>(&mut self, iter: I) {
+        self.0.extend(iter);
     }
+}
 
-    pub fn iter(&self) -> std::collections::btree_set::Iter<'_, InputItem> {
-        self.items.iter()
+impl From<BTreeSet<InputItem>> for InputAction {
+    fn from(items: BTreeSet<InputItem>) -> Self {
+        InputAction(items)
     }
+}
 
-    pub fn extend(&mut self, other: &Self) {
-        self.items.extend(other.items.iter().cloned());
+impl From<&[InputItem]> for InputAction {
+    fn from(items: &[InputItem]) -> Self {
+        InputAction(items.iter().cloned().collect())
     }
 }
 
@@ -170,42 +186,26 @@ impl FromStr for InputAction {
     type Err = InputActionParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split('+');
-        let mut items = BTreeSet::new();
-
-        for part in parts {
-            let part = part.trim();
-            match InputItem::from_str(part) {
-                Ok(item) => {
-                    items.insert(item);
-                }
-                Err(_) => {
-                    return Err(InputActionParseError::InvalidItem(part.to_string()));
-                }
-            }
-        }
-
-        Ok(InputAction { items })
+        s.split('+')
+            .map(str::trim)
+            .map(InputItem::from_str)
+            .collect::<Result<BTreeSet<_>, _>>()
+            .map(InputAction)
+            .map_err(|e| InputActionParseError::InvalidItem(e.to_string()))
     }
 }
 
 impl Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let mut items: Vec<String> = self.items.iter().map(|item| item.to_string()).collect();
+        let mut items: Vec<String> = self.iter().map(|item| item.to_string()).collect();
         items.sort();
         write!(f, "{}", items.join("+"))
     }
 }
 
-impl Default for InputAction {
-    fn default() -> Self {
-        InputAction::new()
-    }
-}
-
-impl From<BTreeSet<InputItem>> for InputAction {
-    fn from(items: BTreeSet<InputItem>) -> Self {
-        InputAction { items }
+impl PartialEq<BTreeSet<InputItem>> for InputAction {
+    fn eq(&self, other: &BTreeSet<InputItem>) -> bool {
+        self.0 == *other
     }
 }
 
@@ -458,7 +458,7 @@ impl InputListener {
             .keys_pressed
             .lock()
             .expect("Failed to lock keys_pressed mutex");
-        input_action.items.is_subset(&keys)
+        input_action.is_subset(&keys)
     }
 
     pub fn add_callback(&self, callback: BackgroundCallback) {
@@ -546,7 +546,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(action.items, expected_items);
+        assert_eq!(action, expected_items);
 
         assert!(InputAction::from_str("ctrl+invalid").is_err());
     }
@@ -578,7 +578,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(input_action.items, expected_items);
+        assert_eq!(input_action, expected_items);
     }
 
     #[test]

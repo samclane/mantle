@@ -47,7 +47,7 @@ impl TextBuffer for KeyboardShortcut {
             }
             if let Ok(keys) = InputAction::from_str(&c.to_string()) {
                 // combine the 2 sets
-                new_keys.extend(&keys);
+                new_keys.extend(keys);
             }
         }
         self.keys = new_keys;
@@ -244,7 +244,7 @@ impl<'a> Widget for ShortcutEdit<'a> {
                 for key in inputstate.keys_down.iter() {
                     let modifiers = inputstate.modifiers;
                     let input_item = from_egui(*key, modifiers);
-                    keys_pressed.extend(&input_item);
+                    keys_pressed.extend(input_item);
                 }
                 shortcut.keys = keys_pressed;
                 shortcut.update_display_string();
