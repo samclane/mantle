@@ -222,7 +222,7 @@ impl<'a> Widget for ShortcutEdit<'a> {
         let ShortcutEdit { shortcut } = self;
 
         // Allocate space for the widget
-        let desired_size = ui.spacing().interact_size.y * vec2(1.0, 1.0);
+        let desired_size = ui.spacing().interact_size * vec2(5.0, 1.0);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click());
 
         // Handle focus
@@ -232,13 +232,19 @@ impl<'a> Widget for ShortcutEdit<'a> {
 
         let is_focused = response.has_focus();
 
-        // Draw background
+        // Draw background with hover and focus effects
         let bg_color = if is_focused {
             ui.visuals().selection.bg_fill
+        } else if response.hovered() {
+            ui.visuals().widgets.hovered.bg_fill
         } else {
             ui.visuals().widgets.inactive.bg_fill
         };
-        ui.painter().rect_filled(rect, 0.0, bg_color);
+        ui.painter().rect_filled(rect, 5.0, bg_color);
+
+        // Draw border around the widget
+        let border_stroke = ui.visuals().widgets.active.bg_stroke;
+        ui.painter().rect_stroke(rect, 5.0, border_stroke);
 
         // Handle key input when focused
         if is_focused {
@@ -254,8 +260,16 @@ impl<'a> Widget for ShortcutEdit<'a> {
             });
         }
 
+        // Draw the label with padding and centered alignment
         let text = shortcut.display_name.clone();
-        ui.label(text);
+        let text_pos = rect.center();
+        ui.painter().text(
+            text_pos,
+            eframe::egui::Align2::CENTER_CENTER,
+            text,
+            eframe::egui::TextStyle::Button.resolve(ui.style()),
+            ui.visuals().text_color(),
+        );
 
         response
     }
