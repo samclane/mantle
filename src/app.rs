@@ -12,7 +12,7 @@ use crate::{
     color_slider,
     device_info::DeviceInfo,
     display_color_circle,
-    listener::InputListener,
+    listener::input_listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
     shortcut::{ShortcutEdit, ShortcutManager},

@@ -1,9 +1,12 @@
-use crate::listener::{from_egui, InputAction, InputListener};
 use eframe::egui::{vec2, Response, Sense, TextBuffer, Ui, Widget};
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+
+use crate::listener::input_action::InputAction;
+use crate::listener::input_listener::InputListener;
+use crate::listener::key_mapping::from_egui;
 
 pub type ShortcutCallback = Arc<dyn Fn(InputAction) + Send + Sync + 'static>;
 
@@ -260,8 +263,9 @@ impl<'a> Widget for ShortcutEdit<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::listener::input_item::InputItem;
+
     use super::*;
-    use crate::listener::{InputAction, InputItem, InputListener};
     use rdev::Key;
     use std::sync::atomic::{AtomicBool, Ordering};
 
