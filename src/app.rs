@@ -15,13 +15,13 @@ use crate::{
     listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
-    shortcut::ShortcutManager,
+    shortcut::{ShortcutEdit, ShortcutManager},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
     BulbInfo, LifxManager, ScreencapManager,
 };
 
-use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
+use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2, Widget};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
@@ -431,7 +431,7 @@ impl MantleApp {
                             &mut self.shortcut_manager.new_shortcut.callback_name,
                         );
                         ui.separator();
-                        ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.shortcut);
+                        ShortcutEdit::new(&mut self.shortcut_manager.new_shortcut.shortcut).ui(ui);
                         ui.separator();
                         ui.label("TODO: Add callback");
                         if ui.button("Add").clicked() {

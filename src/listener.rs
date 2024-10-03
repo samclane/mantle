@@ -125,7 +125,7 @@ impl Ord for InputItem {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct InputAction(pub BTreeSet<InputItem>);
 
 impl Display for InputAction {
@@ -133,6 +133,12 @@ impl Display for InputAction {
         let mut items: Vec<String> = self.0.iter().map(|item| item.to_string()).collect();
         items.sort();
         write!(f, "{}", items.join("+"))
+    }
+}
+
+impl From<BTreeSet<InputItem>> for InputAction {
+    fn from(items: BTreeSet<InputItem>) -> Self {
+        InputAction(items)
     }
 }
 
