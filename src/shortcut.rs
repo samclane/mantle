@@ -246,10 +246,10 @@ impl<'a> Widget for ShortcutEdit<'a> {
                     let input_item = from_egui(*key, modifiers);
                     keys_pressed.extend(input_item);
                 }
-                shortcut.keys = keys_pressed;
-                shortcut.update_display_string();
+                shortcut.keys.extend(keys_pressed);
             });
         }
+        shortcut.update_display_string();
 
         let text = shortcut.display_name.clone();
         let text_pos = rect.center();

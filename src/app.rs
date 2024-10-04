@@ -432,6 +432,11 @@ impl MantleApp {
                         );
                         ui.separator();
                         ShortcutEdit::new(&mut self.shortcut_manager.new_shortcut.shortcut).ui(ui);
+                        // Clear button
+                        if ui.button("Clear").clicked() {
+                            self.shortcut_manager.new_shortcut.callback_name.clear();
+                            self.shortcut_manager.new_shortcut.shortcut.keys.clear();
+                        }
                         ui.separator();
                         ui.label("TODO: Add callback");
                         if ui.button("Add").clicked() {
