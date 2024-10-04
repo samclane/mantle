@@ -21,7 +21,7 @@ use crate::{
     BulbInfo, LifxManager, ScreencapManager,
 };
 
-use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2, Widget};
+use eframe::egui::{self, Color32, Modifiers, RichText, Ui, Vec2};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
@@ -397,54 +397,87 @@ impl MantleApp {
                 });
         }
     }
-
     fn show_settings_window(&mut self, ctx: &egui::Context) {
         if self.show_settings {
             egui::Window::new("Settings")
-                .default_width(SETTINGS_WINDOW_SIZE[0])
-                .default_height(SETTINGS_WINDOW_SIZE[1])
+                .default_size(SETTINGS_WINDOW_SIZE)
                 .open(&mut self.show_settings)
-                .resizable([true, false])
+                .resizable(true)
                 .show(ctx, |ui| {
                     ui.heading("Settings");
-                    ui.add_space(8.0);
-                    // allow user to register keyboard shortcuts
-                    ui.horizontal(|ui| {
-                        ui.label("Keyboard Shortcuts");
-                        ui.separator();
-                        ui.label("Action");
-                        ui.separator();
-                        ui.label("Shortcut");
-                    });
-                    for shortcut in self.shortcut_manager.get_active_shortcuts() {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{:?}", shortcut.shortcut));
-                            ui.separator();
-                            ui.label(format!("{:?}", shortcut.callback_name));
+                    ui.separator();
+                    ui.add_space(10.0);
+
+                    ui.heading("Keyboard Shortcuts");
+                    ui.add_space(5.0);
+
+                    // Display existing shortcuts in a grid
+                    egui::Grid::new("shortcuts_grid")
+                        .striped(true)
+                        .min_col_width(100.0)
+                        .show(ui, |ui| {
+                            ui.label(egui::RichText::new("Action").strong());
+                            ui.label(egui::RichText::new("Shortcut").strong());
+                            ui.end_row();
+
+                            for shortcut in self.shortcut_manager.get_active_shortcuts() {
+                                ui.label(&shortcut.callback_name);
+                                ui.label(&shortcut.shortcut.display_name);
+                                ui.end_row();
+                            }
                         });
-                    }
-                    // allow user to add new keyboard shortcuts
+
+                    ui.add_space(15.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+
+                    ui.heading("Add New Shortcut");
+                    ui.add_space(5.0);
+
+                    egui::Grid::new("new_shortcut_grid")
+                        .min_col_width(100.0)
+                        .show(ui, |ui| {
+                            ui.label("Action:");
+                            ui.text_edit_singleline(
+                                &mut self.shortcut_manager.new_shortcut.callback_name,
+                            );
+                            ui.end_row();
+
+                            ui.label("Shortcut:");
+                            ui.add(ShortcutEdit::new(
+                                &mut self.shortcut_manager.new_shortcut.shortcut,
+                            ));
+                            ui.end_row();
+                        });
+
+                    ui.add_space(10.0);
+
                     ui.horizontal(|ui| {
-                        ui.label("Add Shortcut");
-                        ui.separator();
-                        ui.text_edit_singleline(
-                            &mut self.shortcut_manager.new_shortcut.callback_name,
-                        );
-                        ui.separator();
-                        ShortcutEdit::new(&mut self.shortcut_manager.new_shortcut.shortcut).ui(ui);
-                        // Clear button
                         if ui.button("Clear").clicked() {
                             self.shortcut_manager.new_shortcut.callback_name.clear();
                             self.shortcut_manager.new_shortcut.shortcut.keys.clear();
+                            self.shortcut_manager
+                                .new_shortcut
+                                .shortcut
+                                .update_display_string();
                         }
-                        ui.separator();
-                        ui.label("TODO: Add callback");
-                        if ui.button("Add").clicked() {
+
+                        if ui.button("Add Shortcut").clicked() {
+                            // TODO: Implement the actual callback function here
                             self.shortcut_manager.add_shortcut(
                                 self.shortcut_manager.new_shortcut.callback_name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
-                                |_keys_pressed| {},
+                                |_keys_pressed| {
+                                    // Define what happens when the shortcut is activated
+                                },
                             );
+                            // Clear the fields after adding
+                            self.shortcut_manager.new_shortcut.callback_name.clear();
+                            self.shortcut_manager.new_shortcut.shortcut.keys.clear();
+                            self.shortcut_manager
+                                .new_shortcut
+                                .shortcut
+                                .update_display_string();
                         }
                     });
                 });

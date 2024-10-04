@@ -13,7 +13,7 @@ pub type ShortcutCallback = Arc<dyn Fn(InputAction) + Send + Sync + 'static>;
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct KeyboardShortcut {
     pub keys: InputAction,
-    display_name: String,
+    pub display_name: String,
 }
 
 impl KeyboardShortcut {
@@ -21,7 +21,7 @@ impl KeyboardShortcut {
         KeyboardShortcut { keys, display_name }
     }
 
-    fn update_display_string(&mut self) {
+    pub fn update_display_string(&mut self) {
         self.display_name = self
             .keys
             .iter()
