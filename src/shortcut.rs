@@ -25,7 +25,9 @@ impl KeyboardShortcut {
         self.display_name = self
             .keys
             .iter()
-            .fold(String::new(), |acc, key| acc + &format!("{} + ", key));
+            .map(|key| format!("{}", key))
+            .collect::<Vec<_>>()
+            .join(" + ");
     }
 
     fn is_matched(&self, keys_pressed: &InputAction) -> bool {
@@ -49,7 +51,6 @@ impl TextBuffer for KeyboardShortcut {
                 continue;
             }
             if let Ok(keys) = InputAction::from_str(&c.to_string()) {
-                // combine the 2 sets
                 new_keys.extend(keys);
             }
         }
@@ -126,7 +127,6 @@ impl ShortcutManager {
             callback_name: action_name.clone(),
         };
 
-        // Store the callback for future reference
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
             shortcuts.push(keyboard_shortcut_callback);
         } else {
@@ -149,10 +149,8 @@ impl ShortcutManager {
         let active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>> =
             Arc::clone(&self.active_shortcuts);
 
-        // Register a background callback with the InputListener
         let input_listener_clone = input_listener.clone();
         self.input_listener.add_callback(Box::new(move |_event| {
-            // cast keys_pressed to InputAction
             let keys_pressed = InputAction::from(input_listener_clone.get_keys_pressed());
 
             let mut active_shortcuts_guard = match active_shortcuts.lock() {
@@ -174,7 +172,6 @@ impl ShortcutManager {
             for shortcut_callback in shortcuts_guard.iter() {
                 if shortcut_callback.shortcut.is_matched(&keys_pressed) {
                     if !active_shortcuts_guard.contains(&shortcut_callback.shortcut) {
-                        // Shortcut is newly activated
                         (shortcut_callback.callback)(keys_pressed.clone());
                         active_shortcuts_guard.insert(shortcut_callback.shortcut.clone());
                     }
@@ -184,7 +181,6 @@ impl ShortcutManager {
             }
         }));
 
-        // Start the InputListener
         self.input_listener.start()
     }
 }
@@ -221,18 +217,15 @@ impl<'a> Widget for ShortcutEdit<'a> {
     fn ui(self, ui: &mut Ui) -> Response {
         let ShortcutEdit { shortcut } = self;
 
-        // Allocate space for the widget
         let desired_size = ui.spacing().interact_size * vec2(5.0, 1.0);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click());
 
-        // Handle focus
         if response.clicked() {
             response.request_focus();
         }
 
         let is_focused = response.has_focus();
 
-        // Draw background with hover and focus effects
         let bg_color = if is_focused {
             ui.visuals().selection.bg_fill
         } else if response.hovered() {
@@ -242,11 +235,9 @@ impl<'a> Widget for ShortcutEdit<'a> {
         };
         ui.painter().rect_filled(rect, 5.0, bg_color);
 
-        // Draw border around the widget
         let border_stroke = ui.visuals().widgets.active.bg_stroke;
         ui.painter().rect_stroke(rect, 5.0, border_stroke);
 
-        // Handle key input when focused
         if is_focused {
             ui.input(|inputstate: &eframe::egui::InputState| {
                 let mut keys_pressed = InputAction::default();
@@ -260,7 +251,6 @@ impl<'a> Widget for ShortcutEdit<'a> {
             });
         }
 
-        // Draw the label with padding and centered alignment
         let text = shortcut.display_name.clone();
         let text_pos = rect.center();
         ui.painter().text(
@@ -302,16 +292,13 @@ mod tests {
             "TestAction".to_string(),
         );
 
-        // Test with matching keys_pressed
         let keys_pressed = shortcut_keys.clone();
         assert!(shortcut.is_matched(&InputAction::from(keys_pressed.clone())));
 
-        // Test with extra keys in keys_pressed
         let mut keys_pressed_extra = keys_pressed.clone();
         keys_pressed_extra.insert(InputItem::Key(Key::ShiftLeft));
         assert!(shortcut.is_matched(&InputAction::from(keys_pressed_extra.clone())));
 
-        // Test with missing keys in keys_pressed
         let keys_pressed_missing: BTreeSet<_> =
             vec![InputItem::Key(Key::ControlLeft)].into_iter().collect();
         assert!(!shortcut.is_matched(&InputAction::from(keys_pressed_missing.clone())));
@@ -347,7 +334,6 @@ mod tests {
             callback_name: "TestAction".to_string(),
         };
 
-        // Simulate calling the callback
         (shortcut_callback.callback)(InputAction::from(keys.clone()));
         assert!(callback_called.load(Ordering::SeqCst));
     }
