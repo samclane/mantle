@@ -1,7 +1,6 @@
-use eframe::egui::{vec2, Response, Sense, TextBuffer, Ui, Widget};
+use eframe::egui::{vec2, Response, Sense, Ui, Widget};
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use crate::listener::input_action::InputAction;
@@ -41,41 +40,6 @@ impl Default for KeyboardShortcut {
             keys: InputAction::default(),
             display_name: "".to_string(),
         }
-    }
-}
-
-impl TextBuffer for KeyboardShortcut {
-    fn is_mutable(&self) -> bool {
-        true
-    }
-
-    fn as_str(&self) -> &str {
-        &self.display_name
-    }
-
-    fn insert_text(&mut self, text: &str, char_index: usize) -> usize {
-        let mut new_keys = self.keys.clone();
-        for (offset, c) in text.chars().enumerate() {
-            if offset != char_index {
-                continue;
-            }
-            if let Ok(keys) = InputAction::from_str(&c.to_string()) {
-                new_keys.extend(keys);
-            }
-        }
-        self.keys = new_keys;
-        self.update_display_string();
-        char_index + text.chars().count()
-    }
-
-    fn delete_char_range(&mut self, char_range: std::ops::Range<usize>) {
-        let keys_vec: Vec<_> = self.keys.iter().cloned().collect();
-        for i in char_range {
-            if let Some(key) = keys_vec.get(i) {
-                self.keys.remove(key);
-            }
-        }
-        self.update_display_string();
     }
 }
 
