@@ -421,7 +421,7 @@ impl MantleApp {
                             ui.end_row();
 
                             for shortcut in self.shortcut_manager.get_active_shortcuts() {
-                                ui.label(&shortcut.callback_name);
+                                ui.label(&shortcut.name);
                                 ui.label(&shortcut.shortcut.display_name);
                                 ui.end_row();
                             }
@@ -438,9 +438,7 @@ impl MantleApp {
                         .min_col_width(100.0)
                         .show(ui, |ui| {
                             ui.label("Action:");
-                            ui.text_edit_singleline(
-                                &mut self.shortcut_manager.new_shortcut.callback_name,
-                            );
+                            ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name);
                             ui.end_row();
 
                             ui.label("Shortcut:");
@@ -454,7 +452,7 @@ impl MantleApp {
 
                     ui.horizontal(|ui| {
                         if ui.button("Clear").clicked() {
-                            self.shortcut_manager.new_shortcut.callback_name.clear();
+                            self.shortcut_manager.new_shortcut.name.clear();
                             self.shortcut_manager.new_shortcut.shortcut.keys.clear();
                             self.shortcut_manager
                                 .new_shortcut
@@ -465,14 +463,14 @@ impl MantleApp {
                         if ui.button("Add Shortcut").clicked() {
                             // TODO: Implement the actual callback function here
                             self.shortcut_manager.add_shortcut(
-                                self.shortcut_manager.new_shortcut.callback_name.clone(),
+                                self.shortcut_manager.new_shortcut.name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
                                 |_keys_pressed| {
                                     // Define what happens when the shortcut is activated
                                 },
                             );
                             // Clear the fields after adding
-                            self.shortcut_manager.new_shortcut.callback_name.clear();
+                            self.shortcut_manager.new_shortcut.name.clear();
                             self.shortcut_manager.new_shortcut.shortcut.keys.clear();
                             self.shortcut_manager
                                 .new_shortcut

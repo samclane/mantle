@@ -58,27 +58,27 @@ impl Display for KeyboardShortcut {
 }
 
 #[derive(Clone)]
-pub struct KeyboardShortcutCallback {
+pub struct KeyboardShortcutAction {
     pub shortcut: KeyboardShortcut,
     pub callback: ShortcutCallback,
-    pub callback_name: String,
+    pub name: String,
 }
 
-impl Default for KeyboardShortcutCallback {
+impl Default for KeyboardShortcutAction {
     fn default() -> Self {
-        KeyboardShortcutCallback {
+        KeyboardShortcutAction {
             shortcut: KeyboardShortcut::default(),
             callback: Arc::new(|_keys_pressed| {}),
-            callback_name: "".to_string(),
+            name: "".to_string(),
         }
     }
 }
 
 pub struct ShortcutManager {
     input_listener: InputListener,
-    shortcuts: Arc<Mutex<Vec<KeyboardShortcutCallback>>>,
+    shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>>,
     active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>>,
-    pub new_shortcut: KeyboardShortcutCallback,
+    pub new_shortcut: KeyboardShortcutAction,
 }
 
 impl ShortcutManager {
@@ -87,7 +87,7 @@ impl ShortcutManager {
             input_listener,
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutCallback::default(),
+            new_shortcut: KeyboardShortcutAction::default(),
         }
     }
 
@@ -97,10 +97,10 @@ impl ShortcutManager {
     {
         let arc_callback: ShortcutCallback = Arc::new(callback);
 
-        let keyboard_shortcut_callback = KeyboardShortcutCallback {
+        let keyboard_shortcut_callback = KeyboardShortcutAction {
             shortcut: shortcut.clone(),
             callback: arc_callback.clone(),
-            callback_name: action_name.clone(),
+            name: action_name.clone(),
         };
 
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
@@ -110,7 +110,7 @@ impl ShortcutManager {
         }
     }
 
-    pub fn get_active_shortcuts(&self) -> Vec<KeyboardShortcutCallback> {
+    pub fn get_active_shortcuts(&self) -> Vec<KeyboardShortcutAction> {
         if let Ok(shortcuts) = self.shortcuts.lock() {
             shortcuts.clone()
         } else {
@@ -121,7 +121,7 @@ impl ShortcutManager {
 
     pub fn start(&self) -> std::thread::JoinHandle<()> {
         let input_listener = self.input_listener.clone();
-        let shortcuts: Arc<Mutex<Vec<KeyboardShortcutCallback>>> = Arc::clone(&self.shortcuts);
+        let shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>> = Arc::clone(&self.shortcuts);
         let active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>> =
             Arc::clone(&self.active_shortcuts);
 
@@ -167,7 +167,7 @@ impl Default for ShortcutManager {
             input_listener: InputListener::new(),
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutCallback::default(),
+            new_shortcut: KeyboardShortcutAction::default(),
         }
     }
 }
@@ -297,10 +297,10 @@ mod tests {
             callback_called_clone.store(true, Ordering::SeqCst);
         });
 
-        let shortcut_callback = KeyboardShortcutCallback {
+        let shortcut_callback = KeyboardShortcutAction {
             shortcut,
             callback,
-            callback_name: "TestAction".to_string(),
+            name: "TestAction".to_string(),
         };
 
         (shortcut_callback.callback)(InputAction::from(keys.clone()));
@@ -324,6 +324,6 @@ mod tests {
         let shortcuts = shortcut_manager.get_active_shortcuts();
         assert_eq!(shortcuts.len(), 1);
         assert_eq!(shortcuts[0].shortcut, shortcut);
-        assert_eq!(shortcuts[0].callback_name, "TestAction");
+        assert_eq!(shortcuts[0].name, "TestAction");
     }
 }
