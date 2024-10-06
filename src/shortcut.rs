@@ -35,6 +35,15 @@ impl KeyboardShortcut {
     }
 }
 
+impl Default for KeyboardShortcut {
+    fn default() -> Self {
+        KeyboardShortcut {
+            keys: InputAction::default(),
+            display_name: "".to_string(),
+        }
+    }
+}
+
 impl TextBuffer for KeyboardShortcut {
     fn is_mutable(&self) -> bool {
         true
@@ -91,6 +100,16 @@ pub struct KeyboardShortcutCallback {
     pub callback_name: String,
 }
 
+impl Default for KeyboardShortcutCallback {
+    fn default() -> Self {
+        KeyboardShortcutCallback {
+            shortcut: KeyboardShortcut::default(),
+            callback: Arc::new(|_keys_pressed| {}),
+            callback_name: "".to_string(),
+        }
+    }
+}
+
 pub struct ShortcutManager {
     input_listener: InputListener,
     shortcuts: Arc<Mutex<Vec<KeyboardShortcutCallback>>>,
@@ -104,14 +123,7 @@ impl ShortcutManager {
             input_listener,
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutCallback {
-                shortcut: KeyboardShortcut {
-                    keys: InputAction::default(),
-                    display_name: "".to_string(),
-                },
-                callback: Arc::new(|_keys_pressed| {}),
-                callback_name: "".to_string(),
-            },
+            new_shortcut: KeyboardShortcutCallback::default(),
         }
     }
 
@@ -191,14 +203,7 @@ impl Default for ShortcutManager {
             input_listener: InputListener::new(),
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutCallback {
-                shortcut: KeyboardShortcut {
-                    keys: InputAction::default(),
-                    display_name: "".to_string(),
-                },
-                callback: Arc::new(|_keys_pressed| {}),
-                callback_name: "".to_string(),
-            },
+            new_shortcut: KeyboardShortcutCallback::default(),
         }
     }
 }
