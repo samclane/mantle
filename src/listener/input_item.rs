@@ -1,4 +1,5 @@
 use rdev::{Button, Key};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 
@@ -14,6 +15,22 @@ impl Display for InputItem {
             InputItem::Key(k) => write!(f, "{:?}", k),
             InputItem::Button(b) => write!(f, "{:?}", b),
         }
+    }
+}
+
+impl Serialize for InputItem {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            InputItem::Key(k) => serializer.serialize_str(&format!("{:?}", k)),
+            InputItem::Button(b) => serializer.serialize_str(&format!("{:?}", b)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for InputItem {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        InputItem::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 

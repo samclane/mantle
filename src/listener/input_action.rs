@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::input_item::InputItem;
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -78,6 +80,20 @@ impl Display for InputAction {
         let mut items: Vec<String> = self.iter().map(|item| item.to_string()).collect();
         items.sort();
         write!(f, "{}", items.join("+"))
+    }
+}
+
+impl Serialize for InputAction {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let s = self.to_string();
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for InputAction {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        InputAction::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 

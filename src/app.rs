@@ -15,7 +15,7 @@ use crate::{
     listener::input_listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
-    shortcut::{ShortcutEdit, ShortcutManager},
+    shortcut::{KeyboardShortcutAction, ShortcutEdit, ShortcutManager},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
     BulbInfo, LifxManager, ScreencapManager,
@@ -60,6 +60,11 @@ pub struct ColorChannelEntry {
 }
 pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 
+#[derive(Default, Deserialize, Serialize)]
+pub struct Settings {
+    pub custom_shortcuts: Vec<KeyboardShortcutAction>,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 pub struct MantleApp {
@@ -80,6 +85,7 @@ pub struct MantleApp {
     pub show_eyedropper: HashMap<u64, bool>,
     pub show_subregion: HashMap<u64, bool>,
     pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
+    pub settings: Settings,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
@@ -88,15 +94,13 @@ pub struct MantleApp {
 
 impl Default for MantleApp {
     fn default() -> Self {
-        let mgr = LifxManager::new().expect("Failed to create manager");
-        let screen_manager = ScreencapManager::new().expect("Failed to create screen manager");
         let input_listener = InputListener::new();
         let listener_handle = Some(input_listener.start());
         let shortcut_manager = ShortcutManager::new(input_listener.clone());
         let shortcut_handle = Some(shortcut_manager.start());
         Self {
-            mgr,
-            screen_manager,
+            mgr: LifxManager::new().expect("Failed to create manager"),
+            screen_manager: ScreencapManager::new().expect("Failed to create screen manager"),
             input_listener,
             shortcut_manager,
             shortcut_handle,
@@ -106,6 +110,7 @@ impl Default for MantleApp {
             show_eyedropper: HashMap::new(),
             show_subregion: HashMap::new(),
             subregion_points: HashMap::new(),
+            settings: Settings::default(),
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
         }
@@ -420,7 +425,7 @@ impl MantleApp {
                             ui.label(egui::RichText::new("Shortcut").strong());
                             ui.end_row();
 
-                            for shortcut in self.shortcut_manager.get_active_shortcuts() {
+                            for shortcut in self.settings.custom_shortcuts.iter() {
                                 ui.label(&shortcut.name);
                                 ui.label(&shortcut.shortcut.display_name);
                                 ui.end_row();
@@ -462,6 +467,7 @@ impl MantleApp {
 
                         if ui.button("Add Shortcut").clicked() {
                             // TODO: Implement the actual callback function here
+                            self.settings.custom_shortcuts.push(self.shortcut_manager.new_shortcut.clone());
                             self.shortcut_manager.add_shortcut(
                                 self.shortcut_manager.new_shortcut.name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
