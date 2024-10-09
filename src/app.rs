@@ -467,7 +467,9 @@ impl MantleApp {
 
                         if ui.button("Add Shortcut").clicked() {
                             // TODO: Implement the actual callback function here
-                            self.settings.custom_shortcuts.push(self.shortcut_manager.new_shortcut.clone());
+                            self.settings
+                                .custom_shortcuts
+                                .push(self.shortcut_manager.new_shortcut.clone());
                             self.shortcut_manager.add_shortcut(
                                 self.shortcut_manager.new_shortcut.name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
