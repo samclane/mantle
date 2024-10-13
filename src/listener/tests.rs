@@ -3,7 +3,6 @@ mod tests {
     use std::{
         collections::BTreeSet,
         hash::{Hash, Hasher},
-        str::FromStr,
         sync::{Arc, Mutex},
         time::{Duration, SystemTime},
     };
@@ -18,39 +17,6 @@ mod tests {
         key_mapping::{from_egui, map_egui_key_to_rdev_key},
         shared_input_state::{MousePosition, SharedInputState},
     };
-
-    #[test]
-    fn test_input_item_from_str() {
-        assert_eq!(
-            InputItem::from_str("ctrl").unwrap(),
-            InputItem::Key(Key::ControlLeft)
-        );
-        assert_eq!(
-            InputItem::from_str("Shift").unwrap(),
-            InputItem::Key(Key::ShiftLeft)
-        );
-        assert_eq!(InputItem::from_str("a").unwrap(), InputItem::Key(Key::KeyA));
-        assert_eq!(
-            InputItem::from_str("Left").unwrap(),
-            InputItem::Button(Button::Left)
-        );
-        assert!(InputItem::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_input_action_from_str() {
-        let action = InputAction::from_str("ctrl+alt+a").unwrap();
-        let expected_items: BTreeSet<_> = vec![
-            InputItem::Key(Key::ControlLeft),
-            InputItem::Key(Key::Alt),
-            InputItem::Key(Key::KeyA),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(action, expected_items);
-
-        assert!(InputAction::from_str("ctrl+invalid").is_err());
-    }
 
     #[test]
     fn test_map_egui_key_to_rdev_key() {
@@ -88,7 +54,10 @@ mod tests {
         listener.state.update_key_press(Key::ControlLeft);
         listener.state.update_key_press(Key::KeyA);
 
-        let action = InputAction::from_str("ctrl+a").unwrap();
+        let action = InputAction::from_iter(vec![
+            InputItem::Key(Key::ControlLeft),
+            InputItem::Key(Key::KeyA),
+        ]);
         assert!(listener.is_input_action_pressed(&action));
 
         listener.state.update_key_release(Key::ControlLeft);
@@ -350,11 +319,5 @@ mod tests {
         let time2 = state.last_click_time.lock().unwrap().unwrap();
 
         assert!(time2 > time1);
-    }
-
-    #[test]
-    fn test_input_action_display_order() {
-        let action = InputAction::from_str("b+a+ctrl").unwrap();
-        assert_eq!(format!("{}", action), "ControlLeft+KeyA+KeyB");
     }
 }

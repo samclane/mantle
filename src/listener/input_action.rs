@@ -4,14 +4,13 @@ use super::input_item::InputItem;
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
-use std::str::FromStr;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
 pub struct InputAction(BTreeSet<InputItem>);
 
 impl InputAction {
-    pub fn new() -> Self {
-        InputAction(BTreeSet::new())
+    pub fn new(action: BTreeSet<InputItem>) -> Self {
+        InputAction(action)
     }
 }
 
@@ -62,38 +61,11 @@ impl From<&[InputItem]> for InputAction {
     }
 }
 
-impl FromStr for InputAction {
-    type Err = InputActionParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.split('+')
-            .map(str::trim)
-            .map(InputItem::from_str)
-            .collect::<Result<BTreeSet<_>, _>>()
-            .map(InputAction)
-            .map_err(|e| InputActionParseError::InvalidItem(e.to_string()))
-    }
-}
-
 impl Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let mut items: Vec<String> = self.iter().map(|item| item.to_string()).collect();
         items.sort();
         write!(f, "{}", items.join("+"))
-    }
-}
-
-impl Serialize for InputAction {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let s = self.to_string();
-        serializer.serialize_str(&s)
-    }
-}
-
-impl<'de> Deserialize<'de> for InputAction {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        InputAction::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 

@@ -31,4 +31,4 @@ image = "0.23.14"
 xcap = "0.0.12"
 puffin = { "version" = "0.19.1" }
 puffin_http = { "version" = "0.16.1" }
-rdev = { version = "0.5.3" }
+rdev = { version = "0.5.3", features = [ "serialize"]}
