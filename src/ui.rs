@@ -203,7 +203,7 @@ pub fn handle_screencap(
                         }
                     }
 
-                    thread::sleep(Duration::from_millis((follow_rate / 4) as u64));
+                    thread::sleep(Duration::from_millis(follow_rate / 4));
                     if stop_rx.try_recv().is_ok() {
                         break;
                     }
