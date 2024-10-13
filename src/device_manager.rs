@@ -376,4 +376,18 @@ impl LifxManager {
         }
         Ok(0)
     }
+
+    pub fn toggle_power(&self) {
+        if let Ok(bulbs) = self.bulbs.lock() {
+            let bulbs = bulbs.values();
+            for bulb in bulbs {
+                let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
+                    0
+                } else {
+                    u16::MAX
+                };
+                let _ = self.set_power(&bulb, pwr);
+            }
+        }
+    }
 }

@@ -4,9 +4,11 @@ use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::sync::{Arc, Mutex};
 
+use crate::action::UserAction;
 use crate::listener::input_action::InputAction;
 use crate::listener::input_listener::InputListener;
 use crate::listener::key_mapping::from_egui;
+use crate::LifxManager;
 
 pub type ShortcutCallback = Arc<dyn Fn(InputAction) + Send + Sync + 'static>;
 
@@ -61,20 +63,15 @@ impl Display for KeyboardShortcut {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeyboardShortcutAction {
     pub shortcut: KeyboardShortcut,
-    #[serde(skip, default = "default_callback")]
-    pub callback: ShortcutCallback,
+    pub action: UserAction,
     pub name: String,
-}
-
-fn default_callback() -> ShortcutCallback {
-    Arc::new(|_keys_pressed| {})
 }
 
 impl Default for KeyboardShortcutAction {
     fn default() -> Self {
         KeyboardShortcutAction {
             shortcut: KeyboardShortcut::default(),
-            callback: Arc::new(|_keys_pressed| {}),
+            action: UserAction::Refresh,
             name: "".to_string(),
         }
     }
@@ -97,16 +94,16 @@ impl ShortcutManager {
         }
     }
 
-    pub fn add_shortcut<F>(&self, action_name: String, shortcut: KeyboardShortcut, callback: F)
-    where
-        F: Fn(InputAction) + Send + Sync + 'static,
-    {
-        let arc_callback: ShortcutCallback = Arc::new(callback);
-
+    pub fn add_shortcut(
+        &self,
+        action_name: String,
+        shortcut: KeyboardShortcut,
+        action: UserAction,
+    ) {
         let keyboard_shortcut_callback = KeyboardShortcutAction {
             shortcut: shortcut.clone(),
-            callback: arc_callback.clone(),
-            name: action_name.clone(),
+            action,
+            name: action_name,
         };
 
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
@@ -125,7 +122,7 @@ impl ShortcutManager {
         }
     }
 
-    pub fn start(&self) -> std::thread::JoinHandle<()> {
+    pub fn start(&self, lifx_manager: LifxManager) -> std::thread::JoinHandle<()> {
         let input_listener = self.input_listener.clone();
         let shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>> = Arc::clone(&self.shortcuts);
         let active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>> =
@@ -151,14 +148,14 @@ impl ShortcutManager {
                 }
             };
 
-            for shortcut_callback in shortcuts_guard.iter() {
-                if shortcut_callback.shortcut.is_matched(&keys_pressed) {
-                    if !active_shortcuts_guard.contains(&shortcut_callback.shortcut) {
-                        (shortcut_callback.callback)(keys_pressed.clone());
-                        active_shortcuts_guard.insert(shortcut_callback.shortcut.clone());
+            for shortcut_action in shortcuts_guard.iter() {
+                if shortcut_action.shortcut.is_matched(&keys_pressed) {
+                    if !active_shortcuts_guard.contains(&shortcut_action.shortcut) {
+                        shortcut_action.action.execute(lifx_manager.clone());
+                        active_shortcuts_guard.insert(shortcut_action.shortcut.clone());
                     }
                 } else {
-                    active_shortcuts_guard.remove(&shortcut_callback.shortcut);
+                    active_shortcuts_guard.remove(&shortcut_action.shortcut);
                 }
             }
         }));
@@ -246,7 +243,6 @@ mod tests {
 
     use super::*;
     use rdev::Key;
-    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
     fn test_keyboard_shortcut_new() {
@@ -292,28 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn test_keyboard_shortcut_callback_creation() {
-        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
-        let shortcut =
-            KeyboardShortcut::new(InputAction::from(keys.clone()), "TestAction".to_string());
-        let callback_called = Arc::new(AtomicBool::new(false));
-        let callback_called_clone = Arc::clone(&callback_called);
-
-        let callback: ShortcutCallback = Arc::new(move |_keys_pressed| {
-            callback_called_clone.store(true, Ordering::SeqCst);
-        });
-
-        let shortcut_callback = KeyboardShortcutAction {
-            shortcut,
-            callback,
-            name: "TestAction".to_string(),
-        };
-
-        (shortcut_callback.callback)(InputAction::from(keys.clone()));
-        assert!(callback_called.load(Ordering::SeqCst));
-    }
-
-    #[test]
     fn test_shortcut_manager_add_shortcut() {
         let input_listener = InputListener::new();
         let shortcut_manager = ShortcutManager::new(input_listener);
@@ -324,7 +298,7 @@ mod tests {
         shortcut_manager.add_shortcut(
             "TestAction".to_string(),
             shortcut.clone(),
-            |_keys_pressed| {},
+            UserAction::Refresh,
         );
 
         let shortcuts = shortcut_manager.get_active_shortcuts();

@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{
+    action::UserAction,
     capitalize_first_letter,
     color::{default_hsbk, kelvin_to_rgb, DeltaColor, HSBK32},
     color_slider,
@@ -107,9 +108,10 @@ impl Default for MantleApp {
         let input_listener = InputListener::new();
         let listener_handle = Some(input_listener.start());
         let shortcut_manager = ShortcutManager::new(input_listener.clone());
-        let shortcut_handle = Some(shortcut_manager.start());
+        let lifx_manager = LifxManager::new().expect("Failed to create manager");
+        let shortcut_handle = Some(shortcut_manager.start(lifx_manager.clone()));
         Self {
-            mgr: LifxManager::new().expect("Failed to create manager"),
+            mgr: lifx_manager,
             screen_manager: ScreencapManager::new().expect("Failed to create screen manager"),
             input_listener,
             shortcut_manager,
@@ -470,8 +472,31 @@ impl MantleApp {
                     egui::Grid::new("new_shortcut_grid")
                         .min_col_width(100.0)
                         .show(ui, |ui| {
-                            ui.label("Action:");
+                            ui.label("Name:");
                             ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name);
+                            ui.end_row();
+
+                            ui.label("Action:");
+                            // combobox
+                            egui::ComboBox::from_label("Action")
+                                .selected_text(
+                                    self.shortcut_manager.new_shortcut.action.to_string(),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for action in UserAction::variants() {
+                                        if ui
+                                            .selectable_label(
+                                                self.shortcut_manager.new_shortcut.action
+                                                    == *action,
+                                                action.to_string(),
+                                            )
+                                            .clicked()
+                                        {
+                                            self.shortcut_manager.new_shortcut.action =
+                                                action.clone();
+                                        }
+                                    }
+                                });
                             ui.end_row();
 
                             ui.label("Shortcut:");
@@ -501,9 +526,7 @@ impl MantleApp {
                             self.shortcut_manager.add_shortcut(
                                 self.shortcut_manager.new_shortcut.name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
-                                |_keys_pressed| {
-                                    // Define what happens when the shortcut is activated
-                                },
+                                self.shortcut_manager.new_shortcut.action.clone(),
                             );
                             // Clear the fields after adding
                             self.shortcut_manager.new_shortcut.name.clear();
