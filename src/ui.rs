@@ -8,8 +8,8 @@ use std::{
 
 use crate::{
     app::{
-        ColorChannelEntry, MantleApp, RunningWaveform, EYEDROPPER_ICON, FOLLOW_RATE, ICON,
-        MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
+        ColorChannelEntry, MantleApp, RunningWaveform, EYEDROPPER_ICON, ICON, MAIN_WINDOW_SIZE,
+        MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
     color::DeltaColor,
     contrast_color,
@@ -105,6 +105,7 @@ pub fn handle_screencap(
     #[cfg(debug_assertions)]
     puffin::profile_function!();
     let mut color: Option<HSBK> = None;
+    let follow_rate = app.settings.follow_rate_ms;
     let highlight = if app
         .waveform_map
         .get(&device.id())
@@ -125,7 +126,9 @@ pub fn handle_screencap(
                     follow_type: FollowType::All,
                     stop_tx: None,
                 });
-        if follow_state.active && (Instant::now() - follow_state.last_update > FOLLOW_RATE) {
+        if follow_state.active
+            && (Instant::now() - follow_state.last_update > Duration::from_millis(follow_rate))
+        {
             if let Ok(computed_color) = chan.rx.try_recv() {
                 color = Some(computed_color);
                 follow_state.last_update = Instant::now();
@@ -200,7 +203,7 @@ pub fn handle_screencap(
                         }
                     }
 
-                    thread::sleep(Duration::from_millis((FOLLOW_RATE.as_millis() / 4) as u64));
+                    thread::sleep(Duration::from_millis((follow_rate / 4) as u64));
                     if stop_rx.try_recv().is_ok() {
                         break;
                     }
@@ -283,7 +286,7 @@ pub fn handle_screencap(
 
     color.map(|color| DeltaColor {
         next: color,
-        duration: Some((FOLLOW_RATE.as_millis() / 2) as u32),
+        duration: Some((follow_rate / 2) as u32),
     })
 }
 

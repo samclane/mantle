@@ -37,8 +37,6 @@ pub const KELVIN_RANGE: TemperatureRange = TemperatureRange {
     min: 2500,
     max: 9000,
 };
-pub const REFRESH_RATE: Duration = Duration::from_secs(10);
-pub const FOLLOW_RATE: Duration = Duration::from_millis(500);
 
 // Icon data
 pub const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
@@ -60,9 +58,21 @@ pub struct ColorChannelEntry {
 }
 pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
+    pub refresh_rate_ms: u64,
+    pub follow_rate_ms: u64,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            custom_shortcuts: Vec::new(),
+            refresh_rate_ms: 500,
+            follow_rate_ms: 500,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -413,6 +423,24 @@ impl MantleApp {
                     ui.separator();
                     ui.add_space(10.0);
 
+                    ui.horizontal(|ui| {
+                        ui.label("Refresh Rate:");
+                        ui.add(
+                            egui::Slider::new(&mut self.settings.refresh_rate_ms, 50..=10_000)
+                                .text("ms")
+                                .clamp_to_range(true),
+                        );
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Follow Rate:");
+                        ui.add(
+                            egui::Slider::new(&mut self.settings.follow_rate_ms, 50..=10_000)
+                                .text("ms")
+                                .clamp_to_range(true),
+                        );
+                    });
+
                     ui.heading("Keyboard Shortcuts");
                     ui.add_space(5.0);
 
@@ -499,7 +527,9 @@ impl eframe::App for MantleApp {
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(debug_assertions)]
         puffin::GlobalProfiler::lock().new_frame();
-        if Instant::now() - self.mgr.last_discovery > REFRESH_RATE {
+        if Instant::now() - self.mgr.last_discovery
+            > Duration::from_millis(self.settings.refresh_rate_ms)
+        {
             self.mgr.discover().expect("Failed to discover bulbs");
         }
         self.mgr.refresh();
