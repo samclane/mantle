@@ -1,9 +1,7 @@
 use eframe::egui::{vec2, Response, Sense, Ui, Widget};
-use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use crate::listener::input_action::InputAction;
@@ -60,44 +58,16 @@ impl Display for KeyboardShortcut {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeyboardShortcutAction {
     pub shortcut: KeyboardShortcut,
+    #[serde(skip, default = "default_callback")]
     pub callback: ShortcutCallback,
     pub name: String,
 }
 
-impl Serialize for KeyboardShortcutAction {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let keys = self.shortcut.keys.clone();
-        let display_name = self.shortcut.display_name.clone();
-        let name = self.name.clone();
-        let callback = "Callback".to_string();
-        let mut state = serializer.serialize_struct("KeyboardShortcutAction", 4)?;
-        state.serialize_field("keys", &keys)?;
-        state.serialize_field("display_name", &display_name)?;
-        state.serialize_field("name", &name)?;
-        state.serialize_field("callback", &callback)?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for KeyboardShortcutAction {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value: serde_json::Value = serde::de::Deserialize::deserialize(deserializer)?;
-        let keys = value["keys"].as_str().unwrap();
-        let display_name = value["display_name"].as_str().unwrap();
-        let name = value["name"].as_str().unwrap();
-        // let callback = value["callback"].as_str().unwrap();  // This is a placeholder
-        Ok(KeyboardShortcutAction {
-            shortcut: KeyboardShortcut::new(
-                InputAction::from_str(keys).unwrap(),
-                display_name.to_string(),
-            ),
-            callback: Arc::new(|_keys_pressed| {}),
-            name: name.to_string(),
-        })
-    }
+fn default_callback() -> ShortcutCallback {
+    Arc::new(|_keys_pressed| {})
 }
 
 impl Default for KeyboardShortcutAction {

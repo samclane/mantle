@@ -58,7 +58,11 @@ impl FromStr for InputItem {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s_lower = s.to_ascii_lowercase();
-        match s_lower.as_str() {
+        let s_strip = s_lower
+            .trim_start_matches("key")
+            .trim_start_matches("button")
+            .to_string();
+        match s_strip.as_str() {
             "ctrl" => Ok(InputItem::Key(Key::ControlLeft)),
             "alt" => Ok(InputItem::Key(Key::Alt)),
             "shift" => Ok(InputItem::Key(Key::ShiftLeft)),
