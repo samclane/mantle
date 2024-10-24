@@ -1,10 +1,11 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
 use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::CString;
-use std::fmt::Formatter;
-use std::net::{SocketAddr, UdpSocket};
+use std::fmt::{Display, Formatter};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -32,12 +33,33 @@ pub struct BulbInfo {
     pub group: RefreshableData<GroupInfo>,
 }
 
-pub enum DeviceInfo<'a> {
-    Bulb(&'a BulbInfo),
+impl Clone for BulbInfo {
+    fn clone(&self) -> Self {
+        BulbInfo {
+            last_seen: self.last_seen,
+            source: self.source,
+            target: self.target,
+            addr: self.addr,
+            name: self.name.clone(),
+            model: self.model.clone(),
+            location: self.location.clone(),
+            host_firmware: self.host_firmware.clone(),
+            wifi_firmware: self.wifi_firmware.clone(),
+            power_level: self.power_level.clone(),
+            color: self.color.clone(),
+            features: self.features.clone(),
+            group: self.group.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum DeviceInfo {
+    Bulb(Box<BulbInfo>),
     Group(GroupInfo),
 }
 
-impl DeviceInfo<'_> {
+impl DeviceInfo {
     pub fn id(&self) -> u64 {
         match self {
             DeviceInfo::Bulb(b) => b.target,
@@ -50,7 +72,49 @@ impl DeviceInfo<'_> {
     }
 }
 
-#[derive(Debug)]
+impl Serialize for DeviceInfo {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.id().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DeviceInfo {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let id = u64::deserialize(deserializer)?;
+        Ok(DeviceInfo::Bulb(Box::new(BulbInfo {
+            last_seen: Instant::now(),
+            source: 0,
+            target: id,
+            addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
+            name: RefreshableData::empty(HOUR, Message::GetLabel),
+            model: RefreshableData::empty(HOUR, Message::GetVersion),
+            location: RefreshableData::empty(HOUR, Message::GetLocation),
+            host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),
+            wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
+            power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
+            color: DeviceColor::Unknown,
+            features: Features::default(),
+            group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
+        })))
+    }
+}
+
+impl Display for DeviceInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceInfo::Bulb(b) => write!(f, "{}", b.name.data.as_ref().unwrap().to_string_lossy()),
+            DeviceInfo::Group(g) => write!(f, "{}", g.label.cstr().to_str().unwrap_or_default()),
+        }
+    }
+}
+
+impl PartialEq for DeviceInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum DeviceColor {
     Unknown,
     Single(RefreshableData<HSBK>),
@@ -271,7 +335,7 @@ impl std::fmt::Debug for GroupInfo {
     }
 }
 
-impl std::fmt::Debug for DeviceInfo<'_> {
+impl std::fmt::Debug for DeviceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             DeviceInfo::Bulb(b) => write!(f, "{:?}", b),
@@ -481,7 +545,7 @@ mod tests {
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
         let bulb = BulbInfo::new(source, target, addr);
 
-        let device_info = DeviceInfo::Bulb(&bulb);
+        let device_info = DeviceInfo::Bulb(Box::new(bulb.clone()));
         assert_eq!(device_info.id(), target);
 
         let group_ident = LifxIdent([1u8; 16]);

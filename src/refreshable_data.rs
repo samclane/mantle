@@ -1,7 +1,7 @@
 use lifx_core::Message;
 use std::time::{Duration, Instant};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RefreshableData<T> {
     pub data: Option<T>,
     pub max_age: Duration,

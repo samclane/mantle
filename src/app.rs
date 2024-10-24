@@ -198,10 +198,11 @@ impl MantleApp {
                     if before_color != after_color.next {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) =
-                                    self.mgr
-                                        .set_color(bulb, after_color.next, after_color.duration)
-                                {
+                                if let Err(e) = self.mgr.set_color(
+                                    &&**bulb,
+                                    after_color.next,
+                                    after_color.duration,
+                                ) {
                                     log::error!("Error setting color: {}", e);
                                 }
                             }
@@ -389,7 +390,11 @@ impl MantleApp {
                                     );
                                 }
                             }
-                            self.display_device(ui, &DeviceInfo::Bulb(bulb), &bulbs);
+                            self.display_device(
+                                ui,
+                                &DeviceInfo::Bulb(Box::new(bulb.clone())),
+                                &bulbs,
+                            );
                         }
                     }
                 });
@@ -455,10 +460,22 @@ impl MantleApp {
                             ui.label(egui::RichText::new("Shortcut").strong());
                             ui.end_row();
 
+                            let mut to_remove = Vec::new();
                             for shortcut in self.settings.custom_shortcuts.iter() {
                                 ui.label(&shortcut.name);
                                 ui.label(&shortcut.shortcut.display_name);
+                                if ui
+                                    .button("Remove")
+                                    .on_hover_text("Remove this shortcut")
+                                    .clicked()
+                                {
+                                    to_remove.push(shortcut.clone());
+                                }
                                 ui.end_row();
+                            }
+                            for shortcut in to_remove {
+                                self.shortcut_manager.remove_shortcut(shortcut.clone());
+                                self.settings.custom_shortcuts.retain(|s| s != &shortcut);
                             }
                         });
 
@@ -477,7 +494,6 @@ impl MantleApp {
                             ui.end_row();
 
                             ui.label("Action:");
-                            // combobox
                             egui::ComboBox::from_label("Action")
                                 .selected_text(
                                     self.shortcut_manager.new_shortcut.action.to_string(),
@@ -499,6 +515,35 @@ impl MantleApp {
                                 });
                             ui.end_row();
 
+                            ui.label("Device:");
+                            egui::ComboBox::from_label("Device")
+                                .selected_text(
+                                    self.shortcut_manager
+                                        .new_shortcut
+                                        .device
+                                        .clone()
+                                        .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
+                                        .to_string(),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for device in self.mgr.bulbs.lock().unwrap().values() {
+                                        ui.selectable_label(
+                                            self.shortcut_manager
+                                                .new_shortcut
+                                                .device
+                                                .clone()
+                                                .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
+                                                == DeviceInfo::Bulb(Box::new(device.clone())),
+                                            device.name.data.as_ref().unwrap().to_str().unwrap(),
+                                        )
+                                        .clicked()
+                                        .then(|| {
+                                            self.shortcut_manager.new_shortcut.device =
+                                                Some(DeviceInfo::Bulb(Box::new(device.clone())));
+                                        });
+                                    }
+                                });
+
                             ui.label("Shortcut:");
                             ui.add(ShortcutEdit::new(
                                 &mut self.shortcut_manager.new_shortcut.shortcut,
@@ -519,7 +564,6 @@ impl MantleApp {
                         }
 
                         if ui.button("Add Shortcut").clicked() {
-                            // TODO: Implement the actual callback function here
                             self.settings
                                 .custom_shortcuts
                                 .push(self.shortcut_manager.new_shortcut.clone());
@@ -527,6 +571,7 @@ impl MantleApp {
                                 self.shortcut_manager.new_shortcut.name.clone(),
                                 self.shortcut_manager.new_shortcut.shortcut.clone(),
                                 self.shortcut_manager.new_shortcut.action.clone(),
+                                self.shortcut_manager.new_shortcut.device.clone().unwrap(),
                             );
                             // Clear the fields after adding
                             self.shortcut_manager.new_shortcut.name.clear();

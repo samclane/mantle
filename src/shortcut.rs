@@ -5,6 +5,7 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::sync::{Arc, Mutex};
 
 use crate::action::UserAction;
+use crate::device_info::DeviceInfo;
 use crate::listener::input_action::InputAction;
 use crate::listener::input_listener::InputListener;
 use crate::listener::key_mapping::from_egui;
@@ -64,16 +65,26 @@ impl Display for KeyboardShortcut {
 pub struct KeyboardShortcutAction {
     pub shortcut: KeyboardShortcut,
     pub action: UserAction,
+    pub device: Option<DeviceInfo>,
     pub name: String,
 }
-
-impl Default for KeyboardShortcutAction {
-    fn default() -> Self {
+impl KeyboardShortcutAction {
+    fn blank() -> KeyboardShortcutAction {
         KeyboardShortcutAction {
             shortcut: KeyboardShortcut::default(),
             action: UserAction::Refresh,
+            device: None,
             name: "".to_string(),
         }
+    }
+}
+
+impl PartialEq for KeyboardShortcutAction {
+    fn eq(&self, other: &Self) -> bool {
+        self.shortcut == other.shortcut
+            && self.action == other.action
+            && self.device == other.device
+            && self.name == other.name
     }
 }
 
@@ -90,20 +101,22 @@ impl ShortcutManager {
             input_listener,
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutAction::default(),
+            new_shortcut: KeyboardShortcutAction::blank(),
         }
     }
 
     pub fn add_shortcut(
         &self,
-        action_name: String,
+        name: String,
         shortcut: KeyboardShortcut,
         action: UserAction,
+        device: DeviceInfo,
     ) {
         let keyboard_shortcut_callback = KeyboardShortcutAction {
             shortcut: shortcut.clone(),
             action,
-            name: action_name,
+            device: Some(device),
+            name,
         };
 
         if let Ok(mut shortcuts) = self.shortcuts.lock() {
@@ -151,7 +164,10 @@ impl ShortcutManager {
             for shortcut_action in shortcuts_guard.iter() {
                 if shortcut_action.shortcut.is_matched(&keys_pressed) {
                     if !active_shortcuts_guard.contains(&shortcut_action.shortcut) {
-                        shortcut_action.action.execute(lifx_manager.clone());
+                        shortcut_action.action.execute(
+                            lifx_manager.clone(),
+                            shortcut_action.device.clone().unwrap(),
+                        );
                         active_shortcuts_guard.insert(shortcut_action.shortcut.clone());
                     }
                 } else {
@@ -162,6 +178,11 @@ impl ShortcutManager {
 
         self.input_listener.start()
     }
+
+    pub fn remove_shortcut(&self, shortcut: KeyboardShortcutAction) {
+        let mut shortcuts = self.shortcuts.lock().unwrap();
+        shortcuts.retain(|s| s != &shortcut);
+    }
 }
 
 impl Default for ShortcutManager {
@@ -170,7 +191,7 @@ impl Default for ShortcutManager {
             input_listener: InputListener::new(),
             shortcuts: Arc::new(Mutex::new(Vec::new())),
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
-            new_shortcut: KeyboardShortcutAction::default(),
+            new_shortcut: KeyboardShortcutAction::blank(),
         }
     }
 }
@@ -239,9 +260,12 @@ impl<'a> Widget for ShortcutEdit<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::listener::input_item::InputItem;
+    use std::ffi::CString;
+
+    use crate::{device_info::GroupInfo, listener::input_item::InputItem};
 
     use super::*;
+    use lifx_core::{LifxIdent, LifxString};
     use rdev::Key;
 
     #[test]
@@ -294,11 +318,17 @@ mod tests {
         let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
         let shortcut =
             KeyboardShortcut::new(InputAction::from(keys.clone()), "TestAction".to_string());
+        let device = DeviceInfo::Group(GroupInfo {
+            group: LifxIdent([0; 16]),
+            label: LifxString::new(&CString::new("TestGroup").unwrap()),
+            updated_at: 0u64,
+        });
 
         shortcut_manager.add_shortcut(
             "TestAction".to_string(),
             shortcut.clone(),
             UserAction::Refresh,
+            device.clone(),
         );
 
         let shortcuts = shortcut_manager.get_active_shortcuts();

@@ -415,7 +415,7 @@ pub fn toggle_button(
             let level = if on { 0 } else { u16::MAX };
             match device {
                 DeviceInfo::Bulb(bulb) => {
-                    if let Err(e) = mgr.set_power(bulb, level) {
+                    if let Err(e) = mgr.set_power(&&**bulb, level) {
                         log::error!("Error toggling bulb: {}", e);
                     } else {
                         log::info!("Toggled bulb {:?}", bulb.name);

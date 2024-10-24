@@ -1,44 +1,55 @@
+use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::LifxManager;
+use crate::{device_info::DeviceInfo, LifxManager};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum UserAction {
     Refresh,
     TogglePower,
     SetColor {
-        hue: f32,
-        saturation: f32,
-        brightness: f32,
+        hue: u16,
+        saturation: u16,
+        brightness: u16,
         kelvin: u16,
     },
     SetPower {
         power: bool,
     },
     SetBrightness {
-        brightness: f32,
+        brightness: u16,
     },
     SetSaturation {
-        saturation: f32,
+        saturation: u16,
     },
     SetKelvin {
         kelvin: u16,
     },
     SetHue {
-        hue: f32,
+        hue: u16,
     },
 }
 
 impl UserAction {
-    pub fn execute(&self, lifx_manager: LifxManager) {
+    pub fn execute(&self, lifx_manager: LifxManager, device: DeviceInfo) {
         match self {
             UserAction::Refresh => {
                 lifx_manager.refresh();
             }
-            UserAction::TogglePower => {
-                lifx_manager.toggle_power();
-            }
+            UserAction::TogglePower => match device {
+                DeviceInfo::Group(_group_info) => {
+                    todo!("Implement group power toggling logic");
+                }
+                DeviceInfo::Bulb(bulb_info) => {
+                    let level = if bulb_info.power_level.data.unwrap_or(0u16) > 0 {
+                        0
+                    } else {
+                        u16::MAX
+                    };
+                    lifx_manager.set_power(&&*bulb_info, level).unwrap();
+                }
+            },
             UserAction::SetColor {
                 hue,
                 saturation,
@@ -52,15 +63,49 @@ impl UserAction {
                     brightness,
                     kelvin
                 );
-                // Implement color setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        todo!("Implement group color setting logic");
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager
+                            .set_color(
+                                &&*bulb_info,
+                                HSBK {
+                                    hue: *hue,
+                                    saturation: *saturation,
+                                    brightness: *brightness,
+                                    kelvin: *kelvin,
+                                },
+                                None,
+                            )
+                            .unwrap();
+                    }
+                }
             }
             UserAction::SetPower { power } => {
                 log::info!("Executing action: Set Power - {}", power);
-                // Implement power setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        // lifx_manager.set_group_power(&group_info, bulbs, *power as u16).unwrap();
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager.set_power(&&*bulb_info, *power as u16).unwrap();
+                    }
+                }
             }
             UserAction::SetBrightness { brightness } => {
                 log::info!("Executing action: Set Brightness - {}", brightness);
-                // Implement brightness setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        log::info!("Implement group brightness setting logic");
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager
+                            .set_brightness(&&*bulb_info, *brightness)
+                            .unwrap();
+                    }
+                }
             }
             UserAction::SetSaturation { saturation } => {
                 log::info!("Executing action: Set Saturation - {}", saturation);
@@ -82,14 +127,14 @@ impl UserAction {
             UserAction::Refresh,
             UserAction::TogglePower,
             UserAction::SetPower { power: true },
-            UserAction::SetBrightness { brightness: 1.0 },
-            UserAction::SetSaturation { saturation: 1.0 },
+            UserAction::SetBrightness { brightness: 1 },
+            UserAction::SetSaturation { saturation: 1 },
             UserAction::SetKelvin { kelvin: 3500 },
-            UserAction::SetHue { hue: 0.0 },
+            UserAction::SetHue { hue: 0 },
             UserAction::SetColor {
-                hue: 0.0,
-                saturation: 1.0,
-                brightness: 1.0,
+                hue: 0,
+                saturation: 1,
+                brightness: 1,
                 kelvin: 3500,
             },
         ]
@@ -132,26 +177,30 @@ impl From<UserAction> for String {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
+
+    use lifx_core::{LifxIdent, LifxString};
+
     use super::*;
-    use crate::LifxManager;
+    use crate::{device_info::GroupInfo, LifxManager};
 
     #[test]
     fn test_user_action_display() {
         let action = UserAction::Refresh;
         assert_eq!(format!("{}", action), "Refresh");
 
-        let action = UserAction::SetBrightness { brightness: 0.5 };
-        assert_eq!(format!("{}", action), "Set Brightness: 0.5");
+        let action = UserAction::SetBrightness { brightness: 5 };
+        assert_eq!(format!("{}", action), "Set Brightness: 5");
 
         let action = UserAction::SetColor {
-            hue: 120.0,
-            saturation: 0.8,
-            brightness: 0.6,
+            hue: 120,
+            saturation: 8,
+            brightness: 6,
             kelvin: 3500,
         };
         assert_eq!(
             format!("{}", action),
-            "Set Color: H: 120, S: 0.8, B: 0.6, K: 3500"
+            "Set Color: H: 120, S: 8, B: 6, K: 3500"
         );
     }
 
@@ -167,9 +216,23 @@ mod tests {
         let manager = LifxManager::new().unwrap();
 
         let action = UserAction::Refresh;
-        action.execute(manager.clone());
+        action.execute(
+            manager.clone(),
+            DeviceInfo::Group(GroupInfo {
+                group: LifxIdent([0; 16]),
+                label: LifxString::new(&CString::new("TestGroup").unwrap()),
+                updated_at: 0u64,
+            }),
+        );
 
-        let action = UserAction::SetBrightness { brightness: 0.5 };
-        action.execute(manager.clone());
+        let action = UserAction::SetBrightness { brightness: 5 };
+        action.execute(
+            manager.clone(),
+            DeviceInfo::Group(GroupInfo {
+                group: LifxIdent([0; 16]),
+                label: LifxString::new(&CString::new("TestGroup").unwrap()),
+                updated_at: 0u64,
+            }),
+        );
     }
 }

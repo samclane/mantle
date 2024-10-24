@@ -390,4 +390,24 @@ impl LifxManager {
             }
         }
     }
+
+    pub fn set_brightness(
+        &self,
+        bulb_info: &&BulbInfo,
+        brightness: u16,
+    ) -> Result<usize, std::io::Error> {
+        let color = bulb_info.get_color().unwrap_or(&HSBK {
+            hue: 0,
+            saturation: 0,
+            brightness: 0,
+            kelvin: 0,
+        });
+        let color = HSBK {
+            hue: color.hue,
+            saturation: color.saturation,
+            brightness,
+            kelvin: color.kelvin,
+        };
+        self.set_color(bulb_info, color, None)
+    }
 }
