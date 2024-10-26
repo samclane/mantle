@@ -542,6 +542,22 @@ impl MantleApp {
                                                 Some(DeviceInfo::Bulb(Box::new(device.clone())));
                                         });
                                     }
+                                    for group in self.mgr.get_groups() {
+                                        ui.selectable_label(
+                                            self.shortcut_manager
+                                                .new_shortcut
+                                                .device
+                                                .clone()
+                                                .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
+                                                == DeviceInfo::Group(group.clone()),
+                                            group.label.cstr().to_str().unwrap(),
+                                        )
+                                        .clicked()
+                                        .then(|| {
+                                            self.shortcut_manager.new_shortcut.device =
+                                                Some(DeviceInfo::Group(group.clone()));
+                                        });
+                                    }
                                 });
 
                             ui.label("Shortcut:");

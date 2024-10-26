@@ -391,25 +391,6 @@ impl LifxManager {
         }
     }
 
-    // pub fn set_brightness(
-    //     &self,
-    //     bulb_info: &&BulbInfo,
-    //     brightness: u16,
-    // ) -> Result<usize, std::io::Error> {
-    //     let color = bulb_info.get_color().unwrap_or(&HSBK {
-    //         hue: 0,
-    //         saturation: 0,
-    //         brightness: 0,
-    //         kelvin: 0,
-    //     });
-    //     let color = HSBK {
-    //         hue: color.hue,
-    //         saturation: color.saturation,
-    //         brightness,
-    //         kelvin: color.kelvin,
-    //     };
-    //     self.set_color(bulb_info, color, None)
-    // }
     pub fn set_color_field(
         &self,
         bulb: &&BulbInfo,
@@ -445,5 +426,32 @@ impl LifxManager {
             },
         };
         self.set_color(bulb, color, None)
+    }
+
+    pub fn toggle_group_power(&self, group_info: GroupInfo) {
+        if let Ok(bulbs) = self.bulbs.lock() {
+            for bulb in group_info.get_bulbs(&bulbs) {
+                let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
+                    0
+                } else {
+                    u16::MAX
+                };
+                let _ = self.set_power(&bulb, pwr);
+            }
+        }
+    }
+
+    pub fn set_group_color_field(
+        &self,
+        group_info: &GroupInfo,
+        field: HSBKField,
+        value: u16,
+        bulbs: &MutexGuard<'_, HashMap<u64, BulbInfo>>,
+    ) -> Result<usize, std::io::Error> {
+        let bulbs = group_info.get_bulbs(bulbs);
+        for bulb in bulbs {
+            self.set_color_field(&bulb, field, value)?;
+        }
+        Ok(0)
     }
 }

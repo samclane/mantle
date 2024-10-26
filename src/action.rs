@@ -38,8 +38,8 @@ impl UserAction {
                 lifx_manager.refresh();
             }
             UserAction::TogglePower => match device {
-                DeviceInfo::Group(_group_info) => {
-                    todo!("Implement group power toggling logic");
+                DeviceInfo::Group(group_info) => {
+                    lifx_manager.toggle_group_power(group_info);
                 }
                 DeviceInfo::Bulb(bulb_info) => {
                     let level = if bulb_info.power_level.data.unwrap_or(0u16) > 0 {
@@ -65,7 +65,19 @@ impl UserAction {
                 );
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        todo!("Implement group color setting logic");
+                        lifx_manager
+                            .set_group_color(
+                                &_group_info,
+                                HSBK {
+                                    hue: *hue,
+                                    saturation: *saturation,
+                                    brightness: *brightness,
+                                    kelvin: *kelvin,
+                                },
+                                &lifx_manager.bulbs.lock().unwrap(),
+                                None,
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
@@ -87,7 +99,14 @@ impl UserAction {
                 log::info!("Executing action: Set Power - {}", power);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        // lifx_manager.set_group_power(&group_info, bulbs, *power as u16).unwrap();
+                        let power = if *power { u16::MAX } else { 0 };
+                        lifx_manager
+                            .set_group_power(
+                                &_group_info,
+                                &lifx_manager.bulbs.lock().unwrap(),
+                                power,
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager.set_power(&&*bulb_info, *power as u16).unwrap();
@@ -98,7 +117,14 @@ impl UserAction {
                 log::info!("Executing action: Set Brightness - {}", brightness);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        log::info!("Implement group brightness setting logic");
+                        lifx_manager
+                            .set_group_color_field(
+                                &_group_info,
+                                HSBKField::Brightness,
+                                *brightness,
+                                &lifx_manager.bulbs.lock().unwrap(),
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
@@ -111,7 +137,14 @@ impl UserAction {
                 log::info!("Executing action: Set Saturation - {}", saturation);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        log::info!("Implement group saturation setting logic");
+                        lifx_manager
+                            .set_group_color_field(
+                                &_group_info,
+                                HSBKField::Saturation,
+                                *saturation,
+                                &lifx_manager.bulbs.lock().unwrap(),
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
@@ -124,7 +157,14 @@ impl UserAction {
                 log::info!("Executing action: Set Kelvin - {}", kelvin);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        log::info!("Implement group kelvin setting logic");
+                        lifx_manager
+                            .set_group_color_field(
+                                &_group_info,
+                                HSBKField::Kelvin,
+                                *kelvin,
+                                &lifx_manager.bulbs.lock().unwrap(),
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
@@ -137,7 +177,14 @@ impl UserAction {
                 log::info!("Executing action: Set Hue - {}", hue);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        log::info!("Implement group hue setting logic");
+                        lifx_manager
+                            .set_group_color_field(
+                                &_group_info,
+                                HSBKField::Hue,
+                                *hue,
+                                &lifx_manager.bulbs.lock().unwrap(),
+                            )
+                            .unwrap();
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
