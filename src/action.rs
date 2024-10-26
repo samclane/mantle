@@ -2,7 +2,7 @@ use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::{device_info::DeviceInfo, LifxManager};
+use crate::{color::HSBKField, device_info::DeviceInfo, LifxManager};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum UserAction {
@@ -102,22 +102,49 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         lifx_manager
-                            .set_brightness(&&*bulb_info, *brightness)
+                            .set_color_field(&&*bulb_info, HSBKField::Brightness, *brightness)
                             .unwrap();
                     }
                 }
             }
             UserAction::SetSaturation { saturation } => {
                 log::info!("Executing action: Set Saturation - {}", saturation);
-                // Implement saturation setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        log::info!("Implement group saturation setting logic");
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager
+                            .set_color_field(&&*bulb_info, HSBKField::Saturation, *saturation)
+                            .unwrap();
+                    }
+                }
             }
             UserAction::SetKelvin { kelvin } => {
                 log::info!("Executing action: Set Kelvin - {}", kelvin);
-                // Implement kelvin setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        log::info!("Implement group kelvin setting logic");
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager
+                            .set_color_field(&&*bulb_info, HSBKField::Kelvin, *kelvin)
+                            .unwrap();
+                    }
+                }
             }
             UserAction::SetHue { hue } => {
                 log::info!("Executing action: Set Hue - {}", hue);
-                // Implement hue setting logic
+                match device {
+                    DeviceInfo::Group(_group_info) => {
+                        log::info!("Implement group hue setting logic");
+                    }
+                    DeviceInfo::Bulb(bulb_info) => {
+                        lifx_manager
+                            .set_color_field(&&*bulb_info, HSBKField::Hue, *hue)
+                            .unwrap();
+                    }
+                }
             }
         }
     }

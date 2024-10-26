@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 
 const DEFAULT_KELVIN: u16 = 3500;
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum HSBKField {
+    Hue,
+    Saturation,
+    Brightness,
+    Kelvin,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RGB8 {
     pub red: u8,

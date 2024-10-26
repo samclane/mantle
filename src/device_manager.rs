@@ -1,4 +1,4 @@
-use crate::color::{default_hsbk, HSBK32};
+use crate::color::{default_hsbk, HSBKField, HSBK32};
 use crate::device_info::{BulbInfo, GroupInfo};
 use crate::refreshable_data::RefreshableData;
 use crate::DeviceColor;
@@ -391,23 +391,59 @@ impl LifxManager {
         }
     }
 
-    pub fn set_brightness(
+    // pub fn set_brightness(
+    //     &self,
+    //     bulb_info: &&BulbInfo,
+    //     brightness: u16,
+    // ) -> Result<usize, std::io::Error> {
+    //     let color = bulb_info.get_color().unwrap_or(&HSBK {
+    //         hue: 0,
+    //         saturation: 0,
+    //         brightness: 0,
+    //         kelvin: 0,
+    //     });
+    //     let color = HSBK {
+    //         hue: color.hue,
+    //         saturation: color.saturation,
+    //         brightness,
+    //         kelvin: color.kelvin,
+    //     };
+    //     self.set_color(bulb_info, color, None)
+    // }
+    pub fn set_color_field(
         &self,
-        bulb_info: &&BulbInfo,
-        brightness: u16,
+        bulb: &&BulbInfo,
+        field: HSBKField,
+        value: u16,
     ) -> Result<usize, std::io::Error> {
-        let color = bulb_info.get_color().unwrap_or(&HSBK {
+        let color = bulb.get_color().unwrap_or(&HSBK {
             hue: 0,
             saturation: 0,
             brightness: 0,
             kelvin: 0,
         });
         let color = HSBK {
-            hue: color.hue,
-            saturation: color.saturation,
-            brightness,
-            kelvin: color.kelvin,
+            hue: if field == HSBKField::Hue {
+                value
+            } else {
+                color.hue
+            },
+            saturation: if field == HSBKField::Saturation {
+                value
+            } else {
+                color.saturation
+            },
+            brightness: if field == HSBKField::Brightness {
+                value
+            } else {
+                color.brightness
+            },
+            kelvin: if field == HSBKField::Kelvin {
+                value
+            } else {
+                color.kelvin
+            },
         };
-        self.set_color(bulb_info, color, None)
+        self.set_color(bulb, color, None)
     }
 }
