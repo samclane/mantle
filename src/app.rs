@@ -15,6 +15,7 @@ use crate::{
     listener::input_listener::InputListener,
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
+    settings::Settings,
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
@@ -56,23 +57,6 @@ pub struct ColorChannelEntry {
     pub handle: Option<JoinHandle<()>>,
 }
 pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
-
-#[derive(Deserialize, Serialize)]
-pub struct Settings {
-    pub custom_shortcuts: Vec<KeyboardShortcutAction>,
-    pub refresh_rate_ms: u64,
-    pub follow_rate_ms: u64,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            custom_shortcuts: Vec::new(),
-            refresh_rate_ms: 500,
-            follow_rate_ms: 500,
-        }
-    }
-}
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
