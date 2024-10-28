@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use crate::{
-    app::{KELVIN_RANGE, LIFX_RANGE},
     color::HSBKField,
     device_info::DeviceInfo,
+    products::{KELVIN_RANGE, LIFX_RANGE},
+    ui::hsbk_sliders,
     LifxManager,
 };
 
@@ -220,7 +221,7 @@ impl UserAction {
         ]
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> egui::Response {
+    pub fn ui(&mut self, ui: &mut egui::Ui, device: Option<DeviceInfo>) -> egui::Response {
         match self {
             UserAction::Refresh => ui.label(""),
             UserAction::TogglePower => ui.label(""),
@@ -230,13 +231,11 @@ impl UserAction {
                 brightness,
                 kelvin,
             } => {
-                ui.vertical(|ui| {
-                    ui.add(egui::Slider::new(hue, LIFX_RANGE).text("Hue"));
-                    ui.add(egui::Slider::new(saturation, LIFX_RANGE).text("Saturation"));
-                    ui.add(egui::Slider::new(brightness, LIFX_RANGE).text("Brightness"));
-                    ui.add(egui::Slider::new(kelvin, KELVIN_RANGE.to_range_u16()).text("Kelvin"));
-                })
-                .response
+                if let Some(device) = device {
+                    hsbk_sliders(ui, hue, saturation, brightness, &device, kelvin)
+                } else {
+                    ui.label("No device selected")
+                }
             }
             UserAction::SetPower { power } => ui.checkbox(power, "Power"),
             UserAction::SetBrightness { brightness } => {

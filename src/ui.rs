@@ -11,11 +11,12 @@ use crate::{
         ColorChannelEntry, MantleApp, RunningWaveform, EYEDROPPER_ICON, ICON, MAIN_WINDOW_SIZE,
         MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
-    color::DeltaColor,
+    color::{kelvin_to_rgb, DeltaColor},
     contrast_color,
     device_info::DeviceInfo,
+    products::{KELVIN_RANGE, LIFX_RANGE},
     screencap::{FollowType, ScreenSubregion, ScreencapManager},
-    AngleIter, BulbInfo, LifxManager, RGB8,
+    AngleIter, BulbInfo, LifxManager, HSBK32, RGB8,
 };
 
 use eframe::{
@@ -538,4 +539,84 @@ pub fn color_slider(
     }
 
     response
+}
+
+pub fn hsbk_sliders(
+    ui: &mut Ui,
+    hue: &mut u16,
+    saturation: &mut u16,
+    brightness: &mut u16,
+    device: &DeviceInfo,
+    kelvin: &mut u16,
+) -> egui::Response {
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            ui.label("Hue");
+            color_slider(ui, hue, LIFX_RANGE, "Hue", |v| {
+                HSBK32 {
+                    hue: v as u32,
+                    saturation: u32::MAX,
+                    brightness: u32::MAX,
+                    kelvin: 0,
+                }
+                .into()
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.label("Saturation");
+            color_slider(ui, saturation, LIFX_RANGE, "Saturation", |v| {
+                let color_value = (u16::MAX - v) / u8::MAX as u16;
+                Color32::from_gray(color_value as u8)
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.label("Brightness");
+            color_slider(ui, brightness, LIFX_RANGE, "Brightness", |v| {
+                let color_value = v / u8::MAX as u16;
+                Color32::from_gray(color_value as u8)
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.label("Kelvin");
+            match device {
+                DeviceInfo::Bulb(bulb) => {
+                    if let Some(range) = bulb.features.temperature_range.as_ref() {
+                        if range.min != range.max {
+                            color_slider(
+                                ui,
+                                kelvin,
+                                RangeInclusive::new(range.min as u16, range.max as u16),
+                                "Kelvin",
+                                |v| {
+                                    let temp = (((v as f32 / u16::MAX as f32)
+                                        * (range.max - range.min) as f32)
+                                        + range.min as f32)
+                                        as u16;
+                                    kelvin_to_rgb(temp).into()
+                                },
+                            );
+                        } else {
+                            ui.label(format!("{}K", range.min));
+                        }
+                    }
+                }
+                DeviceInfo::Group(_) => {
+                    color_slider(
+                        ui,
+                        kelvin,
+                        RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
+                        "Kelvin",
+                        |v| {
+                            let temp = (((v as f32 / u16::MAX as f32)
+                                * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
+                                + KELVIN_RANGE.min as f32)
+                                as u16;
+                            kelvin_to_rgb(temp).into()
+                        },
+                    );
+                }
+            }
+        });
+    })
+    .response
 }

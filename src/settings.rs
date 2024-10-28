@@ -121,7 +121,10 @@ impl MantleApp {
                                     }
                                 });
                             // based on selected action, show relevant fields
-                            self.shortcut_manager.new_shortcut.action.ui(ui);
+                            self.shortcut_manager
+                                .new_shortcut
+                                .action
+                                .ui(ui, self.shortcut_manager.new_shortcut.device.clone());
                             ui.end_row();
 
                             egui::ComboBox::from_label("Device")

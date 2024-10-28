@@ -4,6 +4,12 @@ use std::ops::RangeInclusive;
 
 static PRODUCTS: &str = include_str!("../data/products.json");
 
+pub const LIFX_RANGE: RangeInclusive<u16> = 0..=u16::MAX;
+pub const KELVIN_RANGE: TemperatureRange = TemperatureRange {
+    min: 2500,
+    max: 9000,
+};
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Upgrade {
     pub major: u32,
