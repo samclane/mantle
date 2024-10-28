@@ -66,6 +66,7 @@ impl MantleApp {
                         .show(ui, |ui| {
                             ui.label(egui::RichText::new("Action").strong());
                             ui.label(egui::RichText::new("Shortcut").strong());
+                            ui.label(egui::RichText::new("Remove").strong());
                             ui.end_row();
 
                             let mut to_remove = Vec::new();
@@ -101,7 +102,6 @@ impl MantleApp {
                             ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name);
                             ui.end_row();
 
-                            ui.label("Action:");
                             egui::ComboBox::from_label("Action")
                                 .selected_text(
                                     self.shortcut_manager.new_shortcut.action.to_string(),
@@ -123,7 +123,6 @@ impl MantleApp {
                                 });
                             ui.end_row();
 
-                            ui.label("Device:");
                             egui::ComboBox::from_label("Device")
                                 .selected_text(
                                     self.shortcut_manager

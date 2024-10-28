@@ -102,7 +102,14 @@ impl<'de> Deserialize<'de> for DeviceInfo {
 impl Display for DeviceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeviceInfo::Bulb(b) => write!(f, "{}", b.name.data.as_ref().unwrap().to_string_lossy()),
+            DeviceInfo::Bulb(b) => write!(
+                f,
+                "{}",
+                b.name.data.as_ref().map_or_else(
+                    || "Unknown".to_string(),
+                    |name| name.to_string_lossy().to_string()
+                )
+            ),
             DeviceInfo::Group(g) => write!(f, "{}", g.label.cstr().to_str().unwrap_or_default()),
         }
     }

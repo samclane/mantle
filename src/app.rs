@@ -16,7 +16,7 @@ use crate::{
     products::TemperatureRange,
     screencap::{FollowType, ScreenSubregion},
     settings::Settings,
-    shortcut::{KeyboardShortcutAction, ShortcutManager},
+    shortcut::ShortcutManager,
     toggle_button,
     ui::{handle_eyedropper, handle_screencap},
     BulbInfo, LifxManager, ScreencapManager,
