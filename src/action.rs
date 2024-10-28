@@ -222,8 +222,8 @@ impl UserAction {
 
     pub fn ui(&mut self, ui: &mut egui::Ui) -> egui::Response {
         match self {
-            UserAction::Refresh => ui.label("Refreshing..."),
-            UserAction::TogglePower => ui.label("Toggle Power"),
+            UserAction::Refresh => ui.label(""),
+            UserAction::TogglePower => ui.label(""),
             UserAction::SetColor {
                 hue,
                 saturation,
