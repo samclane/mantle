@@ -1,10 +1,16 @@
+use eframe::egui;
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::{color::HSBKField, device_info::DeviceInfo, LifxManager};
+use crate::{
+    app::{KELVIN_RANGE, LIFX_RANGE},
+    color::HSBKField,
+    device_info::DeviceInfo,
+    LifxManager,
+};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum UserAction {
     Refresh,
     TogglePower,
@@ -212,6 +218,38 @@ impl UserAction {
                 kelvin: 3500,
             },
         ]
+    }
+
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> egui::Response {
+        match self {
+            UserAction::Refresh => ui.label("Refreshing..."),
+            UserAction::TogglePower => ui.label("Toggle Power"),
+            UserAction::SetColor {
+                hue,
+                saturation,
+                brightness,
+                kelvin,
+            } => {
+                ui.vertical(|ui| {
+                    ui.add(egui::Slider::new(hue, LIFX_RANGE).text("Hue"));
+                    ui.add(egui::Slider::new(saturation, LIFX_RANGE).text("Saturation"));
+                    ui.add(egui::Slider::new(brightness, LIFX_RANGE).text("Brightness"));
+                    ui.add(egui::Slider::new(kelvin, KELVIN_RANGE.to_range_u16()).text("Kelvin"));
+                })
+                .response
+            }
+            UserAction::SetPower { power } => ui.checkbox(power, "Power"),
+            UserAction::SetBrightness { brightness } => {
+                ui.add(egui::Slider::new(brightness, LIFX_RANGE).text("Brightness"))
+            }
+            UserAction::SetSaturation { saturation } => {
+                ui.add(egui::Slider::new(saturation, LIFX_RANGE).text("Saturation"))
+            }
+            UserAction::SetKelvin { kelvin } => {
+                ui.add(egui::Slider::new(kelvin, KELVIN_RANGE.to_range_u16()).text("Kelvin"))
+            }
+            UserAction::SetHue { hue } => ui.add(egui::Slider::new(hue, LIFX_RANGE).text("Hue")),
+        }
     }
 }
 
