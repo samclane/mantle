@@ -50,6 +50,27 @@ pub fn load_icon(icon: &[u8]) -> egui::IconData {
     }
 }
 
+pub fn create_highlighted_button(
+    ui: &mut Ui,
+    icon_name: &'static str,
+    icon: &[u8],
+    active: bool,
+) -> Response {
+    let highlight = if active {
+        ui.visuals().widgets.hovered.bg_stroke.color
+    } else {
+        ui.visuals().widgets.inactive.bg_fill
+    };
+    ui.add(
+        egui::Button::image(
+            egui::Image::from_bytes(icon_name, icon.to_vec())
+                .fit_to_exact_size(Vec2::new(15., 15.)),
+        )
+        .sense(Sense::click())
+        .fill(highlight),
+    )
+}
+
 pub fn handle_eyedropper(
     app: &mut MantleApp,
     ui: &mut Ui,
@@ -57,22 +78,7 @@ pub fn handle_eyedropper(
 ) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
     let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
-    let highlight = if *show_eyedropper {
-        ui.visuals().widgets.hovered.bg_stroke.color
-    } else {
-        ui.visuals().widgets.inactive.bg_fill
-    };
-    if ui
-        .add(
-            egui::Button::image(
-                egui::Image::from_bytes("eyedropper", EYEDROPPER_ICON)
-                    .fit_to_exact_size(Vec2::new(15., 15.)),
-            )
-            .sense(egui::Sense::click())
-            .fill(highlight),
-        )
-        .clicked()
-    {
+    if create_highlighted_button(ui, "eyedropper", EYEDROPPER_ICON, *show_eyedropper).clicked() {
         *show_eyedropper = !*show_eyedropper;
     }
     if *show_eyedropper {
@@ -107,15 +113,6 @@ pub fn handle_screencap(
     puffin::profile_function!();
     let mut color: Option<HSBK> = None;
     let follow_rate = app.settings.follow_rate_ms;
-    let highlight = if app
-        .waveform_map
-        .get(&device.id())
-        .map_or(false, |w| w.active)
-    {
-        ui.visuals().widgets.hovered.bg_stroke.color
-    } else {
-        ui.visuals().widgets.inactive.bg_fill
-    };
     handle_get_subregion_bounds(app, ui, device.id());
     if let Some(chan) = app.waveform_channel.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
@@ -147,17 +144,11 @@ pub fn handle_screencap(
         );
     }
 
-    if ui
-        .add(
-            egui::Button::image(
-                egui::Image::from_bytes("monitor", MONITOR_ICON)
-                    .fit_to_exact_size(Vec2::new(15., 15.)),
-            )
-            .sense(egui::Sense::click())
-            .fill(highlight),
-        )
-        .clicked()
-    {
+    let is_active = app
+        .waveform_map
+        .get(&device.id())
+        .map_or(false, |w| w.active);
+    if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
         if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
             waveform.active = !waveform.active;
         } else {
@@ -301,23 +292,7 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
 
     let mut subregion = subregion_lock.lock().expect("Failed to get subregion");
 
-    let highlight = if *show_subregion {
-        ui.visuals().widgets.hovered.bg_stroke.color
-    } else {
-        ui.visuals().widgets.inactive.bg_fill
-    };
-
-    if ui
-        .add(
-            egui::Button::image(
-                egui::Image::from_bytes("subregion", SUBREGION_ICON)
-                    .fit_to_exact_size(Vec2::new(15., 15.)),
-            )
-            .sense(egui::Sense::click())
-            .fill(highlight),
-        )
-        .clicked()
-    {
+    if create_highlighted_button(ui, "subregion", SUBREGION_ICON, *show_subregion).clicked() {
         *show_subregion = !*show_subregion;
         if *show_subregion {
             subregion.reset();
