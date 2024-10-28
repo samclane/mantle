@@ -210,8 +210,8 @@ impl MantleApp {
             &mut hue,
             &mut saturation,
             &mut brightness,
-            device,
             &mut kelvin,
+            device,
         );
         DeltaColor {
             next: HSBK {

@@ -611,8 +611,8 @@ pub fn hsbk_sliders(
     hue: &mut u16,
     saturation: &mut u16,
     brightness: &mut u16,
-    device: &DeviceInfo,
     kelvin: &mut u16,
+    device: &DeviceInfo,
 ) -> egui::Response {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {

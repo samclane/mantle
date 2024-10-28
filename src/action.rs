@@ -23,17 +23,17 @@ pub enum UserAction {
     SetPower {
         power: bool,
     },
-    SetBrightness {
-        brightness: u16,
+    SetHue {
+        hue: u16,
     },
     SetSaturation {
         saturation: u16,
     },
+    SetBrightness {
+        brightness: u16,
+    },
     SetKelvin {
         kelvin: u16,
-    },
-    SetHue {
-        hue: u16,
     },
 }
 
@@ -207,10 +207,10 @@ impl UserAction {
             UserAction::Refresh,
             UserAction::TogglePower,
             UserAction::SetPower { power: true },
-            UserAction::SetBrightness { brightness: 1 },
-            UserAction::SetSaturation { saturation: 1 },
-            UserAction::SetKelvin { kelvin: 3500 },
             UserAction::SetHue { hue: 0 },
+            UserAction::SetSaturation { saturation: 1 },
+            UserAction::SetBrightness { brightness: 1 },
+            UserAction::SetKelvin { kelvin: 3500 },
             UserAction::SetColor {
                 hue: 0,
                 saturation: 1,
@@ -231,12 +231,13 @@ impl UserAction {
                 kelvin,
             } => {
                 if let Some(device) = device {
-                    hsbk_sliders(ui, hue, saturation, brightness, &device, kelvin)
+                    hsbk_sliders(ui, hue, saturation, brightness, kelvin, &device)
                 } else {
                     ui.label("No device selected")
                 }
             }
             UserAction::SetPower { power } => ui.checkbox(power, "Power"),
+            UserAction::SetHue { hue } => hue_slider(ui, hue),
             UserAction::SetBrightness { brightness } => brightness_slider(ui, brightness),
             UserAction::SetSaturation { saturation } => saturation_slider(ui, saturation),
             UserAction::SetKelvin { kelvin } => {
@@ -246,7 +247,6 @@ impl UserAction {
                     ui.label("No device selected")
                 }
             }
-            UserAction::SetHue { hue } => hue_slider(ui, hue),
         }
     }
 }
@@ -267,14 +267,14 @@ impl Display for UserAction {
                 hue, saturation, brightness, kelvin
             ),
             UserAction::SetPower { power } => write!(f, "Set Power: {}", power),
-            UserAction::SetBrightness { brightness } => {
-                write!(f, "Set Brightness: {}", brightness)
-            }
+            UserAction::SetHue { hue } => write!(f, "Set Hue: {}", hue),
             UserAction::SetSaturation { saturation } => {
                 write!(f, "Set Saturation: {}", saturation)
             }
+            UserAction::SetBrightness { brightness } => {
+                write!(f, "Set Brightness: {}", brightness)
+            }
             UserAction::SetKelvin { kelvin } => write!(f, "Set Kelvin: {}", kelvin),
-            UserAction::SetHue { hue } => write!(f, "Set Hue: {}", hue),
         }
     }
 }
