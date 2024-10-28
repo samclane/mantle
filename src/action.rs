@@ -6,8 +6,7 @@ use std::fmt::Display;
 use crate::{
     color::HSBKField,
     device_info::DeviceInfo,
-    products::{KELVIN_RANGE, LIFX_RANGE},
-    ui::hsbk_sliders,
+    ui::{brightness_slider, hsbk_sliders, hue_slider, kelvin_slider, saturation_slider},
     LifxManager,
 };
 
@@ -238,16 +237,16 @@ impl UserAction {
                 }
             }
             UserAction::SetPower { power } => ui.checkbox(power, "Power"),
-            UserAction::SetBrightness { brightness } => {
-                ui.add(egui::Slider::new(brightness, LIFX_RANGE).text("Brightness"))
-            }
-            UserAction::SetSaturation { saturation } => {
-                ui.add(egui::Slider::new(saturation, LIFX_RANGE).text("Saturation"))
-            }
+            UserAction::SetBrightness { brightness } => brightness_slider(ui, brightness),
+            UserAction::SetSaturation { saturation } => saturation_slider(ui, saturation),
             UserAction::SetKelvin { kelvin } => {
-                ui.add(egui::Slider::new(kelvin, KELVIN_RANGE.to_range_u16()).text("Kelvin"))
+                if let Some(ref device) = device {
+                    kelvin_slider(ui, kelvin, device)
+                } else {
+                    ui.label("No device selected")
+                }
             }
-            UserAction::SetHue { hue } => ui.add(egui::Slider::new(hue, LIFX_RANGE).text("Hue")),
+            UserAction::SetHue { hue } => hue_slider(ui, hue),
         }
     }
 }

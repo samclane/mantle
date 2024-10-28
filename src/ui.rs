@@ -541,6 +541,71 @@ pub fn color_slider(
     response
 }
 
+pub fn hue_slider(ui: &mut Ui, hue: &mut u16) -> egui::Response {
+    color_slider(ui, hue, LIFX_RANGE, "Hue", |v| {
+        HSBK32 {
+            hue: v as u32,
+            saturation: u32::MAX,
+            brightness: u32::MAX,
+            kelvin: 0,
+        }
+        .into()
+    })
+}
+
+pub fn saturation_slider(ui: &mut Ui, saturation: &mut u16) -> egui::Response {
+    color_slider(ui, saturation, LIFX_RANGE, "Saturation", |v| {
+        let color_value = (u16::MAX - v) / u8::MAX as u16;
+        Color32::from_gray(color_value as u8)
+    })
+}
+
+pub fn brightness_slider(ui: &mut Ui, brightness: &mut u16) -> egui::Response {
+    color_slider(ui, brightness, LIFX_RANGE, "Brightness", |v| {
+        let color_value = v / u8::MAX as u16;
+        Color32::from_gray(color_value as u8)
+    })
+}
+
+pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui::Response {
+    match device {
+        DeviceInfo::Bulb(bulb) => {
+            if let Some(range) = bulb.features.temperature_range.as_ref() {
+                if range.min != range.max {
+                    color_slider(
+                        ui,
+                        kelvin,
+                        RangeInclusive::new(range.min as u16, range.max as u16),
+                        "Kelvin",
+                        |v| {
+                            let temp = (((v as f32 / u16::MAX as f32)
+                                * (range.max - range.min) as f32)
+                                + range.min as f32) as u16;
+                            kelvin_to_rgb(temp).into()
+                        },
+                    )
+                } else {
+                    ui.label(format!("{}K", range.min))
+                }
+            } else {
+                ui.label("Kelvin")
+            }
+        }
+        DeviceInfo::Group(_) => color_slider(
+            ui,
+            kelvin,
+            RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
+            "Kelvin",
+            |v| {
+                let temp = (((v as f32 / u16::MAX as f32)
+                    * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
+                    + KELVIN_RANGE.min as f32) as u16;
+                kelvin_to_rgb(temp).into()
+            },
+        ),
+    }
+}
+
 pub fn hsbk_sliders(
     ui: &mut Ui,
     hue: &mut u16,
@@ -552,70 +617,19 @@ pub fn hsbk_sliders(
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             ui.label("Hue");
-            color_slider(ui, hue, LIFX_RANGE, "Hue", |v| {
-                HSBK32 {
-                    hue: v as u32,
-                    saturation: u32::MAX,
-                    brightness: u32::MAX,
-                    kelvin: 0,
-                }
-                .into()
-            });
+            hue_slider(ui, hue)
         });
         ui.horizontal(|ui| {
             ui.label("Saturation");
-            color_slider(ui, saturation, LIFX_RANGE, "Saturation", |v| {
-                let color_value = (u16::MAX - v) / u8::MAX as u16;
-                Color32::from_gray(color_value as u8)
-            });
+            saturation_slider(ui, saturation)
         });
         ui.horizontal(|ui| {
             ui.label("Brightness");
-            color_slider(ui, brightness, LIFX_RANGE, "Brightness", |v| {
-                let color_value = v / u8::MAX as u16;
-                Color32::from_gray(color_value as u8)
-            });
+            brightness_slider(ui, brightness)
         });
         ui.horizontal(|ui| {
             ui.label("Kelvin");
-            match device {
-                DeviceInfo::Bulb(bulb) => {
-                    if let Some(range) = bulb.features.temperature_range.as_ref() {
-                        if range.min != range.max {
-                            color_slider(
-                                ui,
-                                kelvin,
-                                RangeInclusive::new(range.min as u16, range.max as u16),
-                                "Kelvin",
-                                |v| {
-                                    let temp = (((v as f32 / u16::MAX as f32)
-                                        * (range.max - range.min) as f32)
-                                        + range.min as f32)
-                                        as u16;
-                                    kelvin_to_rgb(temp).into()
-                                },
-                            );
-                        } else {
-                            ui.label(format!("{}K", range.min));
-                        }
-                    }
-                }
-                DeviceInfo::Group(_) => {
-                    color_slider(
-                        ui,
-                        kelvin,
-                        RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
-                        "Kelvin",
-                        |v| {
-                            let temp = (((v as f32 / u16::MAX as f32)
-                                * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
-                                + KELVIN_RANGE.min as f32)
-                                as u16;
-                            kelvin_to_rgb(temp).into()
-                        },
-                    );
-                }
-            }
+            kelvin_slider(ui, kelvin, device)
         });
     })
     .response
