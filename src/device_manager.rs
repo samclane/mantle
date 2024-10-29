@@ -302,7 +302,9 @@ impl LifxManager {
         if let Ok(bulbs) = self.bulbs.lock() {
             for bulb in bulbs.values() {
                 if let Some(group) = &bulb.group.data {
-                    groups.push(group.clone());
+                    if !groups.contains(group) {
+                        groups.push(group.clone());
+                    }
                 }
             }
         }

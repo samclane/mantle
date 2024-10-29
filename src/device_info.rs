@@ -10,11 +10,17 @@ use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct GroupInfo {
     pub group: LifxIdent,
     pub label: LifxString,
     pub updated_at: u64,
+}
+
+impl PartialEq for GroupInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.group == other.group
+    }
 }
 
 pub struct BulbInfo {
