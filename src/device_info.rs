@@ -59,6 +59,12 @@ impl Clone for BulbInfo {
     }
 }
 
+impl PartialEq for BulbInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.target == other.target
+    }
+}
+
 #[derive(Clone)]
 pub enum DeviceInfo {
     Bulb(Box<BulbInfo>),
