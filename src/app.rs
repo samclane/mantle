@@ -141,7 +141,7 @@ impl MantleApp {
                         ui.label(RichText::new(s).size(16.0).strong());
                     }
                 }
-                Some(self.mgr.avg_group_color(group, bulbs))
+                Some(self.mgr.get_avg_group_color(group, bulbs))
             }
         };
 
@@ -231,7 +231,9 @@ impl MantleApp {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
         if ui.input_mut(|i| i.consume_shortcut(&refresh_shortcut)) {
-            self.mgr.refresh();
+            if let Err(e) = self.mgr.refresh() {
+                log::error!("Error refreshing manager: {}", e);
+            }
         }
 
         ui.menu_button("File", |ui| {
@@ -243,7 +245,9 @@ impl MantleApp {
                 )
                 .clicked()
             {
-                self.mgr.refresh();
+                if let Err(e) = self.mgr.refresh() {
+                    log::error!("Error refreshing manager: {}", e);
+                }
                 ui.close_menu();
             }
             if ui.add(egui::Button::new("Settings")).clicked() {
@@ -345,7 +349,9 @@ impl eframe::App for MantleApp {
         {
             self.mgr.discover().expect("Failed to discover bulbs");
         }
-        self.mgr.refresh();
+        if let Err(e) = self.mgr.refresh() {
+            log::error!("Error refreshing manager: {}", e);
+        }
         self.update_ui(_ctx);
         self.show_about_window(_ctx);
         self.settings_ui(_ctx);

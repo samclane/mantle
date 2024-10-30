@@ -126,15 +126,6 @@ impl ShortcutManager {
         }
     }
 
-    pub fn get_active_shortcuts(&self) -> Vec<KeyboardShortcutAction> {
-        if let Ok(shortcuts) = self.shortcuts.lock() {
-            shortcuts.clone()
-        } else {
-            log::error!("Failed to lock shortcuts mutex");
-            Vec::new()
-        }
-    }
-
     pub fn start(&self, lifx_manager: LifxManager) -> std::thread::JoinHandle<()> {
         let input_listener = self.input_listener.clone();
         let shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>> = Arc::clone(&self.shortcuts);
@@ -330,10 +321,5 @@ mod tests {
             UserAction::Refresh,
             device.clone(),
         );
-
-        let shortcuts = shortcut_manager.get_active_shortcuts();
-        assert_eq!(shortcuts.len(), 1);
-        assert_eq!(shortcuts[0].shortcut, shortcut);
-        assert_eq!(shortcuts[0].name, "TestAction");
     }
 }

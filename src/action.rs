@@ -41,7 +41,9 @@ impl UserAction {
     pub fn execute(&self, lifx_manager: LifxManager, device: DeviceInfo) {
         match self {
             UserAction::Refresh => {
-                lifx_manager.refresh();
+                if let Err(e) = lifx_manager.refresh() {
+                    log::error!("Failed to refresh: {}", e);
+                }
             }
             UserAction::TogglePower => match device {
                 DeviceInfo::Group(group_info) => {

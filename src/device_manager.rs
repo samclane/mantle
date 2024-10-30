@@ -212,8 +212,9 @@ impl LifxManager {
         }
     }
 
-    pub fn discover(&mut self) -> Result<(), failure::Error> {
+    pub fn discover(&mut self) -> Result<usize, failure::Error> {
         log::debug!("Doing discovery");
+        let mut count = 0;
 
         let opts = BuildOptions {
             source: self.source,
@@ -234,23 +235,25 @@ impl LifxManager {
                 let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
                 log::debug!("Discovering bulbs on LAN {:?}", addr);
                 self.sock.send_to(&bytes, addr)?;
+                count += 1;
             }
         }
 
         self.last_discovery = Instant::now();
 
-        Ok(())
+        Ok(count)
     }
 
-    pub fn refresh(&self) {
+    pub fn refresh(&self) -> Result<usize, failure::Error> {
+        let mut count = 0;
         if let Ok(mut bulbs) = self.bulbs.lock() {
             let bulbs = bulbs.values_mut();
             for bulb in bulbs {
-                if let Err(e) = bulb.query_for_missing_info(&self.sock) {
-                    log::error!("Error querying bulb: {}", e);
-                }
+                bulb.query_for_missing_info(&self.sock)?;
+                count += 1;
             }
         }
+        Ok(count)
     }
 
     fn send_message(&self, bulb: &&BulbInfo, message: Message) -> Result<usize, std::io::Error> {
@@ -318,14 +321,15 @@ impl LifxManager {
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
         duration: Option<u32>,
     ) -> Result<usize, std::io::Error> {
+        let mut total = 0;
         let bulbs = group.get_bulbs(bulbs);
         for bulb in bulbs {
-            self.set_color(&bulb, color, duration)?;
+            total += self.set_color(&bulb, color, duration)?;
         }
-        Ok(0)
+        Ok(total)
     }
 
-    pub fn avg_group_color(
+    pub fn get_avg_group_color(
         &self,
         group: &GroupInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
@@ -361,6 +365,7 @@ impl LifxManager {
         device_id: u64,
         avg_color: HSBK,
     ) -> Result<usize, std::io::Error> {
+        // check for bulb
         if let Ok(bulbs) = self.bulbs.lock() {
             if let Some(bulb) = bulbs.get(&device_id) {
                 return self.set_color(&bulb, avg_color, None);
@@ -379,7 +384,8 @@ impl LifxManager {
         Ok(0)
     }
 
-    pub fn toggle_power(&self) {
+    pub fn toggle_power(&self) -> Result<usize, std::io::Error> {
+        let mut total = 0;
         if let Ok(bulbs) = self.bulbs.lock() {
             let bulbs = bulbs.values();
             for bulb in bulbs {
@@ -388,9 +394,10 @@ impl LifxManager {
                 } else {
                     u16::MAX
                 };
-                let _ = self.set_power(&bulb, pwr);
+                total += self.set_power(&bulb, pwr)?;
             }
         }
+        Ok(total)
     }
 
     pub fn set_color_field(
@@ -450,10 +457,11 @@ impl LifxManager {
         value: u16,
         bulbs: &MutexGuard<'_, HashMap<u64, BulbInfo>>,
     ) -> Result<usize, std::io::Error> {
+        let mut total = 0;
         let bulbs = group_info.get_bulbs(bulbs);
         for bulb in bulbs {
-            self.set_color_field(&bulb, field, value)?;
+            total += self.set_color_field(&bulb, field, value)?;
         }
-        Ok(0)
+        Ok(total)
     }
 }
