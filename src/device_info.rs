@@ -82,23 +82,38 @@ impl DeviceInfo {
             ),
         }
     }
+
+    pub fn name(&self) -> Option<String> {
+        match self {
+            DeviceInfo::Bulb(b) => b
+                .name
+                .data
+                .as_ref()
+                .map(|n| n.to_string_lossy().to_string()),
+            DeviceInfo::Group(g) => Some(g.label.to_string()),
+        }
+    }
 }
 
 impl Serialize for DeviceInfo {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.id().serialize(serializer)
+        (self.id(), self.name()).serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for DeviceInfo {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let id = u64::deserialize(deserializer)?;
+        let (id, name) = <(u64, Option<String>)>::deserialize(deserializer)?;
         Ok(DeviceInfo::Bulb(Box::new(BulbInfo {
             last_seen: Instant::now(),
             source: 0,
             target: id,
             addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
-            name: RefreshableData::empty(HOUR, Message::GetLabel),
+            name: RefreshableData::new(
+                CString::new(name.unwrap_or_default()).expect("Failed to create CString"),
+                HOUR,
+                Message::GetLabel,
+            ),
             model: RefreshableData::empty(HOUR, Message::GetVersion),
             location: RefreshableData::empty(HOUR, Message::GetLocation),
             host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),

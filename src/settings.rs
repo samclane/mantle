@@ -64,6 +64,8 @@ impl MantleApp {
                         .striped(true)
                         .min_col_width(100.0)
                         .show(ui, |ui| {
+                            ui.label(egui::RichText::new("Name").strong());
+                            ui.label(egui::RichText::new("Device").strong());
                             ui.label(egui::RichText::new("Action").strong());
                             ui.label(egui::RichText::new("Shortcut").strong());
                             ui.label(egui::RichText::new("Remove").strong());
@@ -72,6 +74,8 @@ impl MantleApp {
                             let mut to_remove = Vec::new();
                             for shortcut in self.settings.custom_shortcuts.iter() {
                                 ui.label(&shortcut.name);
+                                ui.label(shortcut.device.as_ref().unwrap().to_string());
+                                ui.label(shortcut.action.to_string());
                                 ui.label(&shortcut.shortcut.display_name);
                                 if ui
                                     .button("Remove")
