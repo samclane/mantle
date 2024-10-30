@@ -210,13 +210,13 @@ impl UserAction {
             UserAction::TogglePower,
             UserAction::SetPower { power: true },
             UserAction::SetHue { hue: 0 },
-            UserAction::SetSaturation { saturation: 1 },
-            UserAction::SetBrightness { brightness: 1 },
+            UserAction::SetSaturation { saturation: 0 },
+            UserAction::SetBrightness { brightness: 0 },
             UserAction::SetKelvin { kelvin: 3500 },
             UserAction::SetColor {
                 hue: 0,
-                saturation: 1,
-                brightness: 1,
+                saturation: 0,
+                brightness: 0,
                 kelvin: 3500,
             },
         ]
