@@ -637,4 +637,33 @@ mod tests {
         let color = handle_multizone(empty_data);
         assert!(color.is_none());
     }
+
+    #[test]
+    fn test_serde_bulb_info() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let bulb = BulbInfo::new(source, target, addr);
+
+        let device_info = DeviceInfo::Bulb(Box::new(bulb.clone()));
+
+        let serialized = serde_json::to_string(&device_info).unwrap();
+        let deserialized: DeviceInfo = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(device_info, deserialized);
+    }
+
+    #[test]
+    fn test_serde_group_info() {
+        let group_ident = LifxIdent([1u8; 16]);
+        let group_label = LifxString::new(&CString::new("TestGroup").unwrap());
+        let group = GroupInfo::new(group_ident, group_label);
+
+        let device_info = DeviceInfo::Group(group.clone());
+
+        let serialized = serde_json::to_string(&device_info).unwrap();
+        let deserialized: DeviceInfo = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(device_info, deserialized);
+    }
 }
