@@ -10,9 +10,33 @@ use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "LifxIdent")]
+pub struct LifxIdentDef([u8; 16]);
+
+fn serialize_lifx_string<S>(data: &LifxString, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    data.cstr().serialize(serializer)
+}
+
+fn deserialize_lifx_string<'de, D>(deserializer: D) -> Result<LifxString, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let cstr = CString::deserialize(deserializer)?;
+    Ok(LifxString::new(&cstr))
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GroupInfo {
+    #[serde(with = "LifxIdentDef")]
     pub group: LifxIdent,
+    #[serde(
+        serialize_with = "serialize_lifx_string",
+        deserialize_with = "deserialize_lifx_string"
+    )]
     pub label: LifxString,
     pub updated_at: u64,
 }
