@@ -93,36 +93,58 @@ impl DeviceInfo {
             DeviceInfo::Group(g) => Some(g.label.to_string()),
         }
     }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            DeviceInfo::Bulb(_) => "Bulb",
+            DeviceInfo::Group(_) => "Group",
+        }
+    }
 }
 
 impl Serialize for DeviceInfo {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        (self.id(), self.name()).serialize(serializer)
+        (self.id(), self.name(), self.kind()).serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for DeviceInfo {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let (id, name) = <(u64, Option<String>)>::deserialize(deserializer)?;
-        Ok(DeviceInfo::Bulb(Box::new(BulbInfo {
-            last_seen: Instant::now(),
-            source: 0,
-            target: id,
-            addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
-            name: RefreshableData::new(
-                CString::new(name.unwrap_or_default()).expect("Failed to create CString"),
-                HOUR,
-                Message::GetLabel,
-            ),
-            model: RefreshableData::empty(HOUR, Message::GetVersion),
-            location: RefreshableData::empty(HOUR, Message::GetLocation),
-            host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),
-            wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
-            power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
-            color: DeviceColor::Unknown,
-            features: Features::default(),
-            group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
-        })))
+        let (id, name, kind) = <(u64, Option<String>, &str)>::deserialize(deserializer)?;
+        match kind {
+            "Bulb" => Ok(DeviceInfo::Bulb(Box::new(BulbInfo {
+                last_seen: Instant::now(),
+                source: 0,
+                target: id,
+                addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
+                name: RefreshableData::new(
+                    CString::new(name.unwrap_or_default()).expect("Failed to create CString"),
+                    HOUR,
+                    Message::GetLabel,
+                ),
+                model: RefreshableData::empty(HOUR, Message::GetVersion),
+                location: RefreshableData::empty(HOUR, Message::GetLocation),
+                host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),
+                wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
+                power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
+                color: DeviceColor::Unknown,
+                features: Features::default(),
+                group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
+            }))),
+            "Group" => Ok(DeviceInfo::Group(GroupInfo::new(
+                LifxIdent(
+                    [id.to_le_bytes(), [0u8; 8]]
+                        .concat()
+                        .try_into()
+                        .expect("Failed to convert ident to [u8; 16]"),
+                ),
+                LifxString::new(
+                    &CString::new(name.expect("Group name not provided"))
+                        .expect("Failed to create CString"),
+                ),
+            ))),
+            _ => Err(serde::de::Error::custom(format!("Unknown kind: {}", kind))),
+        }
     }
 }
 
