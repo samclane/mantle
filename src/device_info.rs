@@ -1,5 +1,6 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
+use crate::serializers::{deserialize_lifx_string, serialize_lifx_string, LifxIdentDef};
 use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,25 +10,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "LifxIdent")]
-pub struct LifxIdentDef([u8; 16]);
-
-fn serialize_lifx_string<S>(data: &LifxString, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    data.cstr().serialize(serializer)
-}
-
-fn deserialize_lifx_string<'de, D>(deserializer: D) -> Result<LifxString, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let cstr = CString::deserialize(deserializer)?;
-    Ok(LifxString::new(&cstr))
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GroupInfo {

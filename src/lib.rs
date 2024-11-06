@@ -7,6 +7,7 @@ pub mod listener;
 pub mod products;
 pub mod refreshable_data;
 pub mod screencap;
+pub mod serializers;
 pub mod settings;
 pub mod shortcut;
 pub mod ui;
