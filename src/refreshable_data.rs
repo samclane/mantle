@@ -1,11 +1,18 @@
+use crate::serializers::{deserialize_instant, serialize_instant, MessageDef};
 use lifx_core::Message;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshableData<T> {
     pub data: Option<T>,
     pub max_age: Duration,
+    #[serde(
+        serialize_with = "serialize_instant",
+        deserialize_with = "deserialize_instant"
+    )]
     pub last_updated: Instant,
+    #[serde(with = "MessageDef")]
     pub refresh_msg: Message,
 }
 

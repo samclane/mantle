@@ -5,6 +5,22 @@ use lifx_core::{
 };
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
+use std::time::{Duration, Instant};
+
+pub fn serialize_instant<S>(data: &Instant, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    data.elapsed().as_secs().serialize(serializer)
+}
+
+pub fn deserialize_instant<'de, D>(deserializer: D) -> Result<Instant, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let secs: u64 = serde::Deserialize::deserialize(deserializer)?;
+    Ok(Instant::now() - Duration::from_secs(secs))
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "Service")]
