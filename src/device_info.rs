@@ -1,12 +1,16 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
-use crate::serializers::{deserialize_lifx_string, serialize_lifx_string, LifxIdentDef};
+use crate::serializers::{
+    deserialize_instant, deserialize_lifx_string, serialize_instant, serialize_lifx_string,
+    LifxIdentDef,
+};
+use crate::HSBK32;
 use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fmt::{Display, Formatter};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -29,7 +33,12 @@ impl PartialEq for GroupInfo {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BulbInfo {
+    #[serde(
+        serialize_with = "serialize_instant",
+        deserialize_with = "deserialize_instant"
+    )]
     pub last_seen: Instant,
     pub source: u32,
     pub target: u64,
@@ -71,7 +80,57 @@ impl PartialEq for BulbInfo {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+pub enum DeviceColor {
+    Unknown,
+    Single(RefreshableData<HSBK>),
+    Multi(RefreshableData<Vec<Option<HSBK>>>),
+}
+
+impl Serialize for DeviceColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        match self {
+            DeviceColor::Unknown => serializer.serialize_none(),
+            DeviceColor::Single(data) => {
+                serializer.serialize_some(&HSBK32::from(data.data.unwrap()))
+            }
+            DeviceColor::Multi(data) => {
+                let serialized_data: Option<Vec<Option<HSBK32>>> = data
+                    .data
+                    .as_ref()
+                    .map(|vec| vec.iter().map(|opt| opt.map(HSBK32::from)).collect());
+                serializer.serialize_some(&serialized_data)
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DeviceColor {
+    fn deserialize<D>(deserializer: D) -> Result<DeviceColor, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let data32 = Option::<HSBK32>::deserialize(deserializer)?;
+        let data: Option<HSBK> = data32.map(HSBK::from);
+
+        match data {
+            Some(data) => Ok(DeviceColor::Single(RefreshableData::new(
+                data,
+                Duration::from_secs(60),
+                Message::GetColorZones {
+                    start_index: 0,
+                    end_index: u8::MAX,
+                },
+            ))),
+            None => Ok(DeviceColor::Unknown),
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum DeviceInfo {
     Bulb(Box<BulbInfo>),
     Group(GroupInfo),
@@ -95,7 +154,7 @@ impl DeviceInfo {
                 .name
                 .data
                 .as_ref()
-                .map(|n| n.to_string_lossy().to_string()),
+                .map(|s| s.to_string_lossy().into_owned()),
             DeviceInfo::Group(g) => Some(g.label.to_string()),
         }
     }
@@ -106,81 +165,6 @@ impl DeviceInfo {
             DeviceInfo::Group(_) => "Group",
         }
     }
-}
-
-impl Serialize for DeviceInfo {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        (self.id(), self.name(), self.kind()).serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for DeviceInfo {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let (id, name, kind) = <(u64, Option<String>, &str)>::deserialize(deserializer)?;
-        match kind {
-            "Bulb" => Ok(DeviceInfo::Bulb(Box::new(BulbInfo {
-                last_seen: Instant::now(),
-                source: 0,
-                target: id,
-                addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700),
-                name: RefreshableData::new(
-                    CString::new(name.unwrap_or_default()).expect("Failed to create CString"),
-                    HOUR,
-                    Message::GetLabel,
-                ),
-                model: RefreshableData::empty(HOUR, Message::GetVersion),
-                location: RefreshableData::empty(HOUR, Message::GetLocation),
-                host_firmware: RefreshableData::empty(HOUR, Message::GetHostFirmware),
-                wifi_firmware: RefreshableData::empty(HOUR, Message::GetWifiFirmware),
-                power_level: RefreshableData::empty(Duration::from_secs(15), Message::GetPower),
-                color: DeviceColor::Unknown,
-                features: Features::default(),
-                group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
-            }))),
-            "Group" => Ok(DeviceInfo::Group(GroupInfo::new(
-                LifxIdent(
-                    [id.to_le_bytes(), [0u8; 8]]
-                        .concat()
-                        .try_into()
-                        .expect("Failed to convert ident to [u8; 16]"),
-                ),
-                LifxString::new(
-                    &CString::new(name.expect("Group name not provided"))
-                        .expect("Failed to create CString"),
-                ),
-            ))),
-            _ => Err(serde::de::Error::custom(format!("Unknown kind: {}", kind))),
-        }
-    }
-}
-
-impl Display for DeviceInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DeviceInfo::Bulb(b) => write!(
-                f,
-                "{}",
-                b.name.data.as_ref().map_or_else(
-                    || "Unknown".to_string(),
-                    |name| name.to_string_lossy().to_string()
-                )
-            ),
-            DeviceInfo::Group(g) => write!(f, "{}", g.label.cstr().to_str().unwrap_or_default()),
-        }
-    }
-}
-
-impl PartialEq for DeviceInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum DeviceColor {
-    Unknown,
-    Single(RefreshableData<HSBK>),
-    Multi(RefreshableData<Vec<Option<HSBK>>>),
 }
 
 impl BulbInfo {
@@ -251,18 +235,14 @@ impl BulbInfo {
     }
 
     pub fn group_label(&self) -> Option<String> {
-        self.group
-            .data
-            .as_ref()
-            .map(|g| &g.label)
-            .map(|l| l.to_string())
+        self.group.data.as_ref().map(|g| g.label.to_string())
     }
 
     pub fn name_label(&self) -> Option<String> {
         self.name
             .data
             .as_ref()
-            .map(|n| n.to_string_lossy().to_string())
+            .map(|s| s.to_string_lossy().into_owned())
     }
 }
 
@@ -403,6 +383,29 @@ impl std::fmt::Debug for DeviceInfo {
             DeviceInfo::Bulb(b) => write!(f, "{:?}", b),
             DeviceInfo::Group(g) => write!(f, "{:?}", g),
         }
+    }
+}
+
+impl Display for DeviceInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceInfo::Bulb(b) => write!(
+                f,
+                "{}",
+                b.name
+                    .data
+                    .as_ref()
+                    .map(|s| s.to_string_lossy())
+                    .unwrap_or_else(|| "Unknown".into())
+            ),
+            DeviceInfo::Group(g) => write!(f, "{}", g.label),
+        }
+    }
+}
+
+impl PartialEq for DeviceInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
     }
 }
 
