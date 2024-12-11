@@ -61,7 +61,7 @@ impl Display for KeyboardShortcut {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct KeyboardShortcutAction {
     pub shortcut: KeyboardShortcut,
     pub action: UserAction,
@@ -103,6 +103,15 @@ impl ShortcutManager {
             active_shortcuts: Arc::new(Mutex::new(BTreeSet::new())),
             new_shortcut: KeyboardShortcutAction::blank(),
         }
+    }
+
+    pub fn add_action<'a>(
+        &'a mut self,
+        action: KeyboardShortcutAction,
+    ) -> Result<(), Box<dyn std::error::Error + 'a>> {
+        let mut shortcuts = self.shortcuts.lock()?;
+        shortcuts.push(action);
+        Ok(())
     }
 
     pub fn add_shortcut(

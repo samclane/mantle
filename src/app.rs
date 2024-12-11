@@ -104,7 +104,14 @@ impl Default for MantleApp {
 impl MantleApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            let mut app =
+                eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
+            for shortcut in app.settings.custom_shortcuts.clone() {
+                if let Err(e) = app.shortcut_manager.add_action(shortcut.clone()) {
+                    log::error!("Failed to add shortcut action: {}", e);
+                }
+            }
+            return app;
         }
         Default::default()
     }
