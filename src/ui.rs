@@ -29,6 +29,9 @@ use eframe::{
 use image::GenericImageView;
 use lifx_core::HSBK;
 
+const DEBOUNCE_DELAY_MS: u64 = 100;
+const SLIDER_RESOLUTION: u32 = 36;
+
 pub fn setup_eframe_options() -> eframe::NativeOptions {
     let icon = load_icon(ICON);
 
@@ -64,7 +67,7 @@ pub fn create_highlighted_button(
     ui.add(
         egui::Button::image(
             egui::Image::from_bytes(icon_name, icon.to_vec())
-                .fit_to_exact_size(Vec2::new(15., 15.)),
+                .fit_to_exact_size(ui.spacing().interact_size),
         )
         .sense(Sense::click())
         .fill(highlight),
@@ -308,7 +311,7 @@ pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: 
                 subregion.x = mouse_pos.x;
                 subregion.y = mouse_pos.y;
                 // debounce the click (dirty but only way I can think of)
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(DEBOUNCE_DELAY_MS));
             } else {
                 subregion.width = (mouse_pos.x - subregion.x).unsigned_abs();
                 subregion.height = (mouse_pos.y - subregion.y).unsigned_abs();
@@ -426,8 +429,6 @@ pub fn toggle_button(
     response
 }
 
-const SLIDER_RESOLUTION: u32 = 6 * 6;
-
 pub fn color_slider(
     ui: &mut Ui,
     value: &mut u16,
@@ -494,11 +495,11 @@ pub fn color_slider(
                     0.0..=1.0,
                 ),
             );
-            let r = ui.spacing().slider_rail_height / 1.3;
+            let r = ui.spacing().slider_rail_height / 2.0 + 2.0;
             let picked_color = color_at(*value);
             ui.painter().circle(
-                pos2(x, rect.center().y), // center
-                r,                        // radius
+                pos2(x, rect.center().y),
+                r,
                 picked_color,
                 Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
             );

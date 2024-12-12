@@ -158,13 +158,6 @@ impl DeviceInfo {
             DeviceInfo::Group(g) => Some(g.label.to_string()),
         }
     }
-
-    pub fn kind(&self) -> &'static str {
-        match self {
-            DeviceInfo::Bulb(_) => "Bulb",
-            DeviceInfo::Group(_) => "Group",
-        }
-    }
 }
 
 impl BulbInfo {
@@ -268,7 +261,6 @@ impl GroupInfo {
     }
 
     pub fn update(&mut self) {
-        // update time as current datetime
         self.updated_at = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to get time since epoch")
@@ -297,7 +289,6 @@ impl GroupInfo {
     }
 
     pub fn id(&self) -> u64 {
-        // Convert ident to u64
         u64::from_le_bytes(self.group.0[0..8].try_into().unwrap_or([0u8; 8]))
     }
 }

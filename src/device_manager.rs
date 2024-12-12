@@ -365,13 +365,11 @@ impl LifxManager {
         device_id: u64,
         avg_color: HSBK,
     ) -> Result<usize, std::io::Error> {
-        // check for bulb
         if let Ok(bulbs) = self.bulbs.lock() {
             if let Some(bulb) = bulbs.get(&device_id) {
                 return self.set_color(&bulb, avg_color, None);
             }
         }
-        // check for group
         if let Ok(bulbs) = self.bulbs.lock() {
             for bulb in bulbs.values() {
                 if let Some(group) = &bulb.group.data {
