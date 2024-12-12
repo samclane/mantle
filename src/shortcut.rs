@@ -206,7 +206,7 @@ impl<'a> ShortcutEdit<'a> {
     }
 }
 
-impl<'a> Widget for ShortcutEdit<'a> {
+impl Widget for ShortcutEdit<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let ShortcutEdit { shortcut } = self;
 
