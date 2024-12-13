@@ -330,5 +330,37 @@ mod tests {
             UserAction::Refresh,
             device.clone(),
         );
+        assert_eq!(shortcut_manager.shortcuts.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_shortcut_manager_remove_shortcut() {
+        let input_listener = InputListener::new();
+        let shortcut_manager = ShortcutManager::new(input_listener);
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut =
+            KeyboardShortcut::new(InputAction::from(keys.clone()), "TestAction".to_string());
+        let device = DeviceInfo::Group(GroupInfo {
+            group: LifxIdent([0; 16]),
+            label: LifxString::new(&CString::new("TestGroup").unwrap()),
+            updated_at: 0u64,
+        });
+
+        shortcut_manager.add_shortcut(
+            "TestAction".to_string(),
+            shortcut.clone(),
+            UserAction::Refresh,
+            device.clone(),
+        );
+
+        let shortcut_action = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "TestAction".to_string(),
+        };
+
+        shortcut_manager.remove_shortcut(shortcut_action);
+        assert_eq!(shortcut_manager.shortcuts.lock().unwrap().len(), 0);
     }
 }

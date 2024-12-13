@@ -2,7 +2,7 @@
 name = "mantle"
 authors = ["Sawyer McLane"]
 description = "A simple LIFX control application"
-version = "0.0.5"
+version = "0.0.6"
 repository = "https://github.com/samclane/mantle"
 readme = "README.md"
 keywords = ["lifx", "home", "automation", "lighting"]
