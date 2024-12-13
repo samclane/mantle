@@ -281,11 +281,11 @@ pub fn handle_screencap(
             let selected_text = match &waveform.follow_type {
                 FollowType::All => "All".to_string(),
                 FollowType::Monitor(monitors) => monitors
-                    .get(0)
+                    .first()
                     .map(|m| m.name().to_string())
                     .unwrap_or("Monitor".to_string()),
                 FollowType::Window(windows) => windows
-                    .get(0)
+                    .first()
                     .map(|w| w.title().to_string())
                     .unwrap_or("Window".to_string()),
                 FollowType::Subregion(_) => "Subregion".to_string(),
