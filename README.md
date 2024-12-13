@@ -4,6 +4,10 @@
 
 Mantle is a desktop application for controlling LIFX lights, born from the ashes of [`lifx_control_panel`](https://github.com/samclane/LIFX-Control-Panel).
 
+## Releases
+
+You can download the latest release [here](https://github.com/samclane/mantle/releases).
+
 ## Screenshots
 
 ![Mantle](res/screenshot.png)
