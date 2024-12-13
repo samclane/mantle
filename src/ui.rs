@@ -230,52 +230,93 @@ pub fn handle_screencap(
     }
     if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
         ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.radio_value(&mut waveform.follow_type, FollowType::All, "All");
-                for monitor in app.screen_manager.monitors.iter() {
-                    ui.radio_value(
-                        &mut waveform.follow_type,
-                        FollowType::Monitor(vec![monitor.clone()]),
-                        monitor.name(),
-                    );
-                }
-            });
-
-            ui.horizontal(|ui| {
-                for window in app.screen_manager.windows.iter() {
-                    ui.radio_value(
-                        &mut waveform.follow_type,
-                        FollowType::Window(vec![window.clone()]),
-                        window.title(),
-                    );
-                }
-            });
-
             let mut subregion = app
                 .subregion_points
                 .entry(device.id())
                 .or_default()
                 .lock()
                 .expect("Failed to get subregion");
-            ui.radio_value(
-                &mut waveform.follow_type,
+
+            // Create options for ComboBox with consistent ordering
+            let mut options = vec![("All".to_string(), FollowType::All)];
+
+            // Collect monitor options
+            let mut monitor_options: Vec<(String, FollowType)> = app
+                .screen_manager
+                .monitors
+                .iter()
+                .map(|monitor| {
+                    (
+                        monitor.name().to_string(),
+                        FollowType::Monitor(vec![monitor.clone()]),
+                    )
+                })
+                .collect();
+            // Sort monitor options to ensure consistent order
+            monitor_options.sort_by(|a, b| a.0.cmp(&b.0));
+            options.extend(monitor_options);
+
+            // Collect window options
+            let mut window_options: Vec<(String, FollowType)> = app
+                .screen_manager
+                .windows
+                .iter()
+                .map(|window| {
+                    (
+                        window.title().to_string(),
+                        FollowType::Window(vec![window.clone()]),
+                    )
+                })
+                .collect();
+            // Sort window options to ensure consistent order
+            window_options.sort_by(|a, b| a.0.cmp(&b.0));
+            options.extend(window_options);
+
+            options.push((
+                "Subregion".to_string(),
                 FollowType::Subregion(vec![subregion.clone()]),
-                "Subregion",
-            );
-            // add numerical fields for subregion
-            ui.horizontal(|ui| {
-                ui.label("X:");
-                ui.add(egui::DragValue::new(&mut subregion.x));
+            ));
 
-                ui.label("Y:");
-                ui.add(egui::DragValue::new(&mut subregion.y));
-
-                ui.label("Width:");
-                ui.add(egui::DragValue::new(&mut subregion.width));
-
-                ui.label("Height:");
-                ui.add(egui::DragValue::new(&mut subregion.height));
+            // Determine the selected text
+            let selected_text = match &waveform.follow_type {
+                FollowType::All => "All".to_string(),
+                FollowType::Monitor(monitors) => monitors
+                    .get(0)
+                    .map(|m| m.name().to_string())
+                    .unwrap_or("Monitor".to_string()),
+                FollowType::Window(windows) => windows
+                    .get(0)
+                    .map(|w| w.title().to_string())
+                    .unwrap_or("Window".to_string()),
+                FollowType::Subregion(_) => "Subregion".to_string(),
+            };
+            // Use ComboBox with consistent ID
+            ui.push_id(device.id(), |ui| {
+                egui::ComboBox::from_label("Follow Type")
+                    .selected_text(selected_text)
+                    .show_ui(ui, |ui| {
+                        for (label, follow_type) in options {
+                            ui.selectable_value(&mut waveform.follow_type, follow_type, label);
+                        }
+                    });
             });
+
+            // If the selected FollowType is Subregion, display the numerical fields
+            if let FollowType::Subregion(_) = waveform.follow_type {
+                ui.horizontal(|ui| {
+                    ui.label("X:");
+                    ui.add(egui::DragValue::new(&mut subregion.x));
+
+                    ui.label("Y:");
+                    ui.add(egui::DragValue::new(&mut subregion.y));
+
+                    ui.label("Width:");
+                    ui.add(egui::DragValue::new(&mut subregion.width));
+
+                    ui.label("Height:");
+                    ui.add(egui::DragValue::new(&mut subregion.height));
+                });
+            }
         });
     }
 
