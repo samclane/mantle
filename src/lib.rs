@@ -6,6 +6,7 @@ pub mod device_manager;
 pub mod listener;
 pub mod products;
 pub mod refreshable_data;
+pub mod scenes;
 pub mod screencap;
 pub mod serializers;
 pub mod settings;

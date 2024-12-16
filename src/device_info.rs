@@ -158,6 +158,13 @@ impl DeviceInfo {
             DeviceInfo::Group(g) => Some(g.label.to_string()),
         }
     }
+
+    pub fn color(&self) -> Option<&HSBK> {
+        match self {
+            DeviceInfo::Bulb(b) => b.get_color(),
+            DeviceInfo::Group(_) => None, // TODO: Implement group color
+        }
+    }
 }
 
 impl BulbInfo {
