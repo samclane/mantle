@@ -10,7 +10,6 @@ impl Scene {
     /// A scene defines a set of devices and their colors so that they can be applied all at once.
     /// This is useful for setting up a specific lighting configuration that you want to be able to
     /// apply quickly.
-
     pub fn new(device_color_pairs: Vec<(DeviceInfo, HSBK)>) -> Self {
         Self { device_color_pairs }
     }
