@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     action::UserAction,
     app::MantleApp,
+    color::default_hsbk,
     device_info::DeviceInfo,
+    scenes::Scene,
     shortcut::{KeyboardShortcutAction, ShortcutEdit},
 };
 
@@ -18,6 +20,7 @@ pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
     pub refresh_rate_ms: u64,
     pub follow_rate_ms: u64,
+    pub scenes: Vec<Scene>, // Add this line
 }
 
 impl Default for Settings {
@@ -26,6 +29,7 @@ impl Default for Settings {
             custom_shortcuts: Vec::new(),
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
             follow_rate_ms: DEFAULT_FOLLOW_RATE_MS,
+            scenes: Vec::new(), // Initialize scenes
         }
     }
 }
@@ -49,6 +53,9 @@ impl MantleApp {
                     self.render_follow_rate(ui);
 
                     self.render_add_shortcut_ui(ui);
+
+                    ui.separator(); // Add separator
+                    self.render_scenes_ui(ui); // Add this line
                 });
 
             self.show_settings = show_settings;
@@ -240,5 +247,137 @@ impl MantleApp {
                     .clamp_to_range(true),
             );
         });
+    }
+
+    fn render_scenes_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Scenes");
+        ui.add_space(5.0);
+
+        // Display existing scenes in a grid
+        self.render_scenes_table(ui);
+
+        ui.add_space(15.0);
+        ui.separator();
+        ui.add_space(10.0);
+        ui.heading("Create New Scene");
+        ui.add_space(5.0);
+
+        self.render_new_scene_ui(ui);
+    }
+
+    fn render_scenes_table(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("scenes_grid").striped(true).show(ui, |ui| {
+            ui.label(egui::RichText::new("Name").strong());
+            ui.label(egui::RichText::new("Devices").strong());
+            ui.label(egui::RichText::new("Actions").strong());
+            ui.end_row();
+
+            let mut to_remove = Vec::new();
+            for scene in &self.settings.scenes {
+                ui.label(&scene.name);
+                ui.label(format!("{} devices", scene.device_color_pairs.len()));
+                ui.horizontal(|ui| {
+                    if ui.button("Apply").clicked() {
+                        scene.apply(&mut self.mgr);
+                    }
+                    if ui.button("Remove").clicked() {
+                        to_remove.push(scene.name.clone());
+                    }
+                });
+                ui.end_row();
+            }
+            for name in to_remove {
+                self.settings.scenes.retain(|s| s.name != name);
+            }
+        });
+    }
+
+    fn render_new_scene_ui(&mut self, ui: &mut egui::Ui) {
+        // Provide UI to create a new scene
+        ui.horizontal(|ui| {
+            ui.label("Scene Name:");
+            ui.text_edit_singleline(&mut self.new_scene.name);
+        });
+        ui.add_space(5.0);
+        ui.label("Select Devices:");
+        // Display list of devices with checkboxes
+        egui::ScrollArea::vertical()
+            .max_height(150.0)
+            .show(ui, |ui| {
+                for device in self.mgr.bulbs.lock().unwrap().values() {
+                    let mut selected = self
+                        .new_scene
+                        .devices_mut()
+                        .any(|d| *d == DeviceInfo::Bulb(Box::new(device.clone())));
+                    if ui
+                        .checkbox(
+                            &mut selected,
+                            device.name.data.as_ref().unwrap().to_str().unwrap(),
+                        )
+                        .on_hover_text("Select device for the scene")
+                        .changed()
+                    {
+                        if selected {
+                            self.new_scene.device_color_pairs.push((
+                                DeviceInfo::Bulb(Box::new(device.clone())),
+                                (*device.get_color().unwrap_or(&default_hsbk())).into(),
+                            ));
+                        } else {
+                            self.new_scene
+                                .device_color_pairs
+                                .retain(|(d, _)| *d != DeviceInfo::Bulb(Box::new(device.clone())));
+                        }
+                    }
+                }
+                // TODO: Add groups to the scene
+                // for group in self.mgr.get_groups() {
+                //     let mut selected = self
+                //         .new_scene
+                //         .devices_mut()
+                //         .any(|d| *d == DeviceInfo::Group(group.clone()));
+                //     if ui
+                //         .checkbox(&mut selected, group.label.cstr().to_str().unwrap())
+                //         .on_hover_text("Select group for the scene")
+                //         .changed()
+                //     {
+                //         if selected {
+                //             for device in group.get_bulbs(&*self.mgr.bulbs.lock().unwrap()).iter() {
+                //                 self.new_scene.device_color_pairs.push((
+                //                     DeviceInfo::Bulb(Box::new((*device).clone())),
+                //                     (*device.get_color().unwrap_or(&default_hsbk())).into(),
+                //                 ));
+                //             }
+                //         } else {
+                //             self.new_scene
+                //                 .device_color_pairs
+                //                 .retain(|(d, _)| *d != DeviceInfo::Group(group.clone()));
+                //         }
+                //     }
+                // }
+            });
+        ui.add_space(5.0);
+        if ui.button("Save Scene").clicked() {
+            // Save the new scene
+            let device_color_pairs = self
+                .new_scene
+                .devices()
+                .iter()
+                .map(|device| {
+                    let color = device
+                        .color()
+                        .cloned()
+                        .unwrap_or_else(crate::color::default_hsbk);
+                    ((*device).clone(), color.into())
+                })
+                .collect();
+            let scene = Scene {
+                name: self.new_scene.name.clone(),
+                device_color_pairs,
+            };
+            self.settings.scenes.push(scene);
+            // Clear the new scene input
+            self.new_scene.name.clear();
+            self.new_scene.devices().clear();
+        }
     }
 }

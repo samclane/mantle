@@ -11,6 +11,7 @@ use crate::{
     device_info::DeviceInfo,
     display_color_circle,
     listener::input_listener::InputListener,
+    scenes::Scene,
     screencap::{FollowType, ScreenSubregion},
     settings::Settings,
     shortcut::ShortcutManager,
@@ -73,6 +74,7 @@ pub struct MantleApp {
     pub waveform_map: HashMap<u64, RunningWaveform>,
     #[serde(skip)]
     pub waveform_channel: ColorChannel,
+    pub new_scene: Scene,
 }
 
 impl Default for MantleApp {
@@ -97,6 +99,7 @@ impl Default for MantleApp {
             settings: Settings::default(),
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
+            new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
         }
     }
 }
