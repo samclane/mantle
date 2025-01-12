@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use eframe::egui::{self, Context};
 use serde::{Deserialize, Serialize};
 
@@ -312,7 +314,13 @@ impl MantleApp {
                     if ui
                         .checkbox(
                             &mut selected,
-                            device.name.data.as_ref().unwrap().to_str().unwrap(),
+                            device
+                                .name
+                                .data
+                                .as_ref()
+                                .unwrap_or(&CString::default())
+                                .to_str()
+                                .unwrap_or("Unknown Device"),
                         )
                         .on_hover_text("Select device for the scene")
                         .changed()

@@ -106,4 +106,24 @@ mod test {
         );
         assert_eq!(scene.device_color_pairs[0].1, HSBK32::default());
     }
+
+    #[test]
+    fn test_serde_scene() {
+        let source = 1234;
+        let target = 5678;
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(source, target, addr);
+        bulb.update(addr);
+        let scene = Scene::new(
+            vec![(DeviceInfo::Bulb(Box::new(bulb.clone())), HSBK32::default())],
+            "Test Scene".to_string(),
+        );
+        let serialized = serde_json::to_string(&scene).unwrap();
+        let deserialized: Scene = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(scene.name, deserialized.name);
+        assert_eq!(
+            scene.device_color_pairs.len(),
+            deserialized.device_color_pairs.len()
+        );
+    }
 }
