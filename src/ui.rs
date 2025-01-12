@@ -147,10 +147,7 @@ pub fn handle_screencap(
         );
     }
 
-    let is_active = app
-        .waveform_map
-        .get(&device.id())
-        .map_or(false, |w| w.active);
+    let is_active = app.waveform_map.get(&device.id()).is_some_and(|w| w.active);
     if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
         if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
             waveform.active = !waveform.active;

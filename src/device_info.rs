@@ -284,7 +284,7 @@ impl GroupInfo {
                 b.group
                     .data
                     .as_ref()
-                    .map_or(false, |g: &GroupInfo| g.group == self.group)
+                    .is_some_and(|g: &GroupInfo| g.group == self.group)
             })
             .collect()
     }
