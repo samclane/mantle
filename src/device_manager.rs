@@ -57,6 +57,7 @@ impl LifxManager {
         Ok(lifx_manager)
     }
 
+    /// Handle a message from a LIFX bulb.
     fn handle_message(raw: RawMessage, bulb: &mut BulbInfo) -> Result<(), lifx_core::Error> {
         match Message::from_raw(&raw)? {
             Message::StateService { port, service } => {
@@ -182,6 +183,7 @@ impl LifxManager {
         Ok(())
     }
 
+    /// Worker thread that listens for LIFX messages and updates the internal state.
     fn worker(
         recv_sock: UdpSocket,
         source: u32,
@@ -215,6 +217,7 @@ impl LifxManager {
         }
     }
 
+    /// Discover LIFX bulbs on the local network.
     pub fn discover(&mut self) -> Result<usize, failure::Error> {
         log::debug!("Doing discovery");
         let mut count = 0;
@@ -247,6 +250,7 @@ impl LifxManager {
         Ok(count)
     }
 
+    /// Refresh the state of all known bulbs.
     pub fn refresh(&self) -> Result<usize, failure::Error> {
         let mut count = 0;
         if let Ok(mut bulbs) = self.bulbs.lock() {
@@ -259,6 +263,7 @@ impl LifxManager {
         Ok(count)
     }
 
+    /// Send a message to a specific bulb.
     fn send_message(&self, bulb: &&BulbInfo, message: Message) -> Result<usize, std::io::Error> {
         let target = bulb.addr;
         let opts = BuildOptions {
@@ -273,10 +278,12 @@ impl LifxManager {
         self.socket.send_to(&bytes, target)
     }
 
+    /// Set the power level of a specific bulb.
     pub fn set_power(&self, bulb: &&BulbInfo, level: u16) -> Result<usize, std::io::Error> {
         self.send_message(bulb, Message::LightSetPower { level, duration: 0 })
     }
 
+    /// Set the power level of all bulbs in a group.
     pub fn set_group_power(
         &self,
         group: &GroupInfo,
@@ -287,6 +294,7 @@ impl LifxManager {
         bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
     }
 
+    /// Set the color of a specific bulb.
     pub fn set_color(
         &self,
         bulb: &&BulbInfo,
@@ -303,6 +311,7 @@ impl LifxManager {
         )
     }
 
+    /// Get a list of all groups.
     pub fn get_groups(&self) -> Vec<GroupInfo> {
         let mut groups = Vec::new();
         if let Ok(bulbs) = self.bulbs.lock() {
@@ -317,6 +326,7 @@ impl LifxManager {
         groups
     }
 
+    /// Set the color of all bulbs in a group.
     pub fn set_group_color(
         &self,
         group: &GroupInfo,
@@ -332,6 +342,7 @@ impl LifxManager {
         Ok(total)
     }
 
+    /// Get the average color of all bulbs in a group.
     pub fn get_avg_group_color(
         &self,
         group: &GroupInfo,
@@ -363,6 +374,7 @@ impl LifxManager {
         avg.into()
     }
 
+    /// Set the color of a bulb or group by its ID.
     pub fn set_color_by_id(
         &self,
         device_id: u64,
@@ -385,6 +397,7 @@ impl LifxManager {
         Ok(0)
     }
 
+    /// Toggle the power state of all bulbs.
     pub fn toggle_power(&self) -> Result<usize, std::io::Error> {
         let mut total = 0;
         if let Ok(bulbs) = self.bulbs.lock() {
@@ -401,6 +414,7 @@ impl LifxManager {
         Ok(total)
     }
 
+    /// Set a specific color field of a bulb.
     pub fn set_color_field(
         &self,
         bulb: &&BulbInfo,
@@ -438,6 +452,7 @@ impl LifxManager {
         self.set_color(bulb, color, None)
     }
 
+    /// Toggle the power state of all bulbs in a group.
     pub fn toggle_group_power(&self, group_info: GroupInfo) {
         if let Ok(bulbs) = self.bulbs.lock() {
             for bulb in group_info.get_bulbs(&bulbs) {
@@ -451,6 +466,7 @@ impl LifxManager {
         }
     }
 
+    /// Set a specific color field of all bulbs in a group.
     pub fn set_group_color_field(
         &self,
         group_info: &GroupInfo,
