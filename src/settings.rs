@@ -10,6 +10,7 @@ use crate::{
     device_info::DeviceInfo,
     scenes::Scene,
     shortcut::{KeyboardShortcutAction, ShortcutEdit},
+    HSBK32,
 };
 
 const DEFAULT_REFRESH_RATE_MS: u64 = 500;
@@ -22,7 +23,7 @@ pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
     pub refresh_rate_ms: u64,
     pub follow_rate_ms: u64,
-    pub scenes: Vec<Scene>, // Add this line
+    pub scenes: Vec<Scene>,
 }
 
 impl Default for Settings {
@@ -31,7 +32,7 @@ impl Default for Settings {
             custom_shortcuts: Vec::new(),
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
             follow_rate_ms: DEFAULT_FOLLOW_RATE_MS,
-            scenes: Vec::new(), // Initialize scenes
+            scenes: Vec::new(),
         }
     }
 }
@@ -56,8 +57,8 @@ impl MantleApp {
 
                     self.render_add_shortcut_ui(ui);
 
-                    ui.separator(); // Add separator
-                    self.render_scenes_ui(ui); // Add this line
+                    ui.separator();
+                    self.render_scenes_ui(ui);
                 });
 
             self.show_settings = show_settings;
@@ -379,7 +380,7 @@ impl MantleApp {
                         .color()
                         .cloned()
                         .unwrap_or_else(crate::color::default_hsbk);
-                    ((*device).clone(), color.into())
+                    ((*device).clone(), HSBK32::from(color))
                 })
                 .collect();
             let scene = Scene {
