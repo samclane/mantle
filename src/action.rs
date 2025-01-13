@@ -55,7 +55,9 @@ impl UserAction {
                     } else {
                         u16::MAX
                     };
-                    lifx_manager.set_power(&&*bulb_info, level).unwrap();
+                    if let Err(e) = lifx_manager.set_power(&&*bulb_info, level) {
+                        log::error!("Failed to set power: {}", e);
+                    }
                 }
             },
             UserAction::SetColor {
@@ -73,33 +75,33 @@ impl UserAction {
                 );
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        lifx_manager
-                            .set_group_color(
-                                &_group_info,
-                                HSBK {
-                                    hue: *hue,
-                                    saturation: *saturation,
-                                    brightness: *brightness,
-                                    kelvin: *kelvin,
-                                },
-                                &lifx_manager.bulbs.lock().unwrap(),
-                                None,
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_color(
+                            &_group_info,
+                            HSBK {
+                                hue: *hue,
+                                saturation: *saturation,
+                                brightness: *brightness,
+                                kelvin: *kelvin,
+                            },
+                            &lifx_manager.bulbs.lock().unwrap(),
+                            None,
+                        ) {
+                            log::error!("Failed to set group color: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager
-                            .set_color(
-                                &&*bulb_info,
-                                HSBK {
-                                    hue: *hue,
-                                    saturation: *saturation,
-                                    brightness: *brightness,
-                                    kelvin: *kelvin,
-                                },
-                                None,
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_color(
+                            &&*bulb_info,
+                            HSBK {
+                                hue: *hue,
+                                saturation: *saturation,
+                                brightness: *brightness,
+                                kelvin: *kelvin,
+                            },
+                            None,
+                        ) {
+                            log::error!("Failed to set color: {}", e);
+                        }
                     }
                 }
             }
@@ -108,16 +110,18 @@ impl UserAction {
                 match device {
                     DeviceInfo::Group(_group_info) => {
                         let power = if *power { u16::MAX } else { 0 };
-                        lifx_manager
-                            .set_group_power(
-                                &_group_info,
-                                &lifx_manager.bulbs.lock().unwrap(),
-                                power,
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_power(
+                            &_group_info,
+                            &lifx_manager.bulbs.lock().unwrap(),
+                            power,
+                        ) {
+                            log::error!("Failed to set group power: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager.set_power(&&*bulb_info, *power as u16).unwrap();
+                        if let Err(e) = lifx_manager.set_power(&&*bulb_info, *power as u16) {
+                            log::error!("Failed to set power: {}", e);
+                        }
                     }
                 }
             }
@@ -125,19 +129,23 @@ impl UserAction {
                 log::info!("Executing action: Set Brightness - {}", brightness);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        lifx_manager
-                            .set_group_color_field(
-                                &_group_info,
-                                HSBKField::Brightness,
-                                *brightness,
-                                &lifx_manager.bulbs.lock().unwrap(),
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_color_field(
+                            &_group_info,
+                            HSBKField::Brightness,
+                            *brightness,
+                            &lifx_manager.bulbs.lock().unwrap(),
+                        ) {
+                            log::error!("Failed to set group brightness: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager
-                            .set_color_field(&&*bulb_info, HSBKField::Brightness, *brightness)
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_color_field(
+                            &&*bulb_info,
+                            HSBKField::Brightness,
+                            *brightness,
+                        ) {
+                            log::error!("Failed to set brightness: {}", e);
+                        }
                     }
                 }
             }
@@ -145,19 +153,23 @@ impl UserAction {
                 log::info!("Executing action: Set Saturation - {}", saturation);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        lifx_manager
-                            .set_group_color_field(
-                                &_group_info,
-                                HSBKField::Saturation,
-                                *saturation,
-                                &lifx_manager.bulbs.lock().unwrap(),
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_color_field(
+                            &_group_info,
+                            HSBKField::Saturation,
+                            *saturation,
+                            &lifx_manager.bulbs.lock().unwrap(),
+                        ) {
+                            log::error!("Failed to set group saturation: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager
-                            .set_color_field(&&*bulb_info, HSBKField::Saturation, *saturation)
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_color_field(
+                            &&*bulb_info,
+                            HSBKField::Saturation,
+                            *saturation,
+                        ) {
+                            log::error!("Failed to set saturation: {}", e);
+                        }
                     }
                 }
             }
@@ -165,19 +177,21 @@ impl UserAction {
                 log::info!("Executing action: Set Kelvin - {}", kelvin);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        lifx_manager
-                            .set_group_color_field(
-                                &_group_info,
-                                HSBKField::Kelvin,
-                                *kelvin,
-                                &lifx_manager.bulbs.lock().unwrap(),
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_color_field(
+                            &_group_info,
+                            HSBKField::Kelvin,
+                            *kelvin,
+                            &lifx_manager.bulbs.lock().unwrap(),
+                        ) {
+                            log::error!("Failed to set group kelvin: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager
-                            .set_color_field(&&*bulb_info, HSBKField::Kelvin, *kelvin)
-                            .unwrap();
+                        if let Err(e) =
+                            lifx_manager.set_color_field(&&*bulb_info, HSBKField::Kelvin, *kelvin)
+                        {
+                            log::error!("Failed to set kelvin: {}", e);
+                        }
                     }
                 }
             }
@@ -185,19 +199,21 @@ impl UserAction {
                 log::info!("Executing action: Set Hue - {}", hue);
                 match device {
                     DeviceInfo::Group(_group_info) => {
-                        lifx_manager
-                            .set_group_color_field(
-                                &_group_info,
-                                HSBKField::Hue,
-                                *hue,
-                                &lifx_manager.bulbs.lock().unwrap(),
-                            )
-                            .unwrap();
+                        if let Err(e) = lifx_manager.set_group_color_field(
+                            &_group_info,
+                            HSBKField::Hue,
+                            *hue,
+                            &lifx_manager.bulbs.lock().unwrap(),
+                        ) {
+                            log::error!("Failed to set group hue: {}", e);
+                        }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        lifx_manager
-                            .set_color_field(&&*bulb_info, HSBKField::Hue, *hue)
-                            .unwrap();
+                        if let Err(e) =
+                            lifx_manager.set_color_field(&&*bulb_info, HSBKField::Hue, *hue)
+                        {
+                            log::error!("Failed to set hue: {}", e);
+                        }
                     }
                 }
             }
