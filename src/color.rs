@@ -76,12 +76,18 @@ impl From<HSBK> for RGB8 {
         };
 
         let rgb_k = kelvin_to_rgb(kelvin);
-        let a = saturation as f64 / u16::MAX as f64;
-        let b = (1.0 - a) / 255.0;
+        let normalized_saturation = saturation as f64 / u16::MAX as f64;
+        let normalized_brightness = (1.0 - normalized_saturation) / 255.0;
 
-        let red = (rgb_hsb.red as f64 * (a + rgb_k.red as f64 * b)).round() as u8;
-        let green = (rgb_hsb.green as f64 * (a + rgb_k.green as f64 * b)).round() as u8;
-        let blue = (rgb_hsb.blue as f64 * (a + rgb_k.blue as f64 * b)).round() as u8;
+        let red = (rgb_hsb.red as f64
+            * (normalized_saturation + rgb_k.red as f64 * normalized_brightness))
+            .round() as u8;
+        let green = (rgb_hsb.green as f64
+            * (normalized_saturation + rgb_k.green as f64 * normalized_brightness))
+            .round() as u8;
+        let blue = (rgb_hsb.blue as f64
+            * (normalized_saturation + rgb_k.blue as f64 * normalized_brightness))
+            .round() as u8;
 
         RGB8 {
             red,
@@ -94,28 +100,28 @@ impl From<HSBK> for RGB8 {
 
 impl From<RGB8> for HSBK {
     fn from(color: RGB8) -> HSBK {
-        let cmax = *[color.red, color.green, color.blue]
+        let max_color_component = *[color.red, color.green, color.blue]
             .iter()
             .max()
             .expect("Invalid color tuple") as f32;
-        let cmin = *[color.red, color.green, color.blue]
+        let min_color_component = *[color.red, color.green, color.blue]
             .iter()
             .min()
             .expect("Invalid color tuple") as f32;
-        let cdel = cmax - cmin;
+        let color_range = max_color_component - min_color_component;
 
-        let brightness = ((cmax / 255.0) * u16::MAX as f32) as u16;
+        let brightness = ((max_color_component / 255.0) * u16::MAX as f32) as u16;
 
-        let (saturation, hue) = if cdel != 0.0 {
-            let saturation = ((cdel / cmax) * u16::MAX as f32) as u16;
+        let (saturation, hue) = if color_range != 0.0 {
+            let saturation = ((color_range / max_color_component) * u16::MAX as f32) as u16;
 
-            let redc = (cmax - color.red as f32) / cdel;
-            let greenc = (cmax - color.green as f32) / cdel;
-            let bluec = (cmax - color.blue as f32) / cdel;
+            let redc = (max_color_component - color.red as f32) / color_range;
+            let greenc = (max_color_component - color.green as f32) / color_range;
+            let bluec = (max_color_component - color.blue as f32) / color_range;
 
-            let mut hue = if color.red as f32 == cmax {
+            let mut hue = if color.red as f32 == max_color_component {
                 bluec - greenc
-            } else if color.green as f32 == cmax {
+            } else if color.green as f32 == max_color_component {
                 2.0 + redc - bluec
             } else {
                 4.0 + greenc - redc
@@ -147,25 +153,31 @@ impl From<RGB8> for Color32 {
 }
 
 pub fn kelvin_to_rgb(temperature: u16) -> RGB8 {
-    let p_temp = temperature / 100;
+    let percentage_temperature = temperature / 100;
     let red;
     let green;
 
-    if p_temp <= 66 {
+    if percentage_temperature <= 66 {
         red = 255.;
-        green = (99.4708025861 * (p_temp as f64 + 0.0000000001).ln() - 161.1195681661)
+        green = (99.4708025861 * (percentage_temperature as f64 + 0.0000000001).ln()
+            - 161.1195681661)
             .clamp(0.0, 255.0);
     } else {
-        red = 329.698727466 * ((p_temp - 60) as f64).powf(-0.1332047592).clamp(0.0, 255.0);
-        green = (288.1221695283 * ((p_temp - 60) as f64).powf(-0.0755148492)).clamp(0.0, 255.0);
+        red = 329.698727466
+            * ((percentage_temperature - 60) as f64)
+                .powf(-0.1332047592)
+                .clamp(0.0, 255.0);
+        green = (288.1221695283 * ((percentage_temperature - 60) as f64).powf(-0.0755148492))
+            .clamp(0.0, 255.0);
     }
 
-    let blue = if p_temp >= 66 {
+    let blue = if percentage_temperature >= 66 {
         255.0
-    } else if p_temp <= 19 {
+    } else if percentage_temperature <= 19 {
         0.0
     } else {
-        (138.5177312231 * ((p_temp - 10) as f64).ln() - 305.0447927307).clamp(0.0, 255.0)
+        (138.5177312231 * ((percentage_temperature - 10) as f64).ln() - 305.0447927307)
+            .clamp(0.0, 255.0)
     };
 
     RGB8 {

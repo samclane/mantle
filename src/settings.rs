@@ -88,7 +88,11 @@ impl MantleApp {
         ui.horizontal(|ui| {
             if ui.button("Clear").clicked() {
                 self.shortcut_manager.new_shortcut.name.clear();
-                self.shortcut_manager.new_shortcut.shortcut.keys.clear();
+                self.shortcut_manager
+                    .new_shortcut
+                    .shortcut
+                    .input_action_keys
+                    .clear();
                 self.shortcut_manager
                     .new_shortcut
                     .shortcut
@@ -107,7 +111,11 @@ impl MantleApp {
                 );
                 // Clear the fields after adding
                 self.shortcut_manager.new_shortcut.name.clear();
-                self.shortcut_manager.new_shortcut.shortcut.keys.clear();
+                self.shortcut_manager
+                    .new_shortcut
+                    .shortcut
+                    .input_action_keys
+                    .clear();
                 self.shortcut_manager
                     .new_shortcut
                     .shortcut
@@ -150,18 +158,17 @@ impl MantleApp {
                         .new_shortcut
                         .device
                         .clone()
-                        .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
+                        .unwrap_or(DeviceInfo::Group(
+                            self.lighting_manager.all_bulbs_group.clone(),
+                        ))
                         .to_string(),
                 )
                 .show_ui(ui, |ui| {
-                    for device in self.mgr.bulbs.lock().unwrap().values() {
+                    for device in self.lighting_manager.bulbs.lock().unwrap().values() {
                         ui.selectable_label(
-                            self.shortcut_manager
-                                .new_shortcut
-                                .device
-                                .clone()
-                                .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
-                                == DeviceInfo::Bulb(Box::new(device.clone())),
+                            self.shortcut_manager.new_shortcut.device.clone().unwrap_or(
+                                DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
+                            ) == DeviceInfo::Bulb(Box::new(device.clone())),
                             device.name.data.as_ref().unwrap().to_str().unwrap(),
                         )
                         .clicked()
@@ -170,14 +177,11 @@ impl MantleApp {
                                 Some(DeviceInfo::Bulb(Box::new(device.clone())));
                         });
                     }
-                    for group in self.mgr.get_groups() {
+                    for group in self.lighting_manager.get_groups() {
                         ui.selectable_label(
-                            self.shortcut_manager
-                                .new_shortcut
-                                .device
-                                .clone()
-                                .unwrap_or(DeviceInfo::Group(self.mgr.all.clone()))
-                                == DeviceInfo::Group(group.clone()),
+                            self.shortcut_manager.new_shortcut.device.clone().unwrap_or(
+                                DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
+                            ) == DeviceInfo::Group(group.clone()),
                             group.label.cstr().to_str().unwrap(),
                         )
                         .clicked()
@@ -212,7 +216,7 @@ impl MantleApp {
                     ui.label(&shortcut.name);
                     ui.label(shortcut.device.as_ref().unwrap().to_string());
                     ui.label(shortcut.action.to_string());
-                    ui.label(&shortcut.shortcut.display_name);
+                    ui.label(&shortcut.shortcut.name);
                     if ui
                         .button("Remove")
                         .on_hover_text("Remove this shortcut")
@@ -280,7 +284,7 @@ impl MantleApp {
                 ui.label(format!("{} devices", scene.device_color_pairs.len()));
                 ui.horizontal(|ui| {
                     if ui.button("Apply").clicked() {
-                        scene.apply(&mut self.mgr);
+                        scene.apply(&mut self.lighting_manager);
                     }
                     if ui.button("Remove").clicked() {
                         to_remove.push(scene.name.clone());
@@ -306,7 +310,7 @@ impl MantleApp {
         egui::ScrollArea::vertical()
             .max_height(150.0)
             .show(ui, |ui| {
-                for device in self.mgr.bulbs.lock().unwrap().values() {
+                for device in self.lighting_manager.bulbs.lock().unwrap().values() {
                     let mut selected = self
                         .new_scene
                         .devices_mut()

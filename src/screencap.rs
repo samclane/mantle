@@ -29,31 +29,41 @@ impl ScreenSubregion {
     }
 }
 
+impl PartialEq for ScreenSubregion {
+    fn eq(&self, other: &Self) -> bool {
+        self.monitor.as_ref().map(|m| m.id()) == other.monitor.as_ref().map(|m| m.id())
+            && self.x == other.x
+            && self.y == other.y
+            && self.width == other.width
+            && self.height == other.height
+    }
+}
+
 #[derive(Clone, Debug)]
-pub enum FollowType {
+pub enum RegionCaptureTarget {
     Monitor(Vec<Monitor>),
     Window(Vec<Window>),
     Subregion(Vec<ScreenSubregion>),
     All,
 }
 
-impl PartialEq for FollowType {
+impl PartialEq for RegionCaptureTarget {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (FollowType::Monitor(m1), FollowType::Monitor(m2)) => {
+            (RegionCaptureTarget::Monitor(m1), RegionCaptureTarget::Monitor(m2)) => {
                 Self::compare_by_id(m1, m2, |m| m.id().into())
             }
-            (FollowType::Window(w1), FollowType::Window(w2)) => {
+            (RegionCaptureTarget::Window(w1), RegionCaptureTarget::Window(w2)) => {
                 Self::compare_by_id(w1, w2, |w| w.id().into())
             }
-            (FollowType::Subregion(s1), FollowType::Subregion(s2)) => s1 == s2,
-            (FollowType::All, FollowType::All) => true,
+            (RegionCaptureTarget::Subregion(s1), RegionCaptureTarget::Subregion(s2)) => s1 == s2,
+            (RegionCaptureTarget::All, RegionCaptureTarget::All) => true,
             _ => false,
         }
     }
 }
 
-impl FollowType {
+impl RegionCaptureTarget {
     /// Helper function to compare vectors of monitors/windows based on their IDs
     fn compare_by_id<T, F>(v1: &[T], v2: &[T], id_fn: F) -> bool
     where
@@ -68,16 +78,6 @@ impl FollowType {
             }
         }
         true
-    }
-}
-
-impl PartialEq for ScreenSubregion {
-    fn eq(&self, other: &Self) -> bool {
-        self.monitor.as_ref().map(|m| m.id()) == other.monitor.as_ref().map(|m| m.id())
-            && self.x == other.x
-            && self.y == other.y
-            && self.width == other.width
-            && self.height == other.height
     }
 }
 
@@ -148,7 +148,7 @@ impl ScreencapManager {
         )
     }
 
-    pub fn avg_color(&self, follow: FollowType) -> Result<HSBK, XCapError> {
+    pub fn calculate_average_color(&self, follow: RegionCaptureTarget) -> Result<HSBK, XCapError> {
         let mut red: u64 = 0;
         let mut green: u64 = 0;
         let mut blue: u64 = 0;
@@ -164,19 +164,19 @@ impl ScreencapManager {
         };
 
         match follow {
-            FollowType::Monitor(monitors) => {
+            RegionCaptureTarget::Monitor(monitors) => {
                 for monitor in monitors {
                     let image = monitor.capture_image()?;
                     calculate_image_pixel_average(&image);
                 }
             }
-            FollowType::Window(windows) => {
+            RegionCaptureTarget::Window(windows) => {
                 for window in windows {
                     let image = window.capture_image()?;
                     calculate_image_pixel_average(&image);
                 }
             }
-            FollowType::Subregion(subregions) => {
+            RegionCaptureTarget::Subregion(subregions) => {
                 for subregion in subregions {
                     if let Some(monitor) = &subregion.monitor {
                         let image = monitor.capture_image()?;
@@ -194,7 +194,7 @@ impl ScreencapManager {
                     }
                 }
             }
-            FollowType::All => {
+            RegionCaptureTarget::All => {
                 for monitor in &self.monitors {
                     let image = monitor.capture_image()?;
                     calculate_image_pixel_average(&image);

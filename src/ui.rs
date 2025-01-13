@@ -15,7 +15,7 @@ use crate::{
     contrast_color,
     device_info::DeviceInfo,
     products::{KELVIN_RANGE, LIFX_RANGE},
-    screencap::{FollowType, ScreenSubregion, ScreencapManager},
+    screencap::{RegionCaptureTarget, ScreenSubregion, ScreencapManager},
     AngleIter, BulbInfo, LifxManager, HSBK32, RGB8,
 };
 
@@ -124,7 +124,7 @@ pub fn handle_screencap(
                 .or_insert(RunningWaveform {
                     active: false,
                     last_update: Instant::now(),
-                    follow_type: FollowType::All,
+                    follow_type: RegionCaptureTarget::All,
                     stop_tx: None,
                 });
         if follow_state.active
@@ -155,7 +155,7 @@ pub fn handle_screencap(
             let running_waveform = RunningWaveform {
                 active: true,
                 last_update: Instant::now(),
-                follow_type: FollowType::All,
+                follow_type: RegionCaptureTarget::All,
                 stop_tx: None,
             };
             app.waveform_map
@@ -171,7 +171,7 @@ pub fn handle_screencap(
                 .tx
                 .clone();
             let follow_type = app.waveform_map[&device.id()].follow_type.clone();
-            let mgr = app.mgr.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
+            let lifx_manager = app.lighting_manager.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
             let device_id = device.id();
 
             let (stop_tx, stop_rx) = mpsc::channel::<()>();
@@ -180,9 +180,9 @@ pub fn handle_screencap(
                     #[cfg(debug_assertions)]
                     puffin::profile_function!();
 
-                    match screen_manager.avg_color(follow_type.clone()) {
+                    match screen_manager.calculate_average_color(follow_type.clone()) {
                         Ok(avg_color) => {
-                            if let Err(err) = mgr.set_color_by_id(device_id, avg_color) {
+                            if let Err(err) = lifx_manager.set_color_by_id(device_id, avg_color) {
                                 eprintln!("Failed to set color: {}", err);
                             }
 
@@ -235,17 +235,17 @@ pub fn handle_screencap(
                 .expect("Failed to get subregion");
 
             // Create options for ComboBox with consistent ordering
-            let mut options = vec![("All".to_string(), FollowType::All)];
+            let mut options = vec![("All".to_string(), RegionCaptureTarget::All)];
 
             // Collect monitor options
-            let mut monitor_options: Vec<(String, FollowType)> = app
+            let mut monitor_options: Vec<(String, RegionCaptureTarget)> = app
                 .screen_manager
                 .monitors
                 .iter()
                 .map(|monitor| {
                     (
                         monitor.name().to_string(),
-                        FollowType::Monitor(vec![monitor.clone()]),
+                        RegionCaptureTarget::Monitor(vec![monitor.clone()]),
                     )
                 })
                 .collect();
@@ -254,14 +254,14 @@ pub fn handle_screencap(
             options.extend(monitor_options);
 
             // Collect window options
-            let mut window_options: Vec<(String, FollowType)> = app
+            let mut window_options: Vec<(String, RegionCaptureTarget)> = app
                 .screen_manager
                 .windows
                 .iter()
                 .map(|window| {
                     (
                         window.title().to_string(),
-                        FollowType::Window(vec![window.clone()]),
+                        RegionCaptureTarget::Window(vec![window.clone()]),
                     )
                 })
                 .collect();
@@ -271,21 +271,21 @@ pub fn handle_screencap(
 
             options.push((
                 "Subregion".to_string(),
-                FollowType::Subregion(vec![subregion.clone()]),
+                RegionCaptureTarget::Subregion(vec![subregion.clone()]),
             ));
 
             // Determine the selected text
             let selected_text = match &waveform.follow_type {
-                FollowType::All => "All".to_string(),
-                FollowType::Monitor(monitors) => monitors
+                RegionCaptureTarget::All => "All".to_string(),
+                RegionCaptureTarget::Monitor(monitors) => monitors
                     .first()
                     .map(|m| m.name().to_string())
                     .unwrap_or("Monitor".to_string()),
-                FollowType::Window(windows) => windows
+                RegionCaptureTarget::Window(windows) => windows
                     .first()
                     .map(|w| w.title().to_string())
                     .unwrap_or("Window".to_string()),
-                FollowType::Subregion(_) => "Subregion".to_string(),
+                RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
             };
             // Use ComboBox with consistent ID
             ui.push_id(device.id(), |ui| {
@@ -299,7 +299,7 @@ pub fn handle_screencap(
             });
 
             // If the selected FollowType is Subregion, display the numerical fields
-            if let FollowType::Subregion(_) = waveform.follow_type {
+            if let RegionCaptureTarget::Subregion(_) = waveform.follow_type {
                 ui.horizontal(|ui| {
                     ui.label("X:");
                     ui.add(egui::DragValue::new(&mut subregion.x));
@@ -416,30 +416,30 @@ pub fn display_color_circle(
 
 pub fn toggle_button(
     ui: &mut Ui,
-    mgr: &LifxManager,
+    lifx_manager: &LifxManager,
     device: &DeviceInfo,
     scale: Vec2,
-    bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    registered_bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
 ) -> egui::Response {
     let desired_size = ui.spacing().interact_size * scale;
     let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
     ui.horizontal(|ui| {
         let on = match device {
             DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
-            DeviceInfo::Group(group) => group.any_on(bulbs),
+            DeviceInfo::Group(group) => group.any_on(registered_bulbs),
         };
         if response.clicked() {
             let level = if on { 0 } else { u16::MAX };
             match device {
                 DeviceInfo::Bulb(bulb) => {
-                    if let Err(e) = mgr.set_power(&&**bulb, level) {
+                    if let Err(e) = lifx_manager.set_power(&&**bulb, level) {
                         log::error!("Error toggling bulb: {}", e);
                     } else {
                         log::info!("Toggled bulb {:?}", bulb.name);
                     }
                 }
                 DeviceInfo::Group(group) => {
-                    if let Err(e) = mgr.set_group_power(group, bulbs, level) {
+                    if let Err(e) = lifx_manager.set_group_power(group, registered_bulbs, level) {
                         log::error!("Error toggling group: {}", e);
                     } else {
                         log::info!("Toggled group {:?}", group.label);
@@ -472,7 +472,7 @@ pub fn color_slider(
     value: &mut u16,
     range: std::ops::RangeInclusive<u16>,
     label: &str,
-    color_at: impl Fn(u16) -> Color32,
+    get_color_at_value: impl Fn(u16) -> Color32,
 ) -> Response {
     let desired_size = vec2(ui.spacing().slider_width, ui.spacing().interact_size.y);
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
@@ -503,7 +503,7 @@ pub fn color_slider(
             let mut mesh = Mesh::default();
             for i in 0..=SLIDER_RESOLUTION {
                 let t = i as f32 / (SLIDER_RESOLUTION as f32);
-                let color = color_at((t * u16::MAX as f32) as u16);
+                let color = get_color_at_value((t * u16::MAX as f32) as u16);
                 let x = lerp(rect.left()..=rect.right(), t);
                 // round edges:
                 let y_offset = if i == 0 || i == SLIDER_RESOLUTION {
@@ -533,11 +533,11 @@ pub fn color_slider(
                     0.0..=1.0,
                 ),
             );
-            let r = ui.spacing().slider_rail_height / 2.0 + 2.0;
-            let picked_color = color_at(*value);
+            let radius = ui.spacing().slider_rail_height / 2.0 + 2.0;
+            let picked_color = get_color_at_value(*value);
             ui.painter().circle(
                 pos2(x, rect.center().y),
-                r,
+                radius,
                 picked_color,
                 Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
             );

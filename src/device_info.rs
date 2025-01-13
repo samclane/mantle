@@ -40,6 +40,9 @@ pub struct BulbInfo {
         deserialize_with = "deserialize_instant"
     )]
     pub last_seen: Instant,
+    /// If the source is non-zero, then the LIFX device with send a unicast message to the IP
+    /// address/port of the client that sent the originating message.  If zero, then the LIFX
+    /// device may send a broadcast message that can be received by all clients on the same sub-net.
     pub source: u32,
     pub target: u64,
     pub addr: SocketAddr,
@@ -327,8 +330,8 @@ impl std::fmt::Debug for BulbInfo {
         if let Some((major, minor)) = self.wifi_firmware.as_ref() {
             write!(f, " WifiFW:{}.{}", major, minor)?;
         }
-        if let Some(level) = self.power_level.as_ref() {
-            if *level > 0 {
+        if let Some(power_level) = self.power_level.as_ref() {
+            if *power_level > 0 {
                 write!(f, "  Powered On(")?;
                 match self.color {
                     DeviceColor::Unknown => write!(f, "??")?,

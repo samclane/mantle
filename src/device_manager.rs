@@ -12,9 +12,12 @@ use std::time::{Duration, Instant};
 
 pub struct LifxManager {
     pub bulbs: Arc<Mutex<HashMap<u64, BulbInfo>>>,
-    pub all: GroupInfo,
+    pub all_bulbs_group: GroupInfo,
     pub last_discovery: Instant,
-    pub sock: UdpSocket,
+    pub socket: UdpSocket,
+    /// If the source is non-zero, then the LIFX device with send a unicast message to the IP
+    /// address/port of the client that sent the originating message.  If zero, then the LIFX
+    /// device may send a broadcast message that can be received by all clients on the same sub-net.
     pub source: u32,
 }
 
@@ -22,9 +25,9 @@ impl Clone for LifxManager {
     fn clone(&self) -> Self {
         LifxManager {
             bulbs: self.bulbs.clone(),
-            all: self.all.clone(),
+            all_bulbs_group: self.all_bulbs_group.clone(),
             last_discovery: self.last_discovery,
-            sock: self.sock.try_clone().expect("Failed to clone socket"),
+            socket: self.socket.try_clone().expect("Failed to clone socket"),
             source: self.source,
         }
     }
@@ -43,15 +46,15 @@ impl LifxManager {
 
         spawn(move || Self::worker(recv_sock, source, receiver_bulbs));
 
-        let mut mgr = LifxManager {
+        let mut lifx_manager = LifxManager {
             bulbs,
             last_discovery: Instant::now(),
-            sock,
+            socket: sock,
             source,
-            all: GroupInfo::build_all_group(),
+            all_bulbs_group: GroupInfo::build_all_group(),
         };
-        mgr.discover()?;
-        Ok(mgr)
+        lifx_manager.discover()?;
+        Ok(lifx_manager)
     }
 
     fn handle_message(raw: RawMessage, bulb: &mut BulbInfo) -> Result<(), lifx_core::Error> {
@@ -234,7 +237,7 @@ impl LifxManager {
                 }
                 let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
                 log::debug!("Discovering bulbs on LAN {:?}", addr);
-                self.sock.send_to(&bytes, addr)?;
+                self.socket.send_to(&bytes, addr)?;
                 count += 1;
             }
         }
@@ -249,7 +252,7 @@ impl LifxManager {
         if let Ok(mut bulbs) = self.bulbs.lock() {
             let bulbs = bulbs.values_mut();
             for bulb in bulbs {
-                bulb.query_for_missing_info(&self.sock)?;
+                bulb.query_for_missing_info(&self.socket)?;
                 count += 1;
             }
         }
@@ -267,7 +270,7 @@ impl LifxManager {
         };
         let raw = RawMessage::build(&opts, message).expect("Failed to build message");
         let bytes = raw.pack().expect("Failed to pack message");
-        self.sock.send_to(&bytes, target)
+        self.socket.send_to(&bytes, target)
     }
 
     pub fn set_power(&self, bulb: &&BulbInfo, level: u16) -> Result<usize, std::io::Error> {

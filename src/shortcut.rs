@@ -15,18 +15,21 @@ pub type ShortcutCallback = Arc<dyn Fn(InputAction) + Send + Sync + 'static>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct KeyboardShortcut {
-    pub keys: InputAction,
-    pub display_name: String,
+    pub input_action_keys: InputAction,
+    pub name: String,
 }
 
 impl KeyboardShortcut {
     pub fn new(keys: InputAction, display_name: String) -> Self {
-        KeyboardShortcut { keys, display_name }
+        KeyboardShortcut {
+            input_action_keys: keys,
+            name: display_name,
+        }
     }
 
     pub fn update_display_string(&mut self) {
-        self.display_name = self
-            .keys
+        self.name = self
+            .input_action_keys
             .iter()
             .map(|key| format!("{}", key))
             .collect::<Vec<_>>()
@@ -34,29 +37,37 @@ impl KeyboardShortcut {
     }
 
     fn is_matched(&self, keys_pressed: &InputAction) -> bool {
-        self.keys.is_subset(keys_pressed)
+        self.input_action_keys.is_subset(keys_pressed)
     }
 }
 
 impl Default for KeyboardShortcut {
     fn default() -> Self {
         KeyboardShortcut {
-            keys: InputAction::default(),
-            display_name: "".to_string(),
+            input_action_keys: InputAction::default(),
+            name: "".to_string(),
         }
     }
 }
 
 impl Debug for KeyboardShortcut {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
+        let keys: Vec<String> = self
+            .input_action_keys
+            .iter()
+            .map(|k| format!("{}", k))
+            .collect();
         write!(f, "KeyboardShortcut({})", keys.join(" + "))
     }
 }
 
 impl Display for KeyboardShortcut {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let keys: Vec<String> = self.keys.iter().map(|k| format!("{}", k)).collect();
+        let keys: Vec<String> = self
+            .input_action_keys
+            .iter()
+            .map(|k| format!("{}", k))
+            .collect();
         write!(f, "{}", keys.join(" + "))
     }
 }
@@ -239,12 +250,12 @@ impl Widget for ShortcutEdit<'_> {
                     let input_item = from_egui(*key, modifiers);
                     keys_pressed.extend(input_item);
                 }
-                shortcut.keys.extend(keys_pressed);
+                shortcut.input_action_keys.extend(keys_pressed);
             });
         }
         shortcut.update_display_string();
 
-        let text = shortcut.display_name.clone();
+        let text = shortcut.name.clone();
         let text_pos = rect.center();
         ui.painter().text(
             text_pos,
@@ -273,7 +284,7 @@ mod tests {
         let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
         let shortcut =
             KeyboardShortcut::new(InputAction::from(keys.clone()), "TestAction".to_string());
-        assert_eq!(shortcut.keys, InputAction::from(keys.clone()));
+        assert_eq!(shortcut.input_action_keys, InputAction::from(keys.clone()));
     }
 
     #[test]

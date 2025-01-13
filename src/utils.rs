@@ -81,9 +81,9 @@ impl Iterator for AngleIter {
 }
 
 pub fn capitalize_first_letter(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
+    let mut character_iter = s.chars();
+    match character_iter.next() {
         None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        Some(f) => f.to_uppercase().collect::<String>() + character_iter.as_str(),
     }
 }

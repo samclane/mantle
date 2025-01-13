@@ -12,7 +12,7 @@ use crate::{
     display_color_circle,
     listener::input_listener::InputListener,
     scenes::Scene,
-    screencap::{FollowType, ScreenSubregion},
+    screencap::{RegionCaptureTarget, ScreenSubregion},
     settings::Settings,
     shortcut::ShortcutManager,
     toggle_button,
@@ -39,7 +39,7 @@ pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png")
 pub struct RunningWaveform {
     pub active: bool,
     pub last_update: Instant,
-    pub follow_type: FollowType,
+    pub follow_type: RegionCaptureTarget,
     pub stop_tx: Option<mpsc::Sender<()>>,
 }
 pub struct ColorChannelEntry {
@@ -53,7 +53,7 @@ pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 #[serde(default)]
 pub struct MantleApp {
     #[serde(skip)]
-    pub mgr: LifxManager,
+    pub lighting_manager: LifxManager,
     #[serde(skip)]
     pub screen_manager: ScreencapManager,
     #[serde(skip)]
@@ -85,7 +85,7 @@ impl Default for MantleApp {
         let lifx_manager = LifxManager::new().expect("Failed to create manager");
         let shortcut_handle = Some(shortcut_manager.start(lifx_manager.clone()));
         Self {
-            mgr: lifx_manager,
+            lighting_manager: lifx_manager,
             screen_manager: ScreencapManager::new().expect("Failed to create screen manager"),
             input_listener,
             shortcut_manager,
@@ -145,13 +145,13 @@ impl MantleApp {
             }
             DeviceInfo::Group(group) => {
                 if let Ok(s) = group.label.cstr().to_str() {
-                    if *group == self.mgr.all {
+                    if *group == self.lighting_manager.all_bulbs_group {
                         ui.label(RichText::new(s).size(16.0).strong().underline());
                     } else {
                         ui.label(RichText::new(s).size(16.0).strong());
                     }
                 }
-                Some(self.mgr.get_avg_group_color(group, bulbs))
+                Some(self.lighting_manager.get_avg_group_color(group, bulbs))
             }
         };
 
@@ -168,7 +168,13 @@ impl MantleApp {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Power");
-                    toggle_button(ui, &self.mgr, device, Vec2::new(1.0, 1.0), bulbs);
+                    toggle_button(
+                        ui,
+                        &self.lighting_manager,
+                        device,
+                        Vec2::new(1.0, 1.0),
+                        bulbs,
+                    );
                 });
                 if let Some(before_color) = color {
                     let mut after_color =
@@ -180,7 +186,7 @@ impl MantleApp {
                     if before_color != after_color.next {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) = self.mgr.set_color(
+                                if let Err(e) = self.lighting_manager.set_color(
                                     &&**bulb,
                                     after_color.next,
                                     after_color.duration,
@@ -189,7 +195,7 @@ impl MantleApp {
                                 }
                             }
                             DeviceInfo::Group(group) => {
-                                if let Err(e) = self.mgr.set_group_color(
+                                if let Err(e) = self.lighting_manager.set_group_color(
                                     group,
                                     after_color.next,
                                     bulbs,
@@ -241,7 +247,7 @@ impl MantleApp {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
         if ui.input_mut(|i| i.consume_shortcut(&refresh_shortcut)) {
-            if let Err(e) = self.mgr.refresh() {
+            if let Err(e) = self.lighting_manager.refresh() {
                 log::error!("Error refreshing manager: {}", e);
             }
         }
@@ -255,7 +261,7 @@ impl MantleApp {
                 )
                 .clicked()
             {
-                if let Err(e) = self.mgr.refresh() {
+                if let Err(e) = self.lighting_manager.refresh() {
                     log::error!("Error refreshing manager: {}", e);
                 }
                 ui.close_menu();
@@ -296,12 +302,16 @@ impl MantleApp {
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let bulbs = self.mgr.bulbs.clone();
+                let bulbs = self.lighting_manager.bulbs.clone();
                 let bulbs = bulbs.lock();
                 let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(bulbs) = bulbs {
-                        self.display_device(ui, &DeviceInfo::Group(self.mgr.all.clone()), &bulbs);
+                        self.display_device(
+                            ui,
+                            &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
+                            &bulbs,
+                        );
                         let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
                         for bulb in sorted_bulbs {
                             if let Some(group) = bulb.group.data.as_ref() {
@@ -354,12 +364,14 @@ impl eframe::App for MantleApp {
     fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(debug_assertions)]
         puffin::GlobalProfiler::lock().new_frame();
-        if Instant::now() - self.mgr.last_discovery
+        if Instant::now() - self.lighting_manager.last_discovery
             > Duration::from_millis(self.settings.refresh_rate_ms)
         {
-            self.mgr.discover().expect("Failed to discover bulbs");
+            self.lighting_manager
+                .discover()
+                .expect("Failed to discover bulbs");
         }
-        if let Err(e) = self.mgr.refresh() {
+        if let Err(e) = self.lighting_manager.refresh() {
             log::error!("Error refreshing manager: {}", e);
         }
         self.update_ui(_ctx);
