@@ -25,12 +25,18 @@ impl Scene {
             let color = HSBK::from(*color);
             match device {
                 DeviceInfo::Bulb(bulb) => {
-                    lifx_manager.set_color(&&**bulb, color, None).unwrap();
+                    if let Err(err) = lifx_manager.set_color(&&**bulb, color, None) {
+                        log::error!("Failed to set color for bulb: {:?}", err);
+                    }
                 }
                 DeviceInfo::Group(group) => {
-                    lifx_manager
-                        .set_group_color(group, color, &lifx_manager.bulbs.lock().unwrap(), None)
-                        .unwrap();
+                    if let Ok(bulbs) = lifx_manager.bulbs.lock() {
+                        if let Err(err) = lifx_manager.set_group_color(group, color, &bulbs, None) {
+                            log::error!("Failed to set group color: {:?}", err);
+                        }
+                    } else {
+                        log::error!("Failed to lock bulbs for group");
+                    }
                 }
             }
         }
