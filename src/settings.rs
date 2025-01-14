@@ -98,6 +98,7 @@ impl MantleApp {
                     .new_shortcut
                     .shortcut
                     .update_display_string();
+                self.info_toast("Fields cleared");
             }
 
             if ui.button("Add Shortcut").clicked() {
@@ -121,6 +122,7 @@ impl MantleApp {
                     .new_shortcut
                     .shortcut
                     .update_display_string();
+                self.success_toast("Shortcut added successfully");
             }
         });
     }
@@ -213,9 +215,18 @@ impl MantleApp {
                 ui.end_row();
 
                 let mut to_remove = Vec::new();
+                let mut show_toast = false;
                 for shortcut in self.settings.custom_shortcuts.iter() {
                     ui.label(&shortcut.name);
-                    ui.label(shortcut.device.as_ref().unwrap().to_string());
+                    ui.label(
+                        shortcut
+                            .device
+                            .as_ref()
+                            .unwrap_or(&DeviceInfo::Group(
+                                self.lighting_manager.all_bulbs_group.clone(),
+                            ))
+                            .to_string(),
+                    );
                     ui.label(shortcut.action.to_string());
                     ui.label(&shortcut.shortcut.name);
                     if ui
@@ -224,8 +235,12 @@ impl MantleApp {
                         .clicked()
                     {
                         to_remove.push(shortcut.clone());
+                        show_toast = true;
                     }
                     ui.end_row();
+                }
+                if show_toast {
+                    self.info_toast("Shortcut removed");
                 }
                 for shortcut in to_remove {
                     self.shortcut_manager.remove_shortcut(shortcut.clone());
@@ -238,9 +253,7 @@ impl MantleApp {
         ui.horizontal(|ui| {
             ui.label("Follow Rate:");
             ui.add(
-                egui::Slider::new(&mut self.settings.follow_rate_ms, FOLLOW_RATE_RANGE)
-                    .text("ms")
-                    .clamp_to_range(true),
+                egui::Slider::new(&mut self.settings.follow_rate_ms, FOLLOW_RATE_RANGE).text("ms"),
             );
         });
     }
@@ -250,8 +263,7 @@ impl MantleApp {
             ui.label("Refresh Rate:");
             ui.add(
                 egui::Slider::new(&mut self.settings.refresh_rate_ms, REFRESH_RATE_RANGE)
-                    .text("ms")
-                    .clamp_to_range(true),
+                    .text("ms"),
             );
         });
     }
@@ -280,18 +292,27 @@ impl MantleApp {
             ui.end_row();
 
             let mut to_remove = Vec::new();
+            let mut applied = false;
+            let mut removed = false;
             for scene in &self.settings.scenes {
                 ui.label(&scene.name);
                 ui.label(format!("{} devices", scene.device_color_pairs.len()));
                 ui.horizontal(|ui| {
                     if ui.button("Apply").clicked() {
-                        scene.apply(&mut self.lighting_manager);
+                        applied = scene.apply(&mut self.lighting_manager);
                     }
                     if ui.button("Remove").clicked() {
                         to_remove.push(scene.name.clone());
+                        removed = true;
                     }
                 });
                 ui.end_row();
+            }
+            if applied {
+                self.success_toast("Scene applied successfully");
+            }
+            if removed {
+                self.info_toast("Scene removed");
             }
             for name in to_remove {
                 self.settings.scenes.retain(|s| s.name != name);
@@ -391,6 +412,7 @@ impl MantleApp {
             // Clear the new scene input
             self.new_scene.name.clear();
             self.new_scene.devices().clear();
+            self.success_toast("Scene saved successfully");
         }
     }
 }

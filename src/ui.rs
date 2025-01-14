@@ -112,8 +112,6 @@ pub fn handle_screencap(
     ui: &mut Ui,
     device: &DeviceInfo,
 ) -> Option<DeltaColor> {
-    #[cfg(debug_assertions)]
-    puffin::profile_function!();
     let mut color: Option<HSBK> = None;
     let follow_rate = app.settings.follow_rate_ms;
     handle_get_subregion_bounds(app, ui, device.id());
@@ -177,9 +175,6 @@ pub fn handle_screencap(
             let (stop_tx, stop_rx) = mpsc::channel::<()>();
             if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
                 waveform_trx.handle = Some(thread::spawn(move || loop {
-                    #[cfg(debug_assertions)]
-                    puffin::profile_function!();
-
                     match screen_manager.calculate_average_color(follow_type.clone()) {
                         Ok(avg_color) => {
                             if let Err(err) = lifx_manager.set_color_by_id(device_id, avg_color) {

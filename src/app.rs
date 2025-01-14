@@ -14,13 +14,15 @@ use crate::{
     scenes::Scene,
     screencap::{RegionCaptureTarget, ScreenSubregion},
     settings::Settings,
-    shortcut::ShortcutManager,
+    shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
     ui::{handle_eyedropper, handle_screencap, hsbk_sliders},
     BulbInfo, LifxManager, ScreencapManager,
 };
 
-use eframe::egui::{self, Modifiers, RichText, Ui, Vec2};
+use eframe::egui::{self, Direction, Modifiers, RichText, Ui, Vec2};
+use egui::Align2;
+use egui_toast::{Toast, ToastKind, ToastOptions, Toasts};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
@@ -75,6 +77,8 @@ pub struct MantleApp {
     #[serde(skip)]
     pub waveform_channel: ColorChannel,
     pub new_scene: Scene,
+    #[serde(skip)]
+    pub toasts: Toasts,
 }
 
 impl Default for MantleApp {
@@ -100,6 +104,7 @@ impl Default for MantleApp {
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
+            toasts: Toasts::new(),
         }
     }
 }
@@ -109,10 +114,28 @@ impl MantleApp {
         if let Some(storage) = cc.storage {
             let mut app =
                 eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
-            for shortcut in app.settings.custom_shortcuts.clone() {
-                if let Err(e) = app.shortcut_manager.add_action(shortcut.clone()) {
-                    log::error!("Failed to add shortcut action: {}", e);
-                }
+            let failures: Vec<KeyboardShortcutAction> = app
+                .settings
+                .custom_shortcuts
+                .clone()
+                .into_iter()
+                .filter_map(|shortcut| {
+                    app.shortcut_manager
+                        .add_action(shortcut.clone())
+                        .err()
+                        .map(|e| {
+                            log::error!("Failed to add shortcut action: {}", e);
+                            shortcut
+                        })
+                })
+                .collect();
+
+            if !failures.is_empty() {
+                app.error_toast(&format!(
+                    "Failed to add {} custom shortcuts: {:?}",
+                    failures.len(),
+                    failures
+                ));
             }
             return app;
         }
@@ -192,6 +215,7 @@ impl MantleApp {
                                     after_color.duration,
                                 ) {
                                     log::error!("Error setting color: {}", e);
+                                    self.error_toast(&format!("Error setting color: {}", e));
                                 }
                             }
                             DeviceInfo::Group(group) => {
@@ -202,6 +226,7 @@ impl MantleApp {
                                     after_color.duration,
                                 ) {
                                     log::error!("Error setting group color: {}", e);
+                                    self.error_toast(&format!("Error setting group color: {}", e));
                                 }
                             }
                         }
@@ -249,6 +274,7 @@ impl MantleApp {
         if ui.input_mut(|i| i.consume_shortcut(&refresh_shortcut)) {
             if let Err(e) = self.lighting_manager.refresh() {
                 log::error!("Error refreshing manager: {}", e);
+                self.error_toast(&format!("Error refreshing manager: {}", e));
             }
         }
 
@@ -263,6 +289,7 @@ impl MantleApp {
             {
                 if let Err(e) = self.lighting_manager.refresh() {
                     log::error!("Error refreshing manager: {}", e);
+                    self.error_toast(&format!("Error refreshing manager: {}", e));
                 }
                 ui.close_menu();
             }
@@ -354,6 +381,47 @@ impl MantleApp {
                 });
         }
     }
+
+    fn init_toasts(&mut self, _ctx: &egui::Context) {
+        self.toasts = Toasts::new()
+            .anchor(Align2::CENTER_TOP, (0.0, 10.0))
+            .direction(Direction::TopDown);
+    }
+
+    fn show_toasts(&mut self, ctx: &egui::Context) {
+        self.toasts.show(ctx);
+    }
+
+    fn toast_template(&mut self, text: &str, kind: ToastKind) -> Toast {
+        Toast {
+            text: text.into(),
+            kind,
+            options: ToastOptions::default()
+                .duration_in_seconds(3.0)
+                .show_progress(true),
+            ..Default::default()
+        }
+    }
+
+    pub fn success_toast(&mut self, text: &str) {
+        let toast = self.toast_template(text, ToastKind::Success);
+        self.toasts.add(toast);
+    }
+
+    pub fn error_toast(&mut self, text: &str) {
+        let toast = self.toast_template(text, ToastKind::Error);
+        self.toasts.add(toast);
+    }
+
+    pub fn info_toast(&mut self, text: &str) {
+        let toast = self.toast_template(text, ToastKind::Info);
+        self.toasts.add(toast);
+    }
+
+    pub fn warning_toast(&mut self, text: &str) {
+        let toast = self.toast_template(text, ToastKind::Warning);
+        self.toasts.add(toast);
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -361,7 +429,7 @@ impl eframe::App for MantleApp {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(debug_assertions)]
         puffin::GlobalProfiler::lock().new_frame();
         if Instant::now() - self.lighting_manager.last_discovery
@@ -373,9 +441,12 @@ impl eframe::App for MantleApp {
         }
         if let Err(e) = self.lighting_manager.refresh() {
             log::error!("Error refreshing manager: {}", e);
+            self.error_toast(&format!("Error refreshing manager: {}", e));
         }
-        self.update_ui(_ctx);
-        self.show_about_window(_ctx);
-        self.settings_ui(_ctx);
+        self.update_ui(ctx);
+        self.init_toasts(ctx);
+        self.show_about_window(ctx);
+        self.settings_ui(ctx);
+        self.show_toasts(ctx);
     }
 }

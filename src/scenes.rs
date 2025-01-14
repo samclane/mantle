@@ -20,26 +20,31 @@ impl Scene {
         }
     }
 
-    pub fn apply(&self, lifx_manager: &mut LifxManager) {
+    pub fn apply(&self, lifx_manager: &mut LifxManager) -> bool {
+        let mut success = true;
         for (device, color) in &self.device_color_pairs {
             let color = HSBK::from(*color);
             match device {
                 DeviceInfo::Bulb(bulb) => {
                     if let Err(err) = lifx_manager.set_color(&&**bulb, color, None) {
                         log::error!("Failed to set color for bulb: {:?}", err);
+                        success = false;
                     }
                 }
                 DeviceInfo::Group(group) => {
                     if let Ok(bulbs) = lifx_manager.bulbs.lock() {
                         if let Err(err) = lifx_manager.set_group_color(group, color, &bulbs, None) {
                             log::error!("Failed to set group color: {:?}", err);
+                            success = false;
                         }
                     } else {
                         log::error!("Failed to lock bulbs for group");
+                        success = false;
                     }
                 }
             }
         }
+        success
     }
 
     pub fn devices(&self) -> Vec<DeviceInfo> {
