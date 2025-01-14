@@ -293,13 +293,22 @@ impl MantleApp {
 
             let mut to_remove = Vec::new();
             let mut applied = false;
+            let mut application_errors = Vec::new();
             let mut removed = false;
             for scene in &self.settings.scenes {
                 ui.label(&scene.name);
                 ui.label(format!("{} devices", scene.device_color_pairs.len()));
                 ui.horizontal(|ui| {
                     if ui.button("Apply").clicked() {
-                        applied = scene.apply(&mut self.lighting_manager);
+                        // applied = scene.apply(&mut self.lighting_manager).is_ok();
+                        match scene.apply(&mut self.lighting_manager) {
+                            Ok(_) => {
+                                applied = true;
+                            }
+                            Err(errors) => {
+                                application_errors = errors;
+                            }
+                        }
                     }
                     if ui.button("Remove").clicked() {
                         to_remove.push(scene.name.clone());
@@ -310,12 +319,17 @@ impl MantleApp {
             }
             if applied {
                 self.success_toast("Scene applied successfully");
-            }
-            if removed {
-                self.info_toast("Scene removed");
+            } else if !application_errors.is_empty() {
+                self.error_toast(&format!(
+                    "Failed to apply scene: {}",
+                    application_errors.join(", ")
+                ));
             }
             for name in to_remove {
                 self.settings.scenes.retain(|s| s.name != name);
+            }
+            if removed {
+                self.info_toast("Scene removed");
             }
         });
     }
