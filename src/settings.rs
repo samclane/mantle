@@ -108,7 +108,7 @@ impl MantleApp {
                 self.shortcut_manager.add_shortcut(
                     self.shortcut_manager.new_shortcut.name.clone(),
                     self.shortcut_manager.new_shortcut.shortcut.clone(),
-                    self.shortcut_manager.new_shortcut.action,
+                    self.shortcut_manager.new_shortcut.action.clone(),
                     self.shortcut_manager.new_shortcut.device.clone().unwrap(),
                 );
                 // Clear the fields after adding
@@ -139,20 +139,21 @@ impl MantleApp {
                     for action in UserAction::variants() {
                         if ui
                             .selectable_label(
-                                self.shortcut_manager.new_shortcut.action == *action,
+                                self.shortcut_manager.new_shortcut.action == action.clone(),
                                 action.to_string(),
                             )
                             .clicked()
                         {
-                            self.shortcut_manager.new_shortcut.action = *action;
+                            self.shortcut_manager.new_shortcut.action = action.clone();
                         }
                     }
                 });
             // based on selected action, show relevant fields
-            self.shortcut_manager
-                .new_shortcut
-                .action
-                .ui(ui, self.shortcut_manager.new_shortcut.device.clone());
+            self.shortcut_manager.new_shortcut.action.ui(
+                ui,
+                self.shortcut_manager.new_shortcut.device.clone(),
+                self.settings.scenes.clone(),
+            );
             ui.end_row();
 
             egui::ComboBox::from_label("Device")

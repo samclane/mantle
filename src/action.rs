@@ -6,11 +6,12 @@ use std::fmt::Display;
 use crate::{
     color::HSBKField,
     device_info::DeviceInfo,
+    scenes::Scene,
     ui::{brightness_slider, hsbk_sliders, hue_slider, kelvin_slider, saturation_slider},
     LifxManager,
 };
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum UserAction {
     Refresh,
     TogglePower,
@@ -35,10 +36,19 @@ pub enum UserAction {
     SetKelvin {
         kelvin: u16,
     },
+    SetScene {
+        scene: Scene,
+    },
+}
+
+impl From<Scene> for UserAction {
+    fn from(scene: Scene) -> Self {
+        Self::SetScene { scene }
+    }
 }
 
 impl UserAction {
-    pub fn execute(&self, lifx_manager: LifxManager, device: DeviceInfo) {
+    pub fn execute(&self, mut lifx_manager: LifxManager, device: DeviceInfo) {
         match self {
             UserAction::Refresh => {
                 if let Err(e) = lifx_manager.refresh() {
@@ -217,11 +227,18 @@ impl UserAction {
                     }
                 }
             }
+            UserAction::SetScene { scene } => {
+                log::info!("Executing action: Set Scene - {}", scene.name);
+                if let Err(e) = scene.apply(&mut lifx_manager) {
+                    log::error!("Failed to apply scene: {:?}", e);
+                }
+            }
         }
     }
 
-    pub fn variants() -> &'static [UserAction] {
-        &[
+    pub fn variants() -> Vec<UserAction> {
+        let new_scene = Scene::new(vec![], "New Scene".to_string());
+        vec![
             UserAction::Refresh,
             UserAction::TogglePower,
             UserAction::SetPower { power: true },
@@ -235,10 +252,18 @@ impl UserAction {
                 brightness: 0,
                 kelvin: 3500,
             },
+            UserAction::SetScene {
+                scene: new_scene.clone(),
+            },
         ]
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, device: Option<DeviceInfo>) -> egui::Response {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        device: Option<DeviceInfo>,
+        scenes: Vec<Scene>,
+    ) -> egui::Response {
         match self {
             UserAction::Refresh => ui.label(""),
             UserAction::TogglePower => ui.label(""),
@@ -265,6 +290,34 @@ impl UserAction {
                     ui.label("No device selected")
                 }
             }
+            UserAction::SetScene { scene } => {
+                // combo box
+                egui::ComboBox::from_label("Scene")
+                    .selected_text(scene.name.clone())
+                    .show_ui(ui, |ui| {
+                        for scene in scenes {
+                            if ui
+                                .selectable_value(
+                                    &mut scene.name.clone(),
+                                    scene.name.clone(),
+                                    scene.name.clone(),
+                                )
+                                .clicked()
+                            {
+                                *self = UserAction::SetScene { scene };
+                            }
+                        }
+                    })
+                    .response
+            }
+        }
+    }
+
+    pub fn as_set_scene(&self) -> Option<&Scene> {
+        if let Self::SetScene { scene } = self {
+            Some(scene)
+        } else {
+            None
         }
     }
 }
@@ -293,6 +346,7 @@ impl Display for UserAction {
                 write!(f, "Set Brightness: {}", brightness)
             }
             UserAction::SetKelvin { kelvin } => write!(f, "Set Kelvin: {}", kelvin),
+            UserAction::SetScene { scene } => write!(f, "Set Scene: {}", scene.name),
         }
     }
 }

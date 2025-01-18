@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{color::default_hsbk, device_info::DeviceInfo, LifxManager, HSBK32};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Scene {
     pub device_color_pairs: Vec<(DeviceInfo, HSBK32)>,
     pub name: String,
