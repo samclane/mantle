@@ -28,6 +28,10 @@ You can download the latest release [here](https://github.com/samclane/mantle/re
 
 Simply run `cargo build --release` to build the project. Ensure you have the `data` folder, containing `products.json`.
 
+## Feature Flags
+
+- `puffin` - Enables the Puffin profiler
+
 ## Feedback
 
 Join the Discord server [here](https://discord.gg/TwqSeTTYqX) to provide feedback, report bugs, or request features.

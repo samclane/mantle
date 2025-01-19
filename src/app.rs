@@ -437,7 +437,7 @@ impl eframe::App for MantleApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        #[cfg(debug_assertions)]
+        #[cfg(feature = "puffin")]
         puffin::GlobalProfiler::lock().new_frame();
         if Instant::now() - self.lighting_manager.last_discovery
             > Duration::from_millis(self.settings.refresh_rate_ms)

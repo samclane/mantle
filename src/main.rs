@@ -8,8 +8,8 @@ use mantle::ui::setup_eframe_options;
 use mantle::utils::init_logging;
 
 fn main() -> eframe::Result {
-    #[cfg(debug_assertions)]
-    start_puffin_server(); // Optional, keep if you're using Puffin for profiling
+    #[cfg(feature = "puffin")]
+    start_puffin_server();
 
     init_logging();
 
@@ -25,7 +25,7 @@ fn main() -> eframe::Result {
     )
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "puffin")]
 fn start_puffin_server() {
     puffin::set_scopes_on(true); // tell puffin to collect data
 
