@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    audio::AudioManager,
     capitalize_first_letter,
     color::{default_hsbk, DeltaColor},
     device_info::DeviceInfo,
@@ -79,6 +80,8 @@ pub struct MantleApp {
     pub new_scene: Scene,
     #[serde(skip)]
     pub toasts: Toasts,
+    #[serde(skip)]
+    pub audio_manger: AudioManager,
 }
 
 impl Default for MantleApp {
@@ -88,6 +91,7 @@ impl Default for MantleApp {
         let shortcut_manager = ShortcutManager::new(input_listener.clone());
         let lifx_manager = LifxManager::new().expect("Failed to create manager");
         let shortcut_handle = Some(shortcut_manager.start(lifx_manager.clone()));
+        let audio_manger = AudioManager::default();
         Self {
             lighting_manager: lifx_manager,
             screen_manager: ScreencapManager::new().expect("Failed to create screen manager"),
@@ -105,6 +109,7 @@ impl Default for MantleApp {
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
             toasts: Toasts::new(),
+            audio_manger,
         }
     }
 }
@@ -129,6 +134,8 @@ impl MantleApp {
                         })
                 })
                 .collect();
+
+            app.audio_manger.build_stream().unwrap();
 
             if !failures.is_empty() {
                 app.error_toast(&format!(

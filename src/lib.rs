@@ -1,5 +1,6 @@
 pub mod action;
 pub mod app;
+pub mod audio;
 pub mod color;
 pub mod device_info;
 pub mod device_manager;
