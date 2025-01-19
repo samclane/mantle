@@ -4,13 +4,14 @@ use cpal::{
 };
 use std::sync::{Arc, Mutex};
 
+pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
+
 pub struct AudioManager {
     host: Host,
     current_device: Option<cpal::Device>,
     configuration: Option<cpal::StreamConfig>,
     stream: Option<cpal::Stream>,
     samples_buffer: Arc<Mutex<Vec<f32>>>,
-    max_buffer_size: usize,
 }
 
 impl Default for AudioManager {
@@ -29,24 +30,25 @@ impl Default for AudioManager {
             configuration,
             stream: None,
             samples_buffer: Arc::new(Mutex::new(Vec::new())),
-            max_buffer_size: 48000,
         }
     }
 }
 
 impl AudioManager {
-    pub fn build_stream(&mut self) -> Result<(), cpal::BuildStreamError> {
-        let device = self.current_device
+    pub fn build_stream(&mut self, max_buffer_size: &usize) -> Result<(), cpal::BuildStreamError> {
+        let device = self
+            .current_device
             .as_ref()
             .ok_or(cpal::BuildStreamError::DeviceNotAvailable)?;
-        
-        let config = self.configuration
+
+        let config = self
+            .configuration
             .as_ref()
             .ok_or(cpal::BuildStreamError::InvalidArgument)?;
 
         let buffer_clone = Arc::clone(&self.samples_buffer);
-        let max_size = self.max_buffer_size;
-        
+        let max_size = *max_buffer_size;
+
         let stream = device.build_output_stream(
             config,
             move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -62,7 +64,7 @@ impl AudioManager {
             },
             None,
         )?;
-        
+
         self.stream = Some(stream);
         Ok(())
     }

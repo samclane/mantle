@@ -135,7 +135,9 @@ impl MantleApp {
                 })
                 .collect();
 
-            app.audio_manger.build_stream().unwrap();
+            app.audio_manger
+                .build_stream(&app.settings.audio_buffer_size)
+                .unwrap();
 
             if !failures.is_empty() {
                 app.error_toast(&format!(

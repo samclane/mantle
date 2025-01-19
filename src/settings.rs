@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     action::UserAction,
     app::MantleApp,
+    audio::AUDIO_BUFFER_DEFAULT,
     color::default_hsbk,
     device_info::DeviceInfo,
     scenes::Scene,
@@ -17,6 +18,7 @@ const DEFAULT_REFRESH_RATE_MS: u64 = 500;
 const DEFAULT_FOLLOW_RATE_MS: u64 = 500;
 const REFRESH_RATE_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
 const FOLLOW_RATE_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
+const AUDIO_BUFFER_RANGE: std::ops::RangeInclusive<usize> = 1024..=AUDIO_BUFFER_DEFAULT;
 
 #[derive(Deserialize, Serialize)]
 pub struct Settings {
@@ -24,6 +26,7 @@ pub struct Settings {
     pub refresh_rate_ms: u64,
     pub follow_rate_ms: u64,
     pub scenes: Vec<Scene>,
+    pub audio_buffer_size: usize,
 }
 
 impl Default for Settings {
@@ -33,6 +36,7 @@ impl Default for Settings {
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
             follow_rate_ms: DEFAULT_FOLLOW_RATE_MS,
             scenes: Vec::new(),
+            audio_buffer_size: AUDIO_BUFFER_DEFAULT,
         }
     }
 }
@@ -54,6 +58,8 @@ impl MantleApp {
                     self.render_refresh_rate(ui);
 
                     self.render_follow_rate(ui);
+
+                    self.render_audio_buffer_size(ui);
 
                     self.render_add_shortcut_ui(ui);
 
@@ -255,6 +261,16 @@ impl MantleApp {
             ui.label("Follow Rate:");
             ui.add(
                 egui::Slider::new(&mut self.settings.follow_rate_ms, FOLLOW_RATE_RANGE).text("ms"),
+            );
+        });
+    }
+
+    fn render_audio_buffer_size(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Audio Buffer Size:");
+            ui.add(
+                egui::Slider::new(&mut self.settings.audio_buffer_size, AUDIO_BUFFER_RANGE)
+                    .text("samples"),
             );
         });
     }
