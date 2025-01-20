@@ -196,3 +196,46 @@ impl AudioManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_complex() {
+        let buffer = vec![1.0, 2.0, 3.0, 4.0];
+        let expected = vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, 0.0),
+        ];
+        assert_eq!(to_complex(&buffer), expected);
+    }
+
+    #[test]
+    fn test_to_real_f32() {
+        let buffer = vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, 0.0),
+        ];
+        let expected = vec![1.0, 2.0, 3.0, 4.0];
+        assert_eq!(to_real_f32(&buffer), expected);
+    }
+
+    #[test]
+    fn test_subsample() {
+        let buffer = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let expected = vec![1.0, 3.0, 5.0, 7.0];
+        assert_eq!(subsample(&buffer, 2), expected);
+    }
+
+    #[test]
+    fn test_default_audio_manager() {
+        let manager = AudioManager::default();
+        // might be running on github actions with no devices; just make sure it doesn't panic
+        let _ = manager.devices();
+    }
+}
