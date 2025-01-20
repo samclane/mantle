@@ -91,7 +91,6 @@ impl Default for MantleApp {
         let shortcut_manager = ShortcutManager::new(input_listener.clone());
         let lifx_manager = LifxManager::new().expect("Failed to create manager");
         let shortcut_handle = Some(shortcut_manager.start(lifx_manager.clone()));
-        let audio_manger = AudioManager::default();
         Self {
             lighting_manager: lifx_manager,
             screen_manager: ScreencapManager::new().expect("Failed to create screen manager"),
@@ -109,7 +108,7 @@ impl Default for MantleApp {
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
             toasts: Toasts::new(),
-            audio_manger,
+            audio_manger: AudioManager::default(),
         }
     }
 }
@@ -136,7 +135,7 @@ impl MantleApp {
                 .collect();
 
             app.audio_manger
-                .build_stream(&app.settings.audio_buffer_size)
+                .build_input_stream(&app.settings.audio_buffer_size)
                 .unwrap();
 
             if !failures.is_empty() {
