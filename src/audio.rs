@@ -1,5 +1,5 @@
 use cpal::{
-    traits::{DeviceTrait, HostTrait},
+    traits::{DeviceTrait, HostTrait, StreamTrait},
     Host,
 };
 use std::sync::{Arc, Mutex};
@@ -35,7 +35,10 @@ impl Default for AudioManager {
 }
 
 impl AudioManager {
-    pub fn build_stream(&mut self, max_buffer_size: &usize) -> Result<(), cpal::BuildStreamError> {
+    pub fn build_output_stream(
+        &mut self,
+        max_buffer_size: &usize,
+    ) -> Result<(), cpal::BuildStreamError> {
         let device = self
             .current_device
             .as_ref()
@@ -65,6 +68,45 @@ impl AudioManager {
             None,
         )?;
 
+        let _ = stream.play();
+        self.stream = Some(stream);
+        Ok(())
+    }
+
+    pub fn build_input_stream(
+        &mut self,
+        max_buffer_size: &usize,
+    ) -> Result<(), cpal::BuildStreamError> {
+        let device = self
+            .current_device
+            .as_ref()
+            .ok_or(cpal::BuildStreamError::DeviceNotAvailable)?;
+
+        let config = self
+            .configuration
+            .as_ref()
+            .ok_or(cpal::BuildStreamError::InvalidArgument)?;
+
+        let buffer_clone = Arc::clone(&self.samples_buffer);
+        let max_size = *max_buffer_size;
+
+        let stream = device.build_input_stream(
+            config,
+            move |data: &[f32], _| {
+                let mut buffer = buffer_clone.lock().unwrap();
+                buffer.extend_from_slice(data);
+                if buffer.len() > max_size {
+                    let excess = buffer.len() - max_size;
+                    buffer.drain(0..excess);
+                }
+            },
+            move |err| {
+                log::error!("an error occurred on the input audio stream: {}", err);
+            },
+            None,
+        )?;
+
+        let _ = stream.play();
         self.stream = Some(stream);
         Ok(())
     }
@@ -73,5 +115,12 @@ impl AudioManager {
         self.host
             .output_devices()
             .map_or(Vec::new(), |devices| devices.collect())
+    }
+
+    pub fn get_samples_data(&self) -> Result<Vec<f32>, String> {
+        self.samples_buffer
+            .lock()
+            .map_err(|err| err.to_string())
+            .map(|buffer| buffer.clone())
     }
 }
