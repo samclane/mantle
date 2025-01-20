@@ -35,6 +35,8 @@ rdev = { version = "0.5.3", features = [ "serialize"] }
 egui-toast = "0.16.0"
 epaint = { version = "0.30.0" }
 cpal = "0.15.3"
+egui_plot = "0.30.0"
+rustfft = "6.2.0"
 
 [features]
 puffin = ["dep:puffin", "dep:puffin_http"]

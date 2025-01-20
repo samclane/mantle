@@ -82,6 +82,7 @@ pub struct MantleApp {
     pub toasts: Toasts,
     #[serde(skip)]
     pub audio_manger: AudioManager,
+    pub show_audio_debug: bool,
 }
 
 impl Default for MantleApp {
@@ -109,6 +110,7 @@ impl Default for MantleApp {
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
             toasts: Toasts::new(),
             audio_manger: AudioManager::default(),
+            show_audio_debug: false,
         }
     }
 }
@@ -305,6 +307,10 @@ impl MantleApp {
                 self.show_settings = true;
                 ui.close_menu();
             }
+            if ui.add(egui::Button::new("Audio Debug")).clicked() {
+                self.show_audio_debug = !self.show_audio_debug;
+                ui.close_menu();
+            }
             if ui
                 .add(
                     egui::Button::new("Quit")
@@ -335,6 +341,7 @@ impl MantleApp {
                 self.help_menu_button(ui);
             });
         });
+        // a little test bar graph to show the audio data
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let bulbs = self.lighting_manager.bulbs.clone();
@@ -386,6 +393,21 @@ impl MantleApp {
                     ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
                     ui.label(format!("Author: {}", env!("CARGO_PKG_AUTHORS")));
                     ui.hyperlink_to("Github", env!("CARGO_PKG_REPOSITORY"));
+                });
+        }
+    }
+
+    fn show_audio_debug_window(&mut self, ctx: &egui::Context) {
+        if self.show_audio_debug {
+            egui::Window::new("Audio Debug")
+                .default_width(ABOUT_WINDOW_SIZE[0])
+                .default_height(ABOUT_WINDOW_SIZE[1])
+                .open(&mut self.show_audio_debug)
+                .resizable([true, false])
+                .show(ctx, |ui| {
+                    ui.heading("Audio Debug");
+                    ui.add_space(8.0);
+                    self.audio_manger.ui(ui);
                 });
         }
     }
@@ -454,6 +476,7 @@ impl eframe::App for MantleApp {
         self.update_ui(ctx);
         self.init_toasts(ctx);
         self.show_about_window(ctx);
+        self.show_audio_debug_window(ctx);
         self.settings_ui(ctx);
         self.show_toasts(ctx);
     }

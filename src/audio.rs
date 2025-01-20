@@ -2,9 +2,37 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Host,
 };
+use eframe::egui;
+use egui_plot::{Legend, Line, PlotPoints};
+use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
+
+fn to_complex(buffer: &[f32]) -> Vec<Complex<f32>> {
+    buffer
+        .iter()
+        .map(|&value| Complex::new(value, 0.0))
+        .collect()
+}
+
+fn to_real_f32(buffer: &[Complex<f32>]) -> Vec<f32> {
+    buffer.iter().map(|value| value.re).collect()
+}
+
+fn subsample(buffer: &[f32], factor: usize) -> Vec<f32> {
+    buffer
+        .iter()
+        .enumerate()
+        .filter_map(|(index, value)| {
+            if index % factor == 0 {
+                Some(*value)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
 
 pub struct AudioManager {
     host: Host,
@@ -111,6 +139,20 @@ impl AudioManager {
         Ok(())
     }
 
+    fn fft(&self) -> Vec<Complex<f32>> {
+        let mut buffer = to_complex(&self.samples_buffer.lock().unwrap().clone());
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(buffer.len());
+        fft.process(&mut buffer);
+        buffer
+    }
+
+    pub fn real_fft(&self) -> Vec<f32> {
+        let buffer = self.fft();
+        // Return the first half of the buffer
+        to_real_f32(&buffer[0..buffer.len() / 2])
+    }
+
     pub fn devices(&self) -> Vec<cpal::Device> {
         self.host
             .output_devices()
@@ -122,5 +164,35 @@ impl AudioManager {
             .lock()
             .map_err(|err| err.to_string())
             .map(|buffer| buffer.clone())
+    }
+
+    pub fn ui(&self, ui: &mut eframe::egui::Ui) {
+        let audio_data = self.get_samples_data();
+        let spectrum = self.real_fft();
+
+        if let Ok(data) = audio_data {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                egui_plot::Plot::new("Audio Samples")
+                    .allow_zoom(false)
+                    .allow_drag(false)
+                    .allow_scroll(false)
+                    .legend(Legend::default())
+                    .show(ui, |plot_ui| {
+                        let lines = PlotPoints::from_ys_f32(&subsample(&data, 10));
+                        plot_ui.line(Line::new(lines));
+                    });
+                egui_plot::Plot::new("FFT")
+                    .allow_zoom(false)
+                    .allow_drag(false)
+                    .allow_scroll(false)
+                    .legend(Legend::default())
+                    .show(ui, |plot_ui| {
+                        let lines = PlotPoints::from_ys_f32(&subsample(&spectrum, 10));
+                        plot_ui.line(Line::new(lines));
+                    });
+            });
+        } else {
+            ui.label("No audio data available");
+        }
     }
 }
