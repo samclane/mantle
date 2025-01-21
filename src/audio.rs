@@ -4,8 +4,11 @@ use cpal::{
 };
 use eframe::egui;
 use egui_plot::{Legend, Line, PlotPoints};
+use lifx_core::HSBK;
 use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
+
+use crate::color::DEFAULT_KELVIN;
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
@@ -147,10 +150,24 @@ impl AudioManager {
         buffer
     }
 
-    pub fn real_fft(&self) -> Vec<f32> {
+    pub fn fft_real(&self) -> Vec<f32> {
         let buffer = self.fft();
-        // Return the first half of the buffer
         to_real_f32(&buffer[0..buffer.len() / 2])
+    }
+
+    pub fn spectrum_to_hue(&self) -> HSBK {
+        let spectrum = self.fft_real();
+        let max = spectrum
+            .iter()
+            .fold(0.0, |acc, &value| f32::max(acc, value));
+        let index = spectrum.iter().position(|&value| value == max).unwrap_or(0);
+        let hue = (index as f32 / spectrum.len() as f32) * u16::MAX as f32;
+        HSBK {
+            hue: hue as u16,
+            saturation: u16::MAX,
+            brightness: u16::MAX,
+            kelvin: DEFAULT_KELVIN,
+        }
     }
 
     pub fn devices(&self) -> Vec<cpal::Device> {
@@ -168,10 +185,13 @@ impl AudioManager {
 
     pub fn ui(&self, ui: &mut eframe::egui::Ui) {
         let audio_data = self.get_samples_data();
-        let spectrum = self.real_fft();
+        let spectrum = self.fft_real();
 
         if let Ok(data) = audio_data {
             egui::ScrollArea::vertical().show(ui, |ui| {
+                // show current color
+                let color = self.spectrum_to_hue();
+                ui.label(format!("Current color: {:?}", color));
                 egui_plot::Plot::new("Audio Samples")
                     .allow_zoom(false)
                     .allow_drag(false)

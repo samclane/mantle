@@ -413,6 +413,7 @@ impl PartialEq for DeviceInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::DEFAULT_KELVIN;
     use crate::refreshable_data::RefreshableData;
     use lifx_core::{LifxIdent, LifxString, HSBK};
     use std::ffi::CString;
@@ -462,7 +463,7 @@ mod tests {
             hue: 120,
             saturation: 65535,
             brightness: 32768,
-            kelvin: 3500,
+            kelvin: DEFAULT_KELVIN,
         };
         bulb.color = DeviceColor::Single(RefreshableData::new(
             hsbk,
@@ -489,13 +490,13 @@ mod tests {
             hue: 120,
             saturation: 65535,
             brightness: 32768,
-            kelvin: 3500,
+            kelvin: DEFAULT_KELVIN,
         });
         let hsbk2 = Some(HSBK {
             hue: 240,
             saturation: 65535,
             brightness: 32768,
-            kelvin: 3500,
+            kelvin: DEFAULT_KELVIN,
         });
         bulb.color = DeviceColor::Multi(RefreshableData::new(
             vec![hsbk1, hsbk2],

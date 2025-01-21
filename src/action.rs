@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use crate::{
-    color::HSBKField,
+    color::{HSBKField, DEFAULT_KELVIN},
     device_info::DeviceInfo,
     scenes::Scene,
     ui::{brightness_slider, hsbk_sliders, hue_slider, kelvin_slider, saturation_slider},
@@ -245,12 +245,14 @@ impl UserAction {
             UserAction::SetHue { hue: 0 },
             UserAction::SetSaturation { saturation: 0 },
             UserAction::SetBrightness { brightness: 0 },
-            UserAction::SetKelvin { kelvin: 3500 },
+            UserAction::SetKelvin {
+                kelvin: DEFAULT_KELVIN,
+            },
             UserAction::SetColor {
                 hue: 0,
                 saturation: 0,
                 brightness: 0,
-                kelvin: 3500,
+                kelvin: DEFAULT_KELVIN,
             },
             UserAction::SetScene {
                 scene: new_scene.clone(),
@@ -378,11 +380,11 @@ mod tests {
             hue: 120,
             saturation: 8,
             brightness: 6,
-            kelvin: 3500,
+            kelvin: DEFAULT_KELVIN,
         };
         assert_eq!(
             format!("{}", action),
-            "Set Color: H: 120, S: 8, B: 6, K: 3500"
+            format!("Set Color: H: 120, S: 8, B: 6, K: {}", DEFAULT_KELVIN)
         );
     }
 

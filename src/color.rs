@@ -2,7 +2,7 @@ use eframe::egui::{Color32, Rgba};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_KELVIN: u16 = 3500;
+pub const DEFAULT_KELVIN: u16 = 3500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum HSBKField {
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_kelvin_to_rgb() {
-        let color = kelvin_to_rgb(3500);
+        let color = kelvin_to_rgb(DEFAULT_KELVIN);
         assert_eq!(color.red, 255);
         assert_eq!(color.green, 192);
         assert_eq!(color.blue, 140);
@@ -295,13 +295,13 @@ mod tests {
             red: 255,
             green: 191,
             blue: 0,
-            temperature: Some(3500),
+            temperature: Some(DEFAULT_KELVIN),
         };
         let hsbk: HSBK = color.into();
         assert_eq!(hsbk.hue, 8181);
         assert_eq!(hsbk.saturation, 65535);
         assert_eq!(hsbk.brightness, 65535);
-        assert_eq!(hsbk.kelvin, 3500);
+        assert_eq!(hsbk.kelvin, DEFAULT_KELVIN);
     }
 
     #[test]
@@ -310,13 +310,13 @@ mod tests {
             hue: 0,
             saturation: 65535,
             brightness: 65535,
-            kelvin: 3500,
+            kelvin: DEFAULT_KELVIN,
         };
         let color: RGB8 = hsbk.into();
         assert_eq!(color.red, 255);
         assert_eq!(color.green, 0);
         assert_eq!(color.blue, 0);
-        assert_eq!(color.temperature, Some(3500));
+        assert_eq!(color.temperature, Some(DEFAULT_KELVIN));
     }
 
     #[test]
