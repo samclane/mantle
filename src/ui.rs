@@ -8,9 +8,10 @@ use std::{
 
 use crate::{
     app::{
-        ColorChannelEntry, MantleApp, RunningWaveform, EYEDROPPER_ICON, ICON, MAIN_WINDOW_SIZE,
-        MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
+        ColorChannelEntry, MantleApp, RunningWaveform, AUDIO_ICON, EYEDROPPER_ICON, ICON,
+        MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
+    audio::AudioManager,
     color::{kelvin_to_rgb, DeltaColor},
     contrast_color,
     device_info::DeviceInfo,
@@ -122,7 +123,7 @@ pub fn handle_screencap(
                 .or_insert(RunningWaveform {
                     active: false,
                     last_update: Instant::now(),
-                    follow_type: RegionCaptureTarget::All,
+                    region: RegionCaptureTarget::All,
                     stop_tx: None,
                 });
         if follow_state.active
@@ -153,7 +154,7 @@ pub fn handle_screencap(
             let running_waveform = RunningWaveform {
                 active: true,
                 last_update: Instant::now(),
-                follow_type: RegionCaptureTarget::All,
+                region: RegionCaptureTarget::All,
                 stop_tx: None,
             };
             app.waveform_map
@@ -168,7 +169,7 @@ pub fn handle_screencap(
                 .expect("Failed to get color sender for device")
                 .tx
                 .clone();
-            let follow_type = app.waveform_map[&device.id()].follow_type.clone();
+            let follow_type = app.waveform_map[&device.id()].region.clone();
             let lifx_manager = app.lighting_manager.clone(); // Assuming you have a 'manager' field in MantleApp to control the bulb/group
             let device_id = device.id();
 
@@ -270,7 +271,7 @@ pub fn handle_screencap(
             ));
 
             // Determine the selected text
-            let selected_text = match &waveform.follow_type {
+            let selected_text = match &waveform.region {
                 RegionCaptureTarget::All => "All".to_string(),
                 RegionCaptureTarget::Monitor(monitors) => monitors
                     .first()
@@ -288,13 +289,13 @@ pub fn handle_screencap(
                     .selected_text(selected_text)
                     .show_ui(ui, |ui| {
                         for (label, follow_type) in options {
-                            ui.selectable_value(&mut waveform.follow_type, follow_type, label);
+                            ui.selectable_value(&mut waveform.region, follow_type, label);
                         }
                     });
             });
 
             // If the selected FollowType is Subregion, display the numerical fields
-            if let RegionCaptureTarget::Subregion(_) = waveform.follow_type {
+            if let RegionCaptureTarget::Subregion(_) = waveform.region {
                 ui.horizontal(|ui| {
                     ui.label("X:");
                     ui.add(egui::DragValue::new(&mut subregion.x));
@@ -642,4 +643,92 @@ pub fn hsbk_sliders(
         });
     })
     .response
+}
+
+pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
+    // Similar logic to handle_screencap, using waveform_map & waveform_channel
+    let mut color: Option<HSBK> = None;
+    let follow_rate = app.settings.follow_rate_ms;
+
+    // Ensure a channel is available
+    app.waveform_channel.entry(device.id()).or_insert_with(|| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        ColorChannelEntry {
+            tx,
+            rx,
+            handle: None,
+        }
+    });
+
+    // Track an active audio "waveform"
+    let waveform_entry = app
+        .waveform_map
+        .entry(device.id())
+        .or_insert(RunningWaveform {
+            active: false,
+            last_update: std::time::Instant::now(),
+            region: crate::screencap::RegionCaptureTarget::All,
+            stop_tx: None,
+        });
+    let is_active = waveform_entry.active;
+
+    // Button to toggle audio updates
+    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
+        waveform_entry.active = !waveform_entry.active;
+        if waveform_entry.active {
+            // Start a thread reading from AudioManager to produce color
+            // let audio_manager = app.audio_manager.clone();
+            let samples = app.audio_manager.get_samples_data().unwrap_or_default();
+            let device_id = device.id();
+            let tx = app.waveform_channel[&device_id].tx.clone();
+            let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
+
+            app.waveform_channel.get_mut(&device.id()).unwrap().handle =
+                Some(std::thread::spawn(move || {
+                    loop {
+                        // For illustration: convert audio data to color
+                        let audio_color = { AudioManager::spectrum_to_hue(samples.clone()) };
+                        if tx.send(audio_color).is_err() {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(follow_rate / 4));
+                        if stop_rx.try_recv().is_ok() {
+                            break;
+                        }
+                    }
+                }));
+            waveform_entry.stop_tx = Some(stop_tx);
+        } else {
+            // Stop the audio-thread
+            if let Some(thread_handle) = app
+                .waveform_channel
+                .get_mut(&device.id())
+                .unwrap()
+                .handle
+                .take()
+            {
+                if let Some(tx) = waveform_entry.stop_tx.take() {
+                    tx.send(()).ok();
+                }
+                thread_handle.join().ok();
+            }
+        }
+    }
+
+    // If active, retrieve audio color updates
+    if waveform_entry.active
+        && std::time::Instant::now() - waveform_entry.last_update
+            > std::time::Duration::from_millis(follow_rate)
+    {
+        if let Ok(new_color) = app.waveform_channel[&device.id()].rx.try_recv() {
+            color = Some(new_color);
+            waveform_entry.last_update = std::time::Instant::now();
+        }
+    }
+
+    // Return the updated color
+    color.map(|c| DeltaColor {
+        next: c,
+        duration: Some((follow_rate / 2) as u32),
+    })
 }

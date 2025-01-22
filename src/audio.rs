@@ -142,21 +142,21 @@ impl AudioManager {
         Ok(())
     }
 
-    fn fft(&self) -> Vec<Complex<f32>> {
-        let mut buffer = to_complex(&self.samples_buffer.lock().unwrap().clone());
+    fn fft(samples_buffer: Vec<f32>) -> Vec<Complex<f32>> {
+        let mut buffer = to_complex(&samples_buffer);
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(buffer.len());
         fft.process(&mut buffer);
         buffer
     }
 
-    pub fn fft_real(&self) -> Vec<f32> {
-        let buffer = self.fft();
+    pub fn fft_real(spectrum: Vec<f32>) -> Vec<f32> {
+        let buffer = Self::fft(spectrum);
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
-    pub fn spectrum_to_hue(&self) -> HSBK {
-        let spectrum = self.fft_real();
+    pub fn spectrum_to_hue(samples: Vec<f32>) -> HSBK {
+        let spectrum = Self::fft_real(samples);
         let max = spectrum
             .iter()
             .fold(0.0, |acc, &value| f32::max(acc, value));
@@ -185,12 +185,12 @@ impl AudioManager {
 
     pub fn ui(&self, ui: &mut eframe::egui::Ui) {
         let audio_data = self.get_samples_data();
-        let spectrum = self.fft_real();
+        let spectrum = Self::fft_real(audio_data.clone().unwrap_or_default());
 
-        if let Ok(data) = audio_data {
+        if let Ok(ref data) = audio_data {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // show current color
-                let color = self.spectrum_to_hue();
+                let color = Self::spectrum_to_hue(audio_data.clone().unwrap_or_default());
                 ui.label(format!("Current color: {:?}", color));
                 egui_plot::Plot::new("Audio Samples")
                     .allow_zoom(false)
@@ -198,7 +198,7 @@ impl AudioManager {
                     .allow_scroll(false)
                     .legend(Legend::default())
                     .show(ui, |plot_ui| {
-                        let lines = PlotPoints::from_ys_f32(&subsample(&data, 10));
+                        let lines = PlotPoints::from_ys_f32(&subsample(data, 10));
                         plot_ui.line(Line::new(lines));
                     });
                 egui_plot::Plot::new("FFT")

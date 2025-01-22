@@ -17,7 +17,7 @@ use crate::{
     settings::Settings,
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
-    ui::{handle_eyedropper, handle_screencap, hsbk_sliders},
+    ui::{handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders},
     BulbInfo, LifxManager, ScreencapManager,
 };
 
@@ -37,12 +37,13 @@ pub const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
 pub const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picker.png");
 pub const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png");
+pub const AUDIO_ICON: &[u8; 225] = include_bytes!("../res/icons/device-speaker.png");
 
 #[derive(Debug, Clone)]
 pub struct RunningWaveform {
     pub active: bool,
     pub last_update: Instant,
-    pub follow_type: RegionCaptureTarget,
+    pub region: RegionCaptureTarget,
     pub stop_tx: Option<mpsc::Sender<()>>,
 }
 pub struct ColorChannelEntry {
@@ -81,7 +82,7 @@ pub struct MantleApp {
     #[serde(skip)]
     pub toasts: Toasts,
     #[serde(skip)]
-    pub audio_manger: AudioManager,
+    pub audio_manager: AudioManager,
     pub show_audio_debug: bool,
 }
 
@@ -109,7 +110,7 @@ impl Default for MantleApp {
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
             toasts: Toasts::new(),
-            audio_manger: AudioManager::default(),
+            audio_manager: AudioManager::default(),
             show_audio_debug: false,
         }
     }
@@ -136,7 +137,7 @@ impl MantleApp {
                 })
                 .collect();
 
-            app.audio_manger
+            app.audio_manager
                 .build_input_stream(&app.settings.audio_buffer_size)
                 .unwrap();
 
@@ -215,6 +216,7 @@ impl MantleApp {
                     ui.horizontal(|ui| {
                         after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
                         after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                        after_color = handle_audio(self, ui, device).unwrap_or(after_color);
                     });
                     if before_color != after_color.next {
                         match device {
@@ -407,7 +409,7 @@ impl MantleApp {
                 .show(ctx, |ui| {
                     ui.heading("Audio Debug");
                     ui.add_space(8.0);
-                    self.audio_manger.ui(ui);
+                    self.audio_manager.ui(ui);
                 });
         }
     }
