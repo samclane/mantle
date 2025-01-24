@@ -678,23 +678,28 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         if waveform_entry.active {
             // Start a thread reading from AudioManager to produce color
             // let audio_manager = app.audio_manager.clone();
-            let samples = app.audio_manager.get_samples_data().unwrap_or_default();
             let device_id = device.id();
             let tx = app.waveform_channel[&device_id].tx.clone();
             let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
 
+            let (audio_tx, audio_rx) = mpsc::channel();
+            // Get initial samples before spawning thread
+            if let Ok(initial_samples) = app.audio_manager.get_samples_data() {
+                audio_tx.send(initial_samples).ok();
+            }
+
+            let follow_rate_value = follow_rate;
             app.waveform_channel.get_mut(&device.id()).unwrap().handle =
-                Some(std::thread::spawn(move || {
-                    loop {
-                        // For illustration: convert audio data to color
-                        let audio_color = { AudioManager::spectrum_to_hue(samples.clone()) };
+                Some(std::thread::spawn(move || loop {
+                    if let Ok(samples) = audio_rx.try_recv() {
+                        let audio_color = AudioManager::spectrum_to_hue(samples);
                         if tx.send(audio_color).is_err() {
                             break;
                         }
-                        std::thread::sleep(std::time::Duration::from_millis(follow_rate / 4));
-                        if stop_rx.try_recv().is_ok() {
-                            break;
-                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(follow_rate_value / 4));
+                    if stop_rx.try_recv().is_ok() {
+                        break;
                     }
                 }));
             waveform_entry.stop_tx = Some(stop_tx);

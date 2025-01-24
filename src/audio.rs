@@ -45,6 +45,20 @@ pub struct AudioManager {
     samples_buffer: Arc<Mutex<Vec<f32>>>,
 }
 
+impl Clone for AudioManager {
+    fn clone(&self) -> Self {
+        // host and stream can't clone, so create a new instance without stream
+        let host = cpal::default_host();
+        Self {
+            host,
+            current_device: self.current_device.clone(),
+            configuration: self.configuration.clone(),
+            stream: None,
+            samples_buffer: Arc::clone(&self.samples_buffer),
+        }
+    }
+}
+
 impl Default for AudioManager {
     fn default() -> Self {
         let host = cpal::default_host();
