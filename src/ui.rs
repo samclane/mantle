@@ -115,8 +115,8 @@ pub fn handle_screencap(
 ) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
     let follow_rate = app.settings.follow_rate_ms;
-    handle_get_subregion_bounds(app, ui, device.id());
-    if let Some(chan) = app.waveform_channel.get(&device.id()) {
+    update_subregion_bounds(app, ui, device.id());
+    if let Some(color_channel) = app.waveform_channel.get(&device.id()) {
         let follow_state: &mut RunningWaveform =
             app.waveform_map
                 .entry(device.id())
@@ -129,7 +129,7 @@ pub fn handle_screencap(
         if follow_state.active
             && (Instant::now() - follow_state.last_update > Duration::from_millis(follow_rate))
         {
-            if let Ok(computed_color) = chan.rx.try_recv() {
+            if let Ok(computed_color) = color_channel.rx.try_recv() {
                 color = Some(computed_color);
                 follow_state.last_update = Instant::now();
             }
@@ -319,7 +319,7 @@ pub fn handle_screencap(
     })
 }
 
-pub fn handle_get_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
+pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
     // Get or create the subregion
     let subregion_lock = app
         .subregion_points
@@ -649,91 +649,103 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
     // Similar logic to handle_screencap, using waveform_map & waveform_channel
     let mut color: Option<HSBK> = None;
     let follow_rate = app.settings.follow_rate_ms;
-
-    // Ensure a channel is available
-    app.waveform_channel.entry(device.id()).or_insert_with(|| {
-        let (tx, rx) = std::sync::mpsc::channel();
-        ColorChannelEntry {
-            tx,
-            rx,
-            handle: None,
-        }
-    });
-
-    // Track an active audio "waveform"
-    let waveform_entry = app
-        .waveform_map
-        .entry(device.id())
-        .or_insert(RunningWaveform {
-            active: false,
-            last_update: std::time::Instant::now(),
-            region: crate::screencap::RegionCaptureTarget::All,
-            stop_tx: None,
-        });
-    let is_active = waveform_entry.active;
-
-    // Button to toggle audio updates
-    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
-        waveform_entry.active = !waveform_entry.active;
-        if waveform_entry.active {
-            // Start a thread reading from AudioManager to produce color
-            // let audio_manager = app.audio_manager.clone();
-            let device_id = device.id();
-            let tx = app.waveform_channel[&device_id].tx.clone();
-            let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
-
-            let (audio_tx, audio_rx) = mpsc::channel();
-            // Get initial samples before spawning thread
-            if let Ok(initial_samples) = app.audio_manager.get_samples_data() {
-                audio_tx.send(initial_samples).ok();
+    if let Some(color_channel) = app.waveform_channel.get(&device.id()) {
+        let follow_state: &mut RunningWaveform =
+            app.waveform_map
+                .entry(device.id())
+                .or_insert(RunningWaveform {
+                    active: false,
+                    last_update: Instant::now(),
+                    region: RegionCaptureTarget::All,
+                    stop_tx: None,
+                });
+        if follow_state.active
+            && (Instant::now() - follow_state.last_update > Duration::from_millis(follow_rate))
+        {
+            if let Ok(computed_color) = color_channel.rx.try_recv() {
+                color = Some(computed_color);
+                follow_state.last_update = Instant::now();
             }
+        }
+    } else {
+        let (tx, rx) = mpsc::channel();
+        app.waveform_channel.insert(
+            device.id(),
+            ColorChannelEntry {
+                tx,
+                rx,
+                handle: None,
+            },
+        );
+    }
 
-            let follow_rate_value = follow_rate;
-            app.waveform_channel.get_mut(&device.id()).unwrap().handle =
-                Some(std::thread::spawn(move || loop {
-                    if let Ok(samples) = audio_rx.try_recv() {
-                        let audio_color = AudioManager::spectrum_to_hue(samples);
-                        if tx.send(audio_color).is_err() {
-                            break;
-                        }
+    let is_active = app.waveform_map.get(&device.id()).is_some_and(|w| w.active);
+    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
+        if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+            waveform.active = !waveform.active;
+        } else {
+            let running_waveform = RunningWaveform {
+                active: true,
+                last_update: Instant::now(),
+                region: RegionCaptureTarget::All,
+                stop_tx: None,
+            };
+            app.waveform_map
+                .insert(device.id(), running_waveform.clone());
+        }
+        // if the waveform is active, we need to spawn a thread to get the color
+        if app.waveform_map[&device.id()].active {
+            let buffer_clone = app.audio_manager.clone_samples_buffer();
+            let tx = app
+                .waveform_channel
+                .get(&device.id())
+                .expect("Failed to get color sender for device")
+                .tx
+                .clone();
+            let lifx_manager = app.lighting_manager.clone();
+            let device_id = device.id();
+
+            let (stop_tx, stop_rx) = mpsc::channel::<()>();
+            if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
+                waveform_trx.handle = Some(thread::spawn(move || loop {
+                    let samples = buffer_clone.lock().unwrap().clone();
+                    let audio_color = AudioManager::spectrum_to_hue(samples);
+                    if let Err(err) = lifx_manager.set_color_by_id(device_id, audio_color) {
+                        eprintln!("Failed to set color: {}", err);
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(follow_rate_value / 4));
+                    if let Err(err) = tx.send(audio_color) {
+                        eprintln!("Failed to send color data: {}", err);
+                    }
+
+                    thread::sleep(Duration::from_millis(follow_rate / 4));
                     if stop_rx.try_recv().is_ok() {
                         break;
                     }
                 }));
-            waveform_entry.stop_tx = Some(stop_tx);
-        } else {
-            // Stop the audio-thread
-            if let Some(thread_handle) = app
-                .waveform_channel
+            }
+            app.waveform_map
                 .get_mut(&device.id())
-                .unwrap()
-                .handle
-                .take()
-            {
-                if let Some(tx) = waveform_entry.stop_tx.take() {
-                    tx.send(()).ok();
+                .expect("Failed to get stop tx for waveform")
+                .stop_tx = Some(stop_tx);
+        } else if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
+            if let Some(thread) = waveform_trx.handle.take() {
+                // Send a signal to stop the thread
+                if let Some(stop_tx) = app
+                    .waveform_map
+                    .get_mut(&device.id())
+                    .expect("Failed to get waveform")
+                    .stop_tx
+                    .take()
+                {
+                    stop_tx.send(()).expect("Failed to send stop signal");
                 }
-                thread_handle.join().ok();
+                // Wait for the thread to finish
+                thread.join().expect("Failed to join thread");
             }
         }
     }
-
-    // If active, retrieve audio color updates
-    if waveform_entry.active
-        && std::time::Instant::now() - waveform_entry.last_update
-            > std::time::Duration::from_millis(follow_rate)
-    {
-        if let Ok(new_color) = app.waveform_channel[&device.id()].rx.try_recv() {
-            color = Some(new_color);
-            waveform_entry.last_update = std::time::Instant::now();
-        }
-    }
-
-    // Return the updated color
-    color.map(|c| DeltaColor {
-        next: c,
+    color.map(|color| DeltaColor {
+        next: color,
         duration: Some((follow_rate / 2) as u32),
     })
 }

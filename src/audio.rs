@@ -191,10 +191,14 @@ impl AudioManager {
     }
 
     pub fn get_samples_data(&self) -> Result<Vec<f32>, String> {
-        self.samples_buffer
-            .lock()
-            .map_err(|err| err.to_string())
-            .map(|buffer| buffer.clone())
+        match self.samples_buffer.lock() {
+            Ok(buffer) => Ok(buffer.clone()),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    pub fn clone_samples_buffer(&self) -> Arc<Mutex<Vec<f32>>> {
+        Arc::clone(&self.samples_buffer)
     }
 
     pub fn ui(&self, ui: &mut eframe::egui::Ui) {
