@@ -172,13 +172,21 @@ impl AudioManager {
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
-    pub fn spectrum_to_hsbk(samples: Vec<f32>, field: HSBKField) -> HSBK {
-        let spectrum = Self::fft_real(samples);
-        let max = spectrum
+    pub fn power_spectrum(samples: Vec<f32>) -> Vec<f32> {
+        let buffer = Self::fft(samples);
+        buffer.iter().map(|value| value.norm_sqr()).collect()
+    }
+
+    pub fn power(samples: Vec<f32>) -> u16 {
+        let power_spectrum = Self::power_spectrum(samples);
+        let max_power = power_spectrum
             .iter()
-            .fold(0.0, |acc, &value| f32::max(acc, value));
-        let index = spectrum.iter().position(|&value| value == max).unwrap_or(0);
-        let value = ((index / spectrum.len()) as u16) * u16::MAX;
+            .fold(0.0, |acc: f32, value: &f32| acc.max(*value));
+        (max_power.sqrt() * u16::MAX as f32) as u16
+    }
+
+    pub fn spectrum_to_hsbk(samples: Vec<f32>, field: HSBKField) -> HSBK {
+        let value = Self::power(samples);
         let kelvin = match field {
             HSBKField::Kelvin => {
                 ((value as f32 / u16::MAX as f32) * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32
@@ -214,22 +222,6 @@ impl AudioManager {
         }
     }
 
-    pub fn spectrum_to_hue(samples: Vec<f32>) -> HSBK {
-        Self::spectrum_to_hsbk(samples, HSBKField::Hue)
-    }
-
-    pub fn spectrum_to_saturation(samples: Vec<f32>) -> HSBK {
-        Self::spectrum_to_hsbk(samples, HSBKField::Saturation)
-    }
-
-    pub fn spectrum_to_brightness(samples: Vec<f32>) -> HSBK {
-        Self::spectrum_to_hsbk(samples, HSBKField::Brightness)
-    }
-
-    pub fn spectrum_to_kelvin(samples: Vec<f32>) -> HSBK {
-        Self::spectrum_to_hsbk(samples, HSBKField::Kelvin)
-    }
-
     pub fn devices(&self) -> Vec<cpal::Device> {
         self.host
             .output_devices()
@@ -254,7 +246,7 @@ impl AudioManager {
         if let Ok(ref data) = audio_data {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // show current color
-                let color = Self::spectrum_to_hue(audio_data.clone().unwrap_or_default());
+                let color = Self::power(audio_data.clone().unwrap_or_default());
                 ui.label(format!("Current color: {:?}", color));
                 egui_plot::Plot::new("Audio Samples")
                     .allow_zoom(false)
