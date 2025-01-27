@@ -8,7 +8,10 @@ use lifx_core::HSBK;
 use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
 
-use crate::color::DEFAULT_KELVIN;
+use crate::{
+    color::{HSBKField, DEFAULT_KELVIN},
+    products::KELVIN_RANGE,
+};
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
@@ -169,19 +172,62 @@ impl AudioManager {
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
-    pub fn spectrum_to_hue(samples: Vec<f32>) -> HSBK {
+    pub fn spectrum_to_hsbk(samples: Vec<f32>, field: HSBKField) -> HSBK {
         let spectrum = Self::fft_real(samples);
         let max = spectrum
             .iter()
             .fold(0.0, |acc, &value| f32::max(acc, value));
         let index = spectrum.iter().position(|&value| value == max).unwrap_or(0);
-        let hue = (index as f32 / spectrum.len() as f32) * u16::MAX as f32;
-        HSBK {
-            hue: hue as u16,
-            saturation: u16::MAX,
-            brightness: u16::MAX,
-            kelvin: DEFAULT_KELVIN,
+        let value = ((index / spectrum.len()) as u16) * u16::MAX;
+        let kelvin = match field {
+            HSBKField::Kelvin => {
+                ((value as f32 / u16::MAX as f32) * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32
+                    + KELVIN_RANGE.min as f32) as u16
+            }
+            _ => DEFAULT_KELVIN,
+        };
+        match field {
+            HSBKField::Hue => HSBK {
+                hue: value,
+                saturation: u16::MAX,
+                brightness: u16::MAX,
+                kelvin,
+            },
+            HSBKField::Saturation => HSBK {
+                hue: u16::MAX,
+                saturation: value,
+                brightness: u16::MAX,
+                kelvin,
+            },
+            HSBKField::Brightness => HSBK {
+                hue: u16::MAX,
+                saturation: u16::MAX,
+                brightness: value,
+                kelvin,
+            },
+            HSBKField::Kelvin => HSBK {
+                hue: u16::MAX,
+                saturation: u16::MAX,
+                brightness: u16::MAX,
+                kelvin,
+            },
         }
+    }
+
+    pub fn spectrum_to_hue(samples: Vec<f32>) -> HSBK {
+        Self::spectrum_to_hsbk(samples, HSBKField::Hue)
+    }
+
+    pub fn spectrum_to_saturation(samples: Vec<f32>) -> HSBK {
+        Self::spectrum_to_hsbk(samples, HSBKField::Saturation)
+    }
+
+    pub fn spectrum_to_brightness(samples: Vec<f32>) -> HSBK {
+        Self::spectrum_to_hsbk(samples, HSBKField::Brightness)
+    }
+
+    pub fn spectrum_to_kelvin(samples: Vec<f32>) -> HSBK {
+        Self::spectrum_to_hsbk(samples, HSBKField::Kelvin)
     }
 
     pub fn devices(&self) -> Vec<cpal::Device> {

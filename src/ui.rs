@@ -709,7 +709,7 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
                 waveform_trx.handle = Some(thread::spawn(move || loop {
                     let samples = buffer_clone.lock().unwrap().clone();
-                    let audio_color = AudioManager::spectrum_to_hue(samples);
+                    let audio_color = AudioManager::spectrum_to_brightness(samples);
                     if let Err(err) = lifx_manager.set_color_by_id(device_id, audio_color) {
                         eprintln!("Failed to set color: {}", err);
                     }
