@@ -2,13 +2,13 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Host,
 };
-use eframe::egui::{self, remap_clamp};
+use eframe::egui::{self};
 use egui_plot::{Legend, Line, PlotPoints};
 use lifx_core::HSBK;
 use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
 
-use crate::products::KELVIN_RANGE;
+use crate::color::DEFAULT_KELVIN;
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
@@ -182,17 +182,18 @@ impl AudioManager {
 
     pub fn samples_to_hsbk(samples: &[f32]) -> HSBK {
         let value = Self::power(samples);
-        let kelvin = remap_clamp(
-            value as f32,
-            0.0..=u16::MAX as f32,
-            KELVIN_RANGE.to_range_f32(),
-        ) as u16;
+        // let kelvin = remap_clamp(
+        //     value as f32,
+        //     0.0..=u16::MAX as f32,
+        //     KELVIN_RANGE.to_range_f32(),
+        // ) as u16;
 
         HSBK {
             hue: Self::freq_to_hue(samples),
             saturation: u16::MAX,
             brightness: value,
-            kelvin,
+            // kelvin,
+            kelvin: DEFAULT_KELVIN,
         }
     }
 
@@ -207,6 +208,39 @@ impl AudioManager {
             .unwrap_or_default();
         let max_freq = sample_rate / 2.0;
         ((dominant_freq_hz / max_freq) * u16::MAX as f32) as u16
+    }
+
+    pub fn freq_centroid(samples: &[f32]) -> HSBK {
+        let power_spectrum = AudioManager::power_spectrum(samples);
+
+        let total_power: f32 = power_spectrum.iter().sum();
+        let brightness = (total_power.sqrt().min(u16::MAX as f32)) as u16;
+
+        let sample_rate = AUDIO_BUFFER_DEFAULT;
+        let fft_size = power_spectrum.len() * 2;
+        let bin_size_hz: f32 = (sample_rate / fft_size) as f32;
+
+        let mut weighted_sum = 0.0;
+        let mut mag_sum = 0.0;
+        for (i, mag) in power_spectrum.iter().enumerate() {
+            let freq = i as f32 * bin_size_hz;
+            weighted_sum += freq * mag;
+            mag_sum += mag;
+        }
+        let centroid_freq = if mag_sum > 0.0 {
+            weighted_sum / mag_sum
+        } else {
+            0.0
+        };
+        let max_freq = sample_rate as f32 / 2.0;
+        let hue = ((centroid_freq / max_freq) as u16) * u16::MAX;
+
+        HSBK {
+            hue,
+            saturation: u16::MAX,
+            brightness,
+            kelvin: DEFAULT_KELVIN,
+        }
     }
 
     pub fn devices(&self) -> Vec<cpal::Device> {
