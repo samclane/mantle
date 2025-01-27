@@ -2,16 +2,13 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Host,
 };
-use eframe::egui;
+use eframe::egui::{self, remap_clamp};
 use egui_plot::{Legend, Line, PlotPoints};
 use lifx_core::HSBK;
 use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
 
-use crate::{
-    color::{HSBKField, DEFAULT_KELVIN},
-    products::KELVIN_RANGE,
-};
+use crate::products::KELVIN_RANGE;
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
@@ -159,67 +156,57 @@ impl AudioManager {
         Ok(())
     }
 
-    fn fft(samples_buffer: Vec<f32>) -> Vec<Complex<f32>> {
-        let mut buffer = to_complex(&samples_buffer);
+    fn fft(samples: &[f32]) -> Vec<Complex<f32>> {
+        let mut buffer = to_complex(samples);
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(buffer.len());
         fft.process(&mut buffer);
         buffer
     }
 
-    pub fn fft_real(spectrum: Vec<f32>) -> Vec<f32> {
+    pub fn fft_real(spectrum: &[f32]) -> Vec<f32> {
         let buffer = Self::fft(spectrum);
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
-    pub fn power_spectrum(samples: Vec<f32>) -> Vec<f32> {
+    pub fn power_spectrum(samples: &[f32]) -> Vec<f32> {
         let buffer = Self::fft(samples);
         buffer.iter().map(|value| value.norm_sqr()).collect()
     }
 
-    pub fn power(samples: Vec<f32>) -> u16 {
+    pub fn power(samples: &[f32]) -> u16 {
         let power_spectrum = Self::power_spectrum(samples);
-        let max_power = power_spectrum
-            .iter()
-            .fold(0.0, |acc: f32, value: &f32| acc.max(*value));
-        (max_power.sqrt() * u16::MAX as f32) as u16
+        let avg_power = power_spectrum.iter().sum::<f32>() / power_spectrum.len() as f32;
+        (avg_power.sqrt() * u16::MAX as f32) as u16
     }
 
-    pub fn spectrum_to_hsbk(samples: Vec<f32>, field: HSBKField) -> HSBK {
+    pub fn samples_to_hsbk(samples: &[f32]) -> HSBK {
         let value = Self::power(samples);
-        let kelvin = match field {
-            HSBKField::Kelvin => {
-                ((value as f32 / u16::MAX as f32) * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32
-                    + KELVIN_RANGE.min as f32) as u16
-            }
-            _ => DEFAULT_KELVIN,
-        };
-        match field {
-            HSBKField::Hue => HSBK {
-                hue: value,
-                saturation: u16::MAX,
-                brightness: u16::MAX,
-                kelvin,
-            },
-            HSBKField::Saturation => HSBK {
-                hue: u16::MAX,
-                saturation: value,
-                brightness: u16::MAX,
-                kelvin,
-            },
-            HSBKField::Brightness => HSBK {
-                hue: u16::MAX,
-                saturation: u16::MAX,
-                brightness: value,
-                kelvin,
-            },
-            HSBKField::Kelvin => HSBK {
-                hue: u16::MAX,
-                saturation: u16::MAX,
-                brightness: u16::MAX,
-                kelvin,
-            },
+        let kelvin = remap_clamp(
+            value as f32,
+            0.0..=u16::MAX as f32,
+            KELVIN_RANGE.to_range_f32(),
+        ) as u16;
+
+        HSBK {
+            hue: Self::freq_to_hue(samples),
+            saturation: u16::MAX,
+            brightness: value,
+            kelvin,
         }
+    }
+
+    pub fn freq_to_hue(samples: &[f32]) -> u16 {
+        let spectrum = Self::fft(samples);
+        let sample_rate = AUDIO_BUFFER_DEFAULT as f32;
+        let dominant_freq_hz = spectrum
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.norm_sqr().partial_cmp(&b.norm_sqr()).unwrap())
+            .map(|(index, _)| index as f32 * sample_rate / spectrum.len() as f32)
+            .unwrap_or_default();
+        let max_freq = sample_rate / 2.0;
+        ((dominant_freq_hz / max_freq) * u16::MAX as f32) as u16
     }
 
     pub fn devices(&self) -> Vec<cpal::Device> {
@@ -241,12 +228,12 @@ impl AudioManager {
 
     pub fn ui(&self, ui: &mut eframe::egui::Ui) {
         let audio_data = self.get_samples_data();
-        let spectrum = Self::fft_real(audio_data.clone().unwrap_or_default());
 
         if let Ok(ref data) = audio_data {
+            let spectrum = Self::fft_real(data);
+            let color = Self::power(data);
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // show current color
-                let color = Self::power(audio_data.clone().unwrap_or_default());
                 ui.label(format!("Current color: {:?}", color));
                 egui_plot::Plot::new("Audio Samples")
                     .allow_zoom(false)

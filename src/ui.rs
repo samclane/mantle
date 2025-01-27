@@ -588,9 +588,11 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
                         RangeInclusive::new(range.min as u16, range.max as u16),
                         "Kelvin",
                         |v| {
-                            let temp = (((v as f32 / u16::MAX as f32)
-                                * (range.max - range.min) as f32)
-                                + range.min as f32) as u16;
+                            let temp: u16 = remap_clamp(
+                                v as f32,
+                                0.0..=u16::MAX as f32,
+                                KELVIN_RANGE.to_range_f32(),
+                            ) as u16;
                             kelvin_to_rgb(temp).into()
                         },
                     )
@@ -607,9 +609,9 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
             RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
             "Kelvin",
             |v| {
-                let temp = (((v as f32 / u16::MAX as f32)
-                    * (KELVIN_RANGE.max - KELVIN_RANGE.min) as f32)
-                    + KELVIN_RANGE.min as f32) as u16;
+                let temp: u16 =
+                    remap_clamp(v as f32, 0.0..=u16::MAX as f32, KELVIN_RANGE.to_range_f32())
+                        as u16;
                 kelvin_to_rgb(temp).into()
             },
         ),
@@ -709,10 +711,7 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
                 waveform_trx.handle = Some(thread::spawn(move || loop {
                     let samples = buffer_clone.lock().unwrap().clone();
-                    let audio_color = AudioManager::spectrum_to_hsbk(
-                        samples,
-                        crate::color::HSBKField::Brightness,
-                    );
+                    let audio_color = AudioManager::samples_to_hsbk(&samples);
                     if let Err(err) = lifx_manager.set_color_by_id(device_id, audio_color) {
                         eprintln!("Failed to set color: {}", err);
                     }

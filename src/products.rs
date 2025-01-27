@@ -35,6 +35,16 @@ impl TemperatureRange {
     pub fn to_range_u16(&self) -> RangeInclusive<u16> {
         self.min as u16..=self.max as u16
     }
+
+    pub fn to_range_f32(&self) -> RangeInclusive<f32> {
+        self.min as f32..=self.max as f32
+    }
+}
+
+impl From<TemperatureRange> for (u16, u16) {
+    fn from(range: TemperatureRange) -> Self {
+        (range.min as u16, range.max as u16)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
