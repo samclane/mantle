@@ -180,19 +180,13 @@ impl AudioManager {
         (avg_power.sqrt() * u16::MAX as f32) as u16
     }
 
-    pub fn samples_to_hsbk(samples: &[f32]) -> HSBK {
-        let value = Self::power(samples);
-        // let kelvin = remap_clamp(
-        //     value as f32,
-        //     0.0..=u16::MAX as f32,
-        //     KELVIN_RANGE.to_range_f32(),
-        // ) as u16;
+    pub fn samples_to_hsbk(samples: Vec<f32>) -> HSBK {
+        let value = Self::power(&samples);
 
         HSBK {
-            hue: Self::freq_to_hue(samples),
+            hue: Self::freq_to_hue(&samples),
             saturation: u16::MAX,
             brightness: value,
-            // kelvin,
             kelvin: DEFAULT_KELVIN,
         }
     }
