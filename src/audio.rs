@@ -335,4 +335,18 @@ mod tests {
         // might be running on github actions with no devices; just make sure it doesn't panic
         let _ = manager.devices();
     }
+
+    #[test]
+    fn test_fft_real() {
+        let samples = vec![1.0, 0.0, -1.0, 0.0];
+        let result = super::AudioManager::fft_real(&samples);
+        assert_eq!(result.len(), samples.len() / 2);
+    }
+
+    #[test]
+    fn test_freq_to_hue() {
+        let samples = vec![1.0, 0.5, 0.25, 0.125];
+        let hue = super::AudioManager::freq_to_hue(&samples);
+        assert!(hue <= u16::MAX);
+    }
 }
