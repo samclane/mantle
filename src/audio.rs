@@ -291,56 +291,156 @@ impl AudioManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cpal::BuildStreamError;
+    use std::sync::{Arc, Mutex};
 
     #[test]
-    fn test_to_complex() {
+    fn test_to_complex_empty() {
+        let buffer: Vec<f32> = vec![];
+        let result = to_complex(&buffer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_to_complex_and_to_real_roundtrip() {
+        let buffer = vec![0.0, 1.5, -3.2, 42.0];
+        let complex = to_complex(&buffer);
+        let real = to_real_f32(&complex);
+        assert_eq!(buffer, real);
+    }
+
+    #[test]
+    fn test_subsample_edge_cases() {
+        // When factor is 1, we expect the same output.
         let buffer = vec![1.0, 2.0, 3.0, 4.0];
-        let expected = vec![
-            Complex::new(1.0, 0.0),
-            Complex::new(2.0, 0.0),
-            Complex::new(3.0, 0.0),
-            Complex::new(4.0, 0.0),
-        ];
-        assert_eq!(to_complex(&buffer), expected);
+        assert_eq!(subsample(&buffer, 1), buffer);
+        // When the factor exceeds length, we expect only the first element.
+        assert_eq!(subsample(&buffer, 10), vec![1.0]);
     }
 
-    #[test]
-    fn test_to_real_f32() {
-        let buffer = vec![
-            Complex::new(1.0, 0.0),
-            Complex::new(2.0, 0.0),
-            Complex::new(3.0, 0.0),
-            Complex::new(4.0, 0.0),
-        ];
-        let expected = vec![1.0, 2.0, 3.0, 4.0];
-        assert_eq!(to_real_f32(&buffer), expected);
-    }
+    // Tests for FFT-related functions
 
     #[test]
-    fn test_subsample() {
-        let buffer = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let expected = vec![1.0, 3.0, 5.0, 7.0];
-        assert_eq!(subsample(&buffer, 2), expected);
-    }
-
-    #[test]
-    fn test_default_audio_manager() {
-        let manager = AudioManager::default();
-        // might be running on github actions with no devices; just make sure it doesn't panic
-        let _ = manager.devices();
-    }
-
-    #[test]
-    fn test_fft_real() {
+    fn test_fft_real_length() {
+        // Use a small sample so that we can verify length invariance.
         let samples = vec![1.0, 0.0, -1.0, 0.0];
-        let result = super::AudioManager::fft_real(&samples);
-        assert_eq!(result.len(), samples.len() / 2);
+        let fft_re = AudioManager::fft_real(&samples);
+        assert_eq!(fft_re.len(), samples.len() / 2);
     }
 
     #[test]
-    fn test_freq_to_hue() {
+    fn test_power_spectrum_nonnegative() {
+        let samples = vec![0.5; 64];
+        let spectrum = AudioManager::power_spectrum(&samples);
+        // All values in a power spectrum should be nonnegative.
+        assert!(spectrum.iter().all(|&val| val >= 0.0));
+    }
+
+    #[test]
+    fn test_power_zero_input() {
+        let samples = vec![0.0; 64];
+        // For zero input, the power should be zero.
+        assert_eq!(AudioManager::power(&samples), 0);
+    }
+
+    #[test]
+    fn test_samples_to_hsbk_structure() {
         let samples = vec![1.0, 0.5, 0.25, 0.125];
-        let hue = super::AudioManager::freq_to_hue(&samples);
-        assert!(hue <= u16::MAX);
+        let hsbk = AudioManager::samples_to_hsbk(samples.clone());
+        // We expect saturation to be u16::MAX and kelvin equal to DEFAULT_KELVIN.
+        assert_eq!(hsbk.saturation, u16::MAX);
+        assert_eq!(hsbk.kelvin, DEFAULT_KELVIN);
+        // Brightness is computed from power; ensure it is less than or equal to u16::MAX.
+        assert!(hsbk.brightness <= u16::MAX);
+        // hue is computed via FFT-based dominant frequency; for nonzero input, it should be in range.
+        assert!(hsbk.hue <= u16::MAX);
+    }
+
+    #[test]
+    fn test_freq_to_hue_on_constant_signal() {
+        // If the input is constant, the FFT should have a dominant spike at index 0,
+        // yielding hue 0.
+        let samples = vec![1.0; 64];
+        let hue = AudioManager::freq_to_hue(&samples);
+        assert_eq!(hue, 0);
+    }
+
+    #[test]
+    fn test_freq_centroid_edge() {
+        // When the power spectrum is zero everywhere, the centroid should be zero.
+        let samples = vec![0.0; 64];
+        let hsbk = AudioManager::freq_centroid(&samples);
+        // hue computed from a zero centroid will be 0.
+        assert_eq!(hsbk.hue, 0);
+        // brightness should be zero as well.
+        assert_eq!(hsbk.brightness, 0);
+    }
+
+    // Tests for audio stream construction
+
+    #[test]
+    fn test_build_output_stream_no_device() {
+        // Create an AudioManager with no device.
+        let mut manager = AudioManager {
+            host: cpal::default_host(),
+            current_device: None,
+            configuration: None,
+            stream: None,
+            samples_buffer: Arc::new(Mutex::new(Vec::new())),
+        };
+        // Expect an error when trying to build the stream.
+        let max_buffer_size = AUDIO_BUFFER_DEFAULT;
+        let result = manager.build_output_stream(&max_buffer_size);
+        match result {
+            Err(BuildStreamError::DeviceNotAvailable) => {}
+            Err(err) => panic!("Unexpected error variant: {:?}", err),
+            Ok(_) => panic!("Expected error when device is None"),
+        }
+    }
+
+    #[test]
+    fn test_build_input_stream_no_config() {
+        // Construct a manager with a dummy device (if available) but no configuration.
+        // We simulate this by creating a manager via default and then overriding configuration to None.
+        let mut manager = AudioManager::default();
+        manager.configuration = None;
+        let max_buffer_size = AUDIO_BUFFER_DEFAULT;
+        let result = manager.build_input_stream(&max_buffer_size);
+        match result {
+            Err(BuildStreamError::InvalidArgument) => {}
+            Err(err) => panic!("Unexpected error variant: {:?}", err),
+            Ok(_) => panic!("Expected error when configuration is None"),
+        }
+    }
+
+    // Test for samples buffer retrieval
+
+    #[test]
+    fn test_get_samples_data() {
+        let manager = AudioManager::default();
+        // Manually populate the samples_buffer
+        {
+            let mut buffer = manager.samples_buffer.lock().unwrap();
+            buffer.extend_from_slice(&[0.1, 0.2, 0.3]);
+        }
+        let data = manager.get_samples_data().unwrap();
+        assert_eq!(data, vec![0.1, 0.2, 0.3]);
+    }
+
+    // Minimal UI callback test
+    //
+    // Although testing GUI code is challenging, we can at least call the `ui` function with a dummy context.
+    // Note: This test requires an egui::Context. In real projects, you might use egui's test utilities.
+    #[test]
+    fn test_ui_no_audio_data() {
+        use eframe::egui;
+        let manager = AudioManager::default();
+        // Create a dummy egui context and run it in a frame
+        let ctx = egui::Context::default();
+        let _ = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                manager.ui(ui);
+            });
+        });
     }
 }
