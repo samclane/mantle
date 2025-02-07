@@ -481,5 +481,8 @@ impl eframe::App for MantleApp {
         self.show_audio_debug_window(ctx);
         self.settings_ui(ctx);
         self.show_toasts(ctx);
+
+        // Force continuous repaint regardless of mouse events.
+        ctx.request_repaint();
     }
 }
