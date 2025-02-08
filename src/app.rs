@@ -200,7 +200,13 @@ impl MantleApp {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Power");
-                toggle_button(ui, &self.lighting_manager, device, Vec2::new(1.0, 1.0), bulbs);
+                toggle_button(
+                    ui,
+                    &self.lighting_manager,
+                    device,
+                    Vec2::new(1.0, 1.0),
+                    bulbs,
+                );
             });
             if let Some(before_color) = color_opt {
                 let mut after_color = self.display_color_controls(ui, device, before_color);
@@ -212,13 +218,22 @@ impl MantleApp {
                 if before_color != after_color.next {
                     match device {
                         DeviceInfo::Bulb(bulb) => {
-                            if let Err(e) = self.lighting_manager.set_color(&&**bulb, after_color.next, after_color.duration) {
+                            if let Err(e) = self.lighting_manager.set_color(
+                                &&**bulb,
+                                after_color.next,
+                                after_color.duration,
+                            ) {
                                 log::error!("Error setting color: {}", e);
                                 self.error_toast(&format!("Error setting color: {}", e));
                             }
                         }
                         DeviceInfo::Group(group) => {
-                            if let Err(e) = self.lighting_manager.set_group_color(group, after_color.next, bulbs, after_color.duration) {
+                            if let Err(e) = self.lighting_manager.set_group_color(
+                                group,
+                                after_color.next,
+                                bulbs,
+                                after_color.duration,
+                            ) {
                                 log::error!("Error setting group color: {}", e);
                                 self.error_toast(&format!("Error setting group color: {}", e));
                             }
@@ -239,7 +254,14 @@ impl MantleApp {
     ) {
         let color = self.get_device_display_color(ui, device, bulbs);
         ui.horizontal(|ui| {
-            display_color_circle(ui, device, color.unwrap_or(default_hsbk()), Vec2::new(1.0, 1.0), 8.0, bulbs);
+            display_color_circle(
+                ui,
+                device,
+                color.unwrap_or(default_hsbk()),
+                Vec2::new(1.0, 1.0),
+                8.0,
+                bulbs,
+            );
             self.render_device_controls(ui, device, color, bulbs);
         });
         ui.separator();
