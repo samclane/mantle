@@ -164,13 +164,13 @@ impl MantleApp {
         bulbs
     }
 
-    fn display_device(
-        &mut self,
-        ui: &mut Ui,
+    fn get_device_display_color(
+        &self,
+        ui: &mut egui::Ui,
         device: &DeviceInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
-    ) {
-        let color = match device {
+    ) -> Option<HSBK> {
+        match device {
             DeviceInfo::Bulb(bulb) => {
                 if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
                     ui.label(RichText::new(s).size(14.0));
@@ -187,66 +187,60 @@ impl MantleApp {
                 }
                 Some(self.lighting_manager.get_avg_group_color(group, bulbs))
             }
-        };
+        }
+    }
 
-        ui.horizontal(|ui| {
-            display_color_circle(
-                ui,
-                device,
-                color.unwrap_or(default_hsbk()),
-                Vec2::new(1.0, 1.0),
-                8.0,
-                bulbs,
-            );
-
-            ui.vertical(|ui| {
+    fn render_device_controls(
+        &mut self,
+        ui: &mut egui::Ui,
+        device: &DeviceInfo,
+        color_opt: Option<HSBK>,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Power");
+                toggle_button(ui, &self.lighting_manager, device, Vec2::new(1.0, 1.0), bulbs);
+            });
+            if let Some(before_color) = color_opt {
+                let mut after_color = self.display_color_controls(ui, device, before_color);
                 ui.horizontal(|ui| {
-                    ui.label("Power");
-                    toggle_button(
-                        ui,
-                        &self.lighting_manager,
-                        device,
-                        Vec2::new(1.0, 1.0),
-                        bulbs,
-                    );
+                    after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
+                    after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
+                    after_color = handle_audio(self, ui, device).unwrap_or(after_color);
                 });
-                if let Some(before_color) = color {
-                    let mut after_color =
-                        self.display_color_controls(ui, device, color.unwrap_or(default_hsbk()));
-                    ui.horizontal(|ui| {
-                        after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
-                        after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
-                        after_color = handle_audio(self, ui, device).unwrap_or(after_color);
-                    });
-                    if before_color != after_color.next {
-                        match device {
-                            DeviceInfo::Bulb(bulb) => {
-                                if let Err(e) = self.lighting_manager.set_color(
-                                    &&**bulb,
-                                    after_color.next,
-                                    after_color.duration,
-                                ) {
-                                    log::error!("Error setting color: {}", e);
-                                    self.error_toast(&format!("Error setting color: {}", e));
-                                }
+                if before_color != after_color.next {
+                    match device {
+                        DeviceInfo::Bulb(bulb) => {
+                            if let Err(e) = self.lighting_manager.set_color(&&**bulb, after_color.next, after_color.duration) {
+                                log::error!("Error setting color: {}", e);
+                                self.error_toast(&format!("Error setting color: {}", e));
                             }
-                            DeviceInfo::Group(group) => {
-                                if let Err(e) = self.lighting_manager.set_group_color(
-                                    group,
-                                    after_color.next,
-                                    bulbs,
-                                    after_color.duration,
-                                ) {
-                                    log::error!("Error setting group color: {}", e);
-                                    self.error_toast(&format!("Error setting group color: {}", e));
-                                }
+                        }
+                        DeviceInfo::Group(group) => {
+                            if let Err(e) = self.lighting_manager.set_group_color(group, after_color.next, bulbs, after_color.duration) {
+                                log::error!("Error setting group color: {}", e);
+                                self.error_toast(&format!("Error setting group color: {}", e));
                             }
                         }
                     }
-                } else {
-                    ui.label(format!("No color data: {:?}", color));
                 }
-            });
+            } else {
+                ui.label(format!("No color data: {:?}", color_opt));
+            }
+        });
+    }
+
+    fn display_device(
+        &mut self,
+        ui: &mut Ui,
+        device: &DeviceInfo,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    ) {
+        let color = self.get_device_display_color(ui, device, bulbs);
+        ui.horizontal(|ui| {
+            display_color_circle(ui, device, color.unwrap_or(default_hsbk()), Vec2::new(1.0, 1.0), 8.0, bulbs);
+            self.render_device_controls(ui, device, color, bulbs);
         });
         ui.separator();
     }
