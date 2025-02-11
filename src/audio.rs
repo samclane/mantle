@@ -407,7 +407,7 @@ mod tests {
         let max_buffer_size = AUDIO_BUFFER_DEFAULT;
         let result = manager.build_input_stream(&max_buffer_size);
         match result {
-            Err(_err) => {},  // We expect an error here.
+            Err(_err) => {} // We expect an error here.
             Ok(_) => panic!("Expected error when configuration is None"),
         }
     }
