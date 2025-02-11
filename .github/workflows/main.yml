@@ -34,7 +34,7 @@ jobs:
       run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev --assume-yes
       if: runner.os == 'linux'
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose -- --nocapture
 
   clippy_check:
     name: Clippy
