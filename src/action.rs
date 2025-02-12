@@ -11,36 +11,40 @@ use crate::{
     LifxManager,
 };
 
+/// An action that can be performed in the UI
+/// Primarily used for storing shortcut data
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum UserAction {
     Refresh,
-    TogglePower,
+    SetBrightness {
+        brightness: u16,
+    },
     SetColor {
         hue: u16,
         saturation: u16,
         brightness: u16,
         kelvin: u16,
     },
-    SetPower {
-        power: bool,
-    },
     SetHue {
         hue: u16,
-    },
-    SetSaturation {
-        saturation: u16,
-    },
-    SetBrightness {
-        brightness: u16,
     },
     SetKelvin {
         kelvin: u16,
     },
+    SetPower {
+        power: bool,
+    },
+    SetSaturation {
+        saturation: u16,
+    },
     SetScene {
         scene: Scene,
     },
+    TogglePower,
 }
 
+/// Take a `Scene` and convert it into a `UserAction`
+/// A `Scene` is a list of devices and their colors
 impl From<Scene> for UserAction {
     fn from(scene: Scene) -> Self {
         Self::SetScene { scene }
@@ -48,6 +52,8 @@ impl From<Scene> for UserAction {
 }
 
 impl UserAction {
+    /// Run the stored action, given the current `LifxManager` and `DeviceInfo`
+    /// for the device the action is to be performed on
     pub fn execute(&self, mut lifx_manager: LifxManager, device: DeviceInfo) {
         match self {
             UserAction::Refresh => {
@@ -236,6 +242,8 @@ impl UserAction {
         }
     }
 
+    /// Get a list of all possible `UserAction` variants
+    // TODO: This should be generated automatically
     pub fn variants() -> Vec<UserAction> {
         let new_scene = Scene::new(vec![], "New Scene".to_string());
         vec![
@@ -260,6 +268,7 @@ impl UserAction {
         ]
     }
 
+    /// Draw UI elements for the corresponding action
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -312,14 +321,6 @@ impl UserAction {
                     })
                     .response
             }
-        }
-    }
-
-    pub fn as_set_scene(&self) -> Option<&Scene> {
-        if let Self::SetScene { scene } = self {
-            Some(scene)
-        } else {
-            None
         }
     }
 }

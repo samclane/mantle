@@ -74,10 +74,10 @@ impl Display for KeyboardShortcut {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct KeyboardShortcutAction {
-    pub shortcut: KeyboardShortcut,
     pub action: UserAction,
     pub device: Option<DeviceInfo>,
     pub name: String,
+    pub shortcut: KeyboardShortcut,
 }
 impl KeyboardShortcutAction {
     fn blank() -> KeyboardShortcutAction {
@@ -100,10 +100,10 @@ impl PartialEq for KeyboardShortcutAction {
 }
 
 pub struct ShortcutManager {
-    input_listener: InputListener,
-    shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>>,
     active_shortcuts: Arc<Mutex<BTreeSet<KeyboardShortcut>>>,
+    input_listener: InputListener,
     pub new_shortcut: KeyboardShortcutAction,
+    shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>>,
 }
 
 impl ShortcutManager {
@@ -146,6 +146,8 @@ impl ShortcutManager {
         }
     }
 
+    /// Start the shortcut manager's input listener thread
+    /// and return a handle to the thread.
     pub fn start(&self, lifx_manager: LifxManager) -> std::thread::JoinHandle<()> {
         let input_listener = self.input_listener.clone();
         let shortcuts: Arc<Mutex<Vec<KeyboardShortcutAction>>> = Arc::clone(&self.shortcuts);
@@ -207,6 +209,9 @@ impl Default for ShortcutManager {
     }
 }
 
+/// A widget for editing a keyboard shortcut by
+/// listenening for key presses and updating the
+/// shortcut's keys.
 pub struct ShortcutEdit<'a> {
     shortcut: &'a mut KeyboardShortcut,
 }

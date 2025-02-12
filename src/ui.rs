@@ -95,7 +95,7 @@ pub fn handle_eyedropper(
                 .input_listener
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
-            match screencap.from_click(position.x, position.y) {
+            match screencap.color_from_click(position.x, position.y) {
                 Ok(c) => color = Some(c),
                 Err(e) => eprintln!("Failed to get color: {}", e),
             }
@@ -367,7 +367,7 @@ pub fn display_color_circle(
 ) {
     let power = match device {
         DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0),
-        DeviceInfo::Group(group) => group.any_on(bulbs) as u16 * u16::MAX,
+        DeviceInfo::Group(group) => group.is_any_bulb_on(bulbs) as u16 * u16::MAX,
     };
     let desired_size = ui.spacing().interact_size * desired_size;
     // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
@@ -422,7 +422,7 @@ pub fn toggle_button(
     ui.horizontal(|ui| {
         let on = match device {
             DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
-            DeviceInfo::Group(group) => group.any_on(registered_bulbs),
+            DeviceInfo::Group(group) => group.is_any_bulb_on(registered_bulbs),
         };
         if response.clicked() {
             let level = if on { 0 } else { u16::MAX };

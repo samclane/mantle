@@ -6,7 +6,7 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::filter::threshold::ThresholdFilter;
 use std::f32::consts::PI;
 
-pub fn init_logging() {
+pub fn init_log4rs() {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build("log/output.log")
@@ -40,6 +40,7 @@ pub fn init_logging() {
 
 const PI_OVER_2: f32 = PI / 2.0;
 
+/// An iterator that yields pairs of angles to build a full circle.
 pub struct AngleIter {
     start: Option<f32>,
     end: f32,

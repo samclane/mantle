@@ -5,13 +5,13 @@
 
 use mantle::app::MantleApp;
 use mantle::ui::setup_eframe_options;
-use mantle::utils::init_logging;
+use mantle::utils::init_log4rs;
 
 fn main() -> eframe::Result {
     #[cfg(feature = "puffin")]
     start_puffin_server();
 
-    init_logging();
+    init_log4rs();
 
     let options = setup_eframe_options();
 

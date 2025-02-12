@@ -9,6 +9,7 @@ use xcap::{
 
 use crate::RGB8;
 
+/// A subregion of a screen that can be captured.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScreenSubregion {
     #[serde(skip)]
@@ -39,6 +40,7 @@ impl PartialEq for ScreenSubregion {
     }
 }
 
+/// Abstraction for capturable regions of the screen.
 #[derive(Clone, Debug)]
 pub enum RegionCaptureTarget {
     Monitor(Vec<Monitor>),
@@ -81,6 +83,8 @@ impl RegionCaptureTarget {
     }
 }
 
+/// Holds information about the monitors and windows on the system
+/// that can be captured and analyzed for color information.
 #[derive(Clone)]
 pub struct ScreencapManager {
     pub monitors: Vec<Monitor>,
@@ -116,7 +120,8 @@ impl ScreencapManager {
         self.windows.iter().find(|w| w.title() == title)
     }
 
-    pub fn from_click(&self, x: i32, y: i32) -> Result<HSBK, XCapError> {
+    /// Get the color of the pixel at the given coordinates.
+    pub fn color_from_click(&self, x: i32, y: i32) -> Result<HSBK, XCapError> {
         let monitor = Monitor::from_point(x, y)?;
         let new_x = x - monitor.x();
         let new_y = y - monitor.y();

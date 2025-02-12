@@ -57,7 +57,7 @@ impl LifxManager {
         Ok(lifx_manager)
     }
 
-    /// Handle a message from a LIFX bulb.
+    /// Handle a `RawMessage` and update the internal state of a device.
     fn handle_message(raw: RawMessage, bulb: &mut BulbInfo) -> Result<(), lifx_core::Error> {
         match Message::from_raw(&raw)? {
             Message::StateService { port, service } => {

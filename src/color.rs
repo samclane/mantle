@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_KELVIN: u16 = 3500;
 
+/// Enumerate each field of HSBK, the color space used by LIFX bulbs.
+/// HSBK stands for Hue, Saturation, Brightness, Kelvin.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum HSBKField {
     Hue,
@@ -12,6 +14,8 @@ pub enum HSBKField {
     Kelvin,
 }
 
+/// Standard color representation for most monitors. Keeps track
+/// of the temperature of the color too for conversion convenience.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RGB8 {
     pub red: u8,
@@ -152,6 +156,7 @@ impl From<RGB8> for Color32 {
     }
 }
 
+/// Convert a scalar Kelvin temperature to an RGB color.
 pub fn kelvin_to_rgb(temperature: u16) -> RGB8 {
     let percentage_temperature = temperature / 100;
     let red;
@@ -197,7 +202,7 @@ pub fn default_hsbk() -> HSBK {
     }
 }
 
-// Used for preventing overflow when working with HSBK values
+/// Used for preventing overflow when working with HSBK values
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct HSBK32 {
     pub hue: u32,
@@ -263,6 +268,7 @@ impl From<HSBK32> for Color32 {
     }
 }
 
+/// Given an Rgba color, return the contrast color to use for text.
 pub fn contrast_color(color: impl Into<Rgba>) -> Color32 {
     if color.into().intensity() < 0.5 {
         Color32::WHITE
@@ -271,6 +277,9 @@ pub fn contrast_color(color: impl Into<Rgba>) -> Color32 {
     }
 }
 
+/// A color that can be used to change the color of a light over time.
+/// Many LIFX functions accept a `duration` parameter that specifies
+/// how long the color change should take.
 #[derive(Debug, Clone, Copy)]
 pub struct DeltaColor {
     pub next: HSBK,

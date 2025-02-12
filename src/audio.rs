@@ -20,6 +20,8 @@ fn to_real_f32(buffer: &[Complex<f32>]) -> Vec<f32> {
     buffer.iter().map(|value| value.re).collect()
 }
 
+/// Takes every `factor`-th element from the buffer, making  the size of the output buffer
+/// `buffer.len() / factor`.
 fn subsample(buffer: &[f32], factor: usize) -> Vec<f32> {
     buffer
         .iter()
@@ -34,12 +36,13 @@ fn subsample(buffer: &[f32], factor: usize) -> Vec<f32> {
         .collect()
 }
 
+/// Handles creation of audio streams and processing of audio data.
 pub struct AudioManager {
-    host: Host,
-    current_device: Option<cpal::Device>,
     configuration: Option<cpal::StreamConfig>,
-    stream: Option<cpal::Stream>,
+    current_device: Option<cpal::Device>,
+    host: Host,
     samples_buffer: Arc<Mutex<Vec<f32>>>,
+    stream: Option<cpal::Stream>,
 }
 
 impl Clone for AudioManager {
@@ -166,17 +169,22 @@ impl AudioManager {
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
+    /// Compute the power spectrum of the given samples, using the FFT
+    /// and returning the squared magnitude of each frequency component.
     pub fn power_spectrum(samples: &[f32]) -> Vec<f32> {
         let buffer = Self::fft(samples);
         buffer.iter().map(|value| value.norm_sqr()).collect()
     }
 
+    /// Compute the power of the given samples, which is the average of the power spectrum.
     pub fn power(samples: &[f32]) -> u16 {
         let power_spectrum = Self::power_spectrum(samples);
         let avg_power = power_spectrum.iter().sum::<f32>() / power_spectrum.len() as f32;
         (avg_power.sqrt() * u16::MAX as f32) as u16
     }
 
+    /// Convert the given samples to an HSBK color, using the signal power as the brightness
+    /// and the dominant frequency as the hue.
     pub fn samples_to_hsbk(samples: Vec<f32>) -> HSBK {
         let value = Self::power(&samples);
 
@@ -188,6 +196,7 @@ impl AudioManager {
         }
     }
 
+    /// Convert the given samples to an HSBK color, using the frequency centroid as the hue
     pub fn freq_to_hue(samples: &[f32]) -> u16 {
         let spectrum = Self::fft(samples);
         let sample_rate = AUDIO_BUFFER_DEFAULT as f32;
@@ -201,6 +210,10 @@ impl AudioManager {
         ((dominant_freq_hz / max_freq) * u16::MAX as f32) as u16
     }
 
+    /// Compute the frequency centroid of the given samples, returning an HSBK color
+    /// with the hue set to the centroid frequency.
+    /// The brightness is set to the square root of the total power, and the saturation is set to
+    /// the maximum value.
     pub fn freq_centroid(samples: &[f32]) -> HSBK {
         let power_spectrum = AudioManager::power_spectrum(samples);
 
@@ -234,12 +247,15 @@ impl AudioManager {
         }
     }
 
+    /// List all audio output devices available on the system.
     pub fn devices(&self) -> Vec<cpal::Device> {
         self.host
             .output_devices()
             .map_or(Vec::new(), |devices| devices.collect())
     }
 
+    /// Set the current audio output device to the one with the given name
+    /// by acquiring the device from the host.
     pub fn get_samples_data(&self) -> Result<Vec<f32>, String> {
         match self.samples_buffer.lock() {
             Ok(buffer) => Ok(buffer.clone()),
@@ -251,6 +267,7 @@ impl AudioManager {
         Arc::clone(&self.samples_buffer)
     }
 
+    /// Draw plots of the audio samples and their FFT.
     pub fn ui(&self, ui: &mut eframe::egui::Ui) {
         let audio_data = self.get_samples_data();
 

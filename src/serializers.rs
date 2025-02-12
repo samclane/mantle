@@ -1,3 +1,5 @@
+/// Have to define custom serializers for the types that are not directly serializable by serde
+/// because they are defined in a different crate.
 use lifx_core::HSBK;
 use lifx_core::{
     ApplicationRequest, EchoPayload, LastHevCycleResult, LifxIdent, LifxString, Message,

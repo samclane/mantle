@@ -57,33 +57,33 @@ pub type ColorChannel = HashMap<u64, ColorChannelEntry>;
 #[serde(default)]
 pub struct MantleApp {
     #[serde(skip)]
-    pub lighting_manager: LifxManager,
-    #[serde(skip)]
-    pub screen_manager: ScreencapManager,
+    pub audio_manager: AudioManager,
     #[serde(skip)]
     pub input_listener: InputListener,
     #[serde(skip)]
-    pub shortcut_manager: ShortcutManager,
+    pub lighting_manager: LifxManager,
+    #[serde(skip)]
+    pub listener_handle: Option<JoinHandle<()>>,
+    pub new_scene: Scene,
+    #[serde(skip)]
+    pub screen_manager: ScreencapManager,
+    pub settings: Settings,
     #[serde(skip)]
     pub shortcut_handle: Option<JoinHandle<()>>,
     #[serde(skip)]
-    pub listener_handle: Option<JoinHandle<()>>,
+    pub shortcut_manager: ShortcutManager,
     pub show_about: bool,
-    pub show_settings: bool,
+    pub show_audio_debug: bool,
     pub show_eyedropper: HashMap<u64, bool>,
+    pub show_settings: bool,
     pub show_subregion: HashMap<u64, bool>,
     pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
-    pub settings: Settings,
-    #[serde(skip)]
-    pub waveform_map: HashMap<u64, RunningWaveform>,
-    #[serde(skip)]
-    pub waveform_channel: ColorChannel,
-    pub new_scene: Scene,
     #[serde(skip)]
     pub toasts: Toasts,
     #[serde(skip)]
-    pub audio_manager: AudioManager,
-    pub show_audio_debug: bool,
+    pub waveform_channel: ColorChannel,
+    #[serde(skip)]
+    pub waveform_map: HashMap<u64, RunningWaveform>,
 }
 
 impl Default for MantleApp {

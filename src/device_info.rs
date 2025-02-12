@@ -83,6 +83,7 @@ impl PartialEq for BulbInfo {
     }
 }
 
+/// Wrapper around HSBK to make it agnostic between single and multi-zone bulbs
 #[derive(Debug, Clone)]
 pub enum DeviceColor {
     Unknown,
@@ -133,6 +134,7 @@ impl<'de> Deserialize<'de> for DeviceColor {
     }
 }
 
+/// Wrapper around DeviceInfo to allow us to treat bulbs and groups of bulbs the same
 #[derive(Clone, Serialize, Deserialize)]
 pub enum DeviceInfo {
     Bulb(Box<BulbInfo>),
@@ -232,7 +234,7 @@ impl BulbInfo {
     pub fn get_color(&self) -> Option<&HSBK> {
         match self.color {
             DeviceColor::Single(ref data) => data.as_ref(),
-            DeviceColor::Multi(ref data) => handle_multizone(data.as_ref()),
+            DeviceColor::Multi(ref data) => extract_primary_color(data.as_ref()),
             _ => None,
         }
     }
@@ -249,7 +251,9 @@ impl BulbInfo {
     }
 }
 
-fn handle_multizone(data: Option<&Vec<Option<HSBK>>>) -> Option<&HSBK> {
+/// Helper function to get the first non-None value from a list of colors
+/// (used for multi-zone bulbs)
+fn extract_primary_color(data: Option<&Vec<Option<HSBK>>>) -> Option<&HSBK> {
     data.and_then(|vec| vec.first())
         .and_then(|opt| opt.as_ref())
 }
@@ -270,7 +274,7 @@ impl GroupInfo {
         )
     }
 
-    pub fn update(&mut self) {
+    pub fn update_timestamp(&mut self) {
         self.updated_at = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to get time since epoch")
@@ -292,7 +296,7 @@ impl GroupInfo {
             .collect()
     }
 
-    pub fn any_on(&self, bulbs: &HashMap<u64, BulbInfo>) -> bool {
+    pub fn is_any_bulb_on(&self, bulbs: &HashMap<u64, BulbInfo>) -> bool {
         self.get_bulbs(bulbs)
             .iter()
             .any(|b| b.power_level.data.unwrap_or(0) > 0)
@@ -539,7 +543,7 @@ mod tests {
         let label = LifxString::new(&CString::new("TestGroup").unwrap());
         let mut group = GroupInfo::new(ident, label);
 
-        group.update();
+        group.update_timestamp();
         assert!(group.updated_at > 0);
     }
 
@@ -640,12 +644,12 @@ mod tests {
         });
         let data = Some(vec![hsbk1.clone(), hsbk2.clone()]);
 
-        let color = handle_multizone(data.as_ref());
+        let color = extract_primary_color(data.as_ref());
         assert!(color.is_some());
         assert_eq!(color.unwrap(), hsbk1.as_ref().unwrap());
 
         let empty_data: Option<&Vec<Option<HSBK>>> = None;
-        let color = handle_multizone(empty_data);
+        let color = extract_primary_color(empty_data);
         assert!(color.is_none());
     }
 
