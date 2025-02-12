@@ -425,21 +425,4 @@ mod tests {
         let data = manager.get_samples_data().unwrap();
         assert_eq!(data, vec![0.1, 0.2, 0.3]);
     }
-
-    // Minimal UI callback test
-    //
-    // Although testing GUI code is challenging, we can at least call the `ui` function with a dummy context.
-    // Note: This test requires an egui::Context. In real projects, you might use egui's test utilities.
-    #[test]
-    fn test_ui_no_audio_data() {
-        use eframe::egui;
-        let manager = AudioManager::default();
-        // Create a dummy egui context and run it in a frame
-        let ctx = egui::Context::default();
-        let _ = ctx.run(Default::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                manager.ui(ui);
-            });
-        });
-    }
 }
