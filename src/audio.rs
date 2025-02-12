@@ -13,10 +13,7 @@ use crate::color::DEFAULT_KELVIN;
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
 fn to_complex(buffer: &[f32]) -> Vec<Complex<f32>> {
-    buffer
-        .iter()
-        .map(|&value| Complex::new(value, 0.0))
-        .collect()
+    buffer.iter().copied().map(|v| v.into()).collect()
 }
 
 fn to_real_f32(buffer: &[Complex<f32>]) -> Vec<f32> {
@@ -47,7 +44,7 @@ pub struct AudioManager {
 
 impl Clone for AudioManager {
     fn clone(&self) -> Self {
-        // host and stream can't clone, so create a new instance without stream
+        // stream can't clone, so create a new instance without stream
         let host = cpal::default_host();
         Self {
             host,
