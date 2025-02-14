@@ -40,7 +40,7 @@ pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png")
 pub const AUDIO_ICON: &[u8; 225] = include_bytes!("../res/icons/device-speaker.png");
 
 #[derive(Debug, Clone)]
-pub struct RunningWaveform {
+pub struct WaveformTracker {
     pub active: bool,
     pub last_update: Instant,
     pub region: RegionCaptureTarget,
@@ -83,7 +83,7 @@ pub struct MantleApp {
     #[serde(skip)]
     pub waveform_channel: ColorChannel,
     #[serde(skip)]
-    pub waveform_map: HashMap<u64, RunningWaveform>,
+    pub waveform_map: HashMap<u64, WaveformTracker>,
 }
 
 impl Default for MantleApp {

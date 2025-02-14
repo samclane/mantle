@@ -153,7 +153,10 @@ impl ScreencapManager {
         )
     }
 
-    pub fn calculate_average_color(&self, follow: RegionCaptureTarget) -> Result<HSBK, XCapError> {
+    pub fn calculate_average_color(
+        &self,
+        capture_target: RegionCaptureTarget,
+    ) -> Result<HSBK, XCapError> {
         let mut red: u64 = 0;
         let mut green: u64 = 0;
         let mut blue: u64 = 0;
@@ -168,7 +171,7 @@ impl ScreencapManager {
             }
         };
 
-        match follow {
+        match capture_target {
             RegionCaptureTarget::Monitor(monitors) => {
                 for monitor in monitors {
                     let image = monitor.capture_image()?;

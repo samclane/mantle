@@ -15,16 +15,16 @@ use crate::{
 };
 
 const DEFAULT_REFRESH_RATE_MS: u64 = 500;
-const DEFAULT_FOLLOW_RATE_MS: u64 = 500;
+const DEFAULT_UPDATE_INTERVAL_MS: u64 = 500;
 const REFRESH_RATE_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
-const FOLLOW_RATE_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
+const UPDATE_INTERVAL_MS_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
 const AUDIO_BUFFER_RANGE: std::ops::RangeInclusive<usize> = 1024..=AUDIO_BUFFER_DEFAULT;
 
 #[derive(Deserialize, Serialize)]
 pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
     pub refresh_rate_ms: u64,
-    pub follow_rate_ms: u64,
+    pub update_interval_ms: u64,
     pub scenes: Vec<Scene>,
     pub audio_buffer_size: usize,
 }
@@ -34,7 +34,7 @@ impl Default for Settings {
         Self {
             custom_shortcuts: Vec::new(),
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
-            follow_rate_ms: DEFAULT_FOLLOW_RATE_MS,
+            update_interval_ms: DEFAULT_UPDATE_INTERVAL_MS,
             scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
         }
@@ -57,7 +57,7 @@ impl MantleApp {
 
                     self.render_refresh_rate(ui);
 
-                    self.render_follow_rate(ui);
+                    self.render_update_rate(ui);
 
                     self.render_audio_buffer_size(ui);
 
@@ -256,11 +256,15 @@ impl MantleApp {
             });
     }
 
-    fn render_follow_rate(&mut self, ui: &mut egui::Ui) {
+    fn render_update_rate(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Follow Rate:");
+            ui.label("Update Rate:");
             ui.add(
-                egui::Slider::new(&mut self.settings.follow_rate_ms, FOLLOW_RATE_RANGE).text("ms"),
+                egui::Slider::new(
+                    &mut self.settings.update_interval_ms,
+                    UPDATE_INTERVAL_MS_RANGE,
+                )
+                .text("ms"),
             );
         });
     }
