@@ -2,9 +2,10 @@ use eframe::egui;
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use strum_macros::{EnumIter, VariantNames, AsRefStr};
 
 use crate::{
-    color::{HSBKField, DEFAULT_KELVIN},
+    color::HSBKField,
     device_info::DeviceInfo,
     scenes::Scene,
     ui::{brightness_slider, hsbk_sliders, hue_slider, kelvin_slider, saturation_slider},
@@ -13,7 +14,8 @@ use crate::{
 
 /// An action that can be performed in the UI
 /// Primarily used for storing shortcut data
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, EnumIter, VariantNames, AsRefStr)]
+#[strum(serialize_all = "snake_case")]
 pub enum UserAction {
     Refresh,
     SetBrightness {
@@ -242,32 +244,6 @@ impl UserAction {
         }
     }
 
-    /// Get a list of all possible `UserAction` variants
-    // TODO: This should be generated automatically
-    pub fn variants() -> Vec<UserAction> {
-        let new_scene = Scene::new(vec![], "New Scene".to_string());
-        vec![
-            UserAction::Refresh,
-            UserAction::TogglePower,
-            UserAction::SetPower { power: true },
-            UserAction::SetHue { hue: 0 },
-            UserAction::SetSaturation { saturation: 0 },
-            UserAction::SetBrightness { brightness: 0 },
-            UserAction::SetKelvin {
-                kelvin: DEFAULT_KELVIN,
-            },
-            UserAction::SetColor {
-                hue: 0,
-                saturation: 0,
-                brightness: 0,
-                kelvin: DEFAULT_KELVIN,
-            },
-            UserAction::SetScene {
-                scene: new_scene.clone(),
-            },
-        ]
-    }
-
     /// Draw UI elements for the corresponding action
     pub fn ui(
         &mut self,
@@ -365,9 +341,10 @@ mod tests {
     use std::ffi::CString;
 
     use lifx_core::{LifxIdent, LifxString};
+    use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::{device_info::GroupInfo, LifxManager};
+    use crate::{color::DEFAULT_KELVIN, device_info::GroupInfo, LifxManager};
 
     #[test]
     fn test_user_action_display() {
@@ -391,9 +368,15 @@ mod tests {
 
     #[test]
     fn test_user_action_variants() {
-        let variants = UserAction::variants();
-        assert!(variants.contains(&UserAction::Refresh));
-        assert!(variants.contains(&UserAction::TogglePower));
+        let mut variants = UserAction::iter();
+        assert!(variants.any(|v| v == UserAction::Refresh));
+        assert!(variants.any(|v| v == UserAction::TogglePower));
+    }
+
+    #[test]
+    fn test_discriminant_names() {
+        assert_eq!(UserAction::Refresh.as_ref(), "refresh");
+        assert_eq!(UserAction::TogglePower.as_ref(), "toggle_power");
     }
 
     #[test]

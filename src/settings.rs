@@ -2,6 +2,7 @@ use std::ffi::CString;
 
 use eframe::egui::{self, Context};
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 
 use crate::{
     action::UserAction,
@@ -142,7 +143,7 @@ impl MantleApp {
             egui::ComboBox::from_label("Action")
                 .selected_text(self.shortcut_manager.new_shortcut.action.to_string())
                 .show_ui(ui, |ui| {
-                    for action in UserAction::variants() {
+                    for action in UserAction::iter() {
                         if ui
                             .selectable_label(
                                 self.shortcut_manager.new_shortcut.action == action.clone(),

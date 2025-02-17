@@ -76,6 +76,15 @@ impl From<Vec<DeviceInfo>> for Scene {
     }
 }
 
+impl Default for Scene {
+    fn default() -> Self {
+        Self {
+            device_color_pairs: Vec::new(),
+            name: "Unnamed Scene".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
