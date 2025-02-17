@@ -1,12 +1,23 @@
 use eframe::egui::{Color32, Rgba};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
+use strum_macros::{EnumIter, VariantNames};
 
 pub const DEFAULT_KELVIN: u16 = 3500;
 
 /// Enumerate each field of HSBK, the color space used by LIFX bulbs.
 /// HSBK stands for Hue, Saturation, Brightness, Kelvin.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    EnumIter,
+    VariantNames,
+    strum_macros::AsRefStr,
+)]
 pub enum HSBKField {
     Hue,
     Saturation,

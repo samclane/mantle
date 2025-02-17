@@ -2,7 +2,7 @@ use eframe::egui;
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use strum_macros::{EnumIter, VariantNames, AsRefStr};
+use strum_macros::{AsRefStr, EnumIter, VariantNames};
 
 use crate::{
     color::HSBKField,

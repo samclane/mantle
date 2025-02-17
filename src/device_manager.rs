@@ -427,27 +427,12 @@ impl LifxManager {
             brightness: 0,
             kelvin: 0,
         });
-        let color = HSBK {
-            hue: if field == HSBKField::Hue {
-                value
-            } else {
-                color.hue
-            },
-            saturation: if field == HSBKField::Saturation {
-                value
-            } else {
-                color.saturation
-            },
-            brightness: if field == HSBKField::Brightness {
-                value
-            } else {
-                color.brightness
-            },
-            kelvin: if field == HSBKField::Kelvin {
-                value
-            } else {
-                color.kelvin
-            },
+        let mut color = *color;
+        match field {
+            HSBKField::Hue => color.hue = value,
+            HSBKField::Saturation => color.saturation = value,
+            HSBKField::Brightness => color.brightness = value,
+            HSBKField::Kelvin => color.kelvin = value,
         };
         self.set_color(bulb, color, None)
     }
