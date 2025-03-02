@@ -399,31 +399,52 @@ impl MantleApp {
                         }
                     }
                 }
-                // TODO: Add groups to the scene
-                // for group in self.mgr.get_groups() {
-                //     let mut selected = self
-                //         .new_scene
-                //         .devices_mut()
-                //         .any(|d| *d == DeviceInfo::Group(group.clone()));
-                //     if ui
-                //         .checkbox(&mut selected, group.label.cstr().to_str().unwrap())
-                //         .on_hover_text("Select group for the scene")
-                //         .changed()
-                //     {
-                //         if selected {
-                //             for device in group.get_bulbs(&*self.mgr.bulbs.lock().unwrap()).iter() {
-                //                 self.new_scene.device_color_pairs.push((
-                //                     DeviceInfo::Bulb(Box::new((*device).clone())),
-                //                     (*device.get_color().unwrap_or(&default_hsbk())).into(),
-                //                 ));
-                //             }
-                //         } else {
-                //             self.new_scene
-                //                 .device_color_pairs
-                //                 .retain(|(d, _)| *d != DeviceInfo::Group(group.clone()));
-                //         }
-                //     }
-                // }
+                // Add groups to the scene
+                for group in self.lighting_manager.get_groups() {
+                    let mut selected = self
+                        .new_scene
+                        .devices_mut()
+                        .any(|d| *d == DeviceInfo::Group(group.clone()));
+                    if ui
+                        .checkbox(&mut selected, group.label.cstr().to_str().unwrap())
+                        .on_hover_text("Select group for the scene")
+                        .changed()
+                    {
+                        if selected {
+                            self.new_scene
+                                .device_color_pairs
+                                .push((DeviceInfo::Group(group.clone()), default_hsbk().into()));
+
+                            // Also add individual devices from the group
+                            for device in group
+                                .get_bulbs(&*self.lighting_manager.bulbs.lock().unwrap())
+                                .iter()
+                            {
+                                // Avoid duplicating devices
+                                if !self.new_scene.devices_mut().any(|d| {
+                                    if let DeviceInfo::Bulb(existing) = d {
+                                        **existing == **device
+                                    } else {
+                                        false
+                                    }
+                                }) {
+                                    self.new_scene.device_color_pairs.push((
+                                        DeviceInfo::Bulb(Box::new((*device).clone())),
+                                        (*device.get_color().unwrap_or(&default_hsbk())).into(),
+                                    ));
+                                }
+                            }
+                        } else {
+                            // Remove the group
+                            self.new_scene
+                                .device_color_pairs
+                                .retain(|(d, _)| *d != DeviceInfo::Group(group.clone()));
+
+                            // Keep individual devices if they're explicitly selected
+                            // We'll leave those alone
+                        }
+                    }
+                }
             });
         ui.add_space(5.0);
         if ui.button("Save Scene").clicked() {
