@@ -8,8 +8,8 @@ use std::{
 
 use crate::{
     app::{
-        ColorChannelEntry, MantleApp, WaveformTracker, AUDIO_ICON, EYEDROPPER_ICON, ICON,
-        MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
+        ColorChannelEntry, MantleApp, WaveformMode, WaveformTracker, AUDIO_ICON, EYEDROPPER_ICON,
+        ICON, MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE, MONITOR_ICON, SUBREGION_ICON,
     },
     audio::AudioManager,
     color::{kelvin_to_rgb, DeltaColor},
@@ -116,34 +116,35 @@ pub fn handle_screencap(
     let mut color: Option<HSBK> = None;
     let update_interval_ms = app.settings.update_interval_ms;
     update_subregion_bounds(app, ui, device.id());
+
+    ensure_waveform_channel(app, device.id());
+    app.waveform_map
+        .entry(device.id())
+        .or_insert(WaveformTracker {
+            active: false,
+            last_update: Instant::now(),
+            mode: WaveformMode::Screencap,
+            region: RegionCaptureTarget::All,
+            stop_tx: None,
+        });
+
     if let Some(color_channel) = app.waveform_channel.get(&device.id()) {
-        let tracker: &mut WaveformTracker =
-            app.waveform_map
-                .entry(device.id())
-                .or_insert(WaveformTracker {
-                    active: false,
-                    last_update: Instant::now(),
-                    region: RegionCaptureTarget::All,
-                    stop_tx: None,
-                });
-        if tracker.active && (has_time_elapsed(update_interval_ms, tracker)) {
-            update_color_from_channel(&mut color, tracker, color_channel);
+        if let Some(tracker) = app.waveform_map.get_mut(&device.id()) {
+            if tracker.active
+                && tracker.mode == WaveformMode::Screencap
+                && has_time_elapsed(update_interval_ms, tracker)
+            {
+                update_color_from_channel(&mut color, tracker, color_channel);
+            }
         }
-    } else {
-        let (tx, rx) = mpsc::channel();
-        app.waveform_channel.insert(
-            device.id(),
-            ColorChannelEntry {
-                tx,
-                rx,
-                handle: None,
-            },
-        );
     }
 
-    let is_active = app.waveform_map.get(&device.id()).is_some_and(|w| w.active);
+    let is_active = app
+        .waveform_map
+        .get(&device.id())
+        .is_some_and(|w| w.active && w.mode == WaveformMode::Screencap);
     if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
-        initialize_waveform_tracker(app, device, update_interval_ms);
+        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Screencap);
     }
     if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
         ui.vertical(|ui| {
@@ -154,10 +155,8 @@ pub fn handle_screencap(
                 .lock()
                 .expect("Failed to get subregion");
 
-            // Create options for ComboBox with consistent ordering
             let mut options = vec![("All".to_string(), RegionCaptureTarget::All)];
 
-            // Collect monitor options
             let mut monitor_options: Vec<(String, RegionCaptureTarget)> = app
                 .screen_manager
                 .monitors
@@ -169,11 +168,9 @@ pub fn handle_screencap(
                     )
                 })
                 .collect();
-            // Sort monitor options to ensure consistent order
             monitor_options.sort_by(|a, b| a.0.cmp(&b.0));
             options.extend(monitor_options);
 
-            // Collect window options
             let mut window_options: Vec<(String, RegionCaptureTarget)> = app
                 .screen_manager
                 .windows
@@ -185,7 +182,6 @@ pub fn handle_screencap(
                     )
                 })
                 .collect();
-            // Sort window options to ensure consistent order
             window_options.sort_by(|a, b| a.0.cmp(&b.0));
             options.extend(window_options);
 
@@ -194,7 +190,6 @@ pub fn handle_screencap(
                 RegionCaptureTarget::Subregion(vec![subregion.clone()]),
             ));
 
-            // Determine the selected text
             let selected_text = match &waveform.region {
                 RegionCaptureTarget::All => "All".to_string(),
                 RegionCaptureTarget::Monitor(monitors) => monitors
@@ -207,9 +202,8 @@ pub fn handle_screencap(
                     .unwrap_or("Window".to_string()),
                 RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
             };
-            // Use ComboBox with consistent ID
             ui.push_id(device.id(), |ui| {
-                egui::ComboBox::from_label("Capture Type")
+                egui::ComboBox::from_label("Capture Target")
                     .selected_text(selected_text)
                     .show_ui(ui, |ui| {
                         for (label, capture_target) in options {
@@ -218,7 +212,6 @@ pub fn handle_screencap(
                     });
             });
 
-            // If the selected target is Subregion, display the numerical fields
             if let RegionCaptureTarget::Subregion(_) = waveform.region {
                 ui.horizontal(|ui| {
                     ui.label("X:");
@@ -237,6 +230,11 @@ pub fn handle_screencap(
         });
     }
 
+    if is_active {
+        ui.ctx()
+            .request_repaint_after(Duration::from_millis(update_interval_ms));
+    }
+
     color.map(|color| DeltaColor {
         next: color,
         duration: Some((update_interval_ms / 2) as u32),
@@ -244,7 +242,6 @@ pub fn handle_screencap(
 }
 
 pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
-    // Get or create the subregion
     let subregion_lock = app
         .subregion_points
         .entry(device_id)
@@ -260,19 +257,45 @@ pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64)
         }
     }
     if *show_subregion {
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
             let mouse_pos = app
                 .input_listener
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
             if subregion.x == 0 && subregion.y == 0 {
-                subregion.x = mouse_pos.x;
-                subregion.y = mouse_pos.y;
-                // debounce the click (dirty but only way I can think of)
+                let global_x = mouse_pos.x;
+                let global_y = mouse_pos.y;
+                let monitor = app.screen_manager.monitors.iter().find(|m| {
+                    global_x >= m.x()
+                        && global_x < m.x() + m.width() as i32
+                        && global_y >= m.y()
+                        && global_y < m.y() + m.height() as i32
+                });
+                if let Some(mon) = monitor {
+                    subregion.monitor = Some(Arc::new(mon.clone()));
+                    subregion.x = global_x - mon.x();
+                    subregion.y = global_y - mon.y();
+                } else {
+                    subregion.x = global_x;
+                    subregion.y = global_y;
+                }
                 thread::sleep(Duration::from_millis(DEBOUNCE_DELAY_MS));
             } else {
-                subregion.width = (mouse_pos.x - subregion.x).unsigned_abs();
-                subregion.height = (mouse_pos.y - subregion.y).unsigned_abs();
+                let rel_x = if let Some(ref mon) = subregion.monitor {
+                    mouse_pos.x - mon.x()
+                } else {
+                    mouse_pos.x
+                };
+                let rel_y = if let Some(ref mon) = subregion.monitor {
+                    mouse_pos.y - mon.y()
+                } else {
+                    mouse_pos.y
+                };
+                subregion.width = (rel_x - subregion.x).unsigned_abs();
+                subregion.height = (rel_y - subregion.y).unsigned_abs();
                 *show_subregion = false;
             }
         } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
@@ -572,26 +595,55 @@ pub fn hsbk_sliders(
 }
 
 pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
-    // Similar logic to handle_screencap, using waveform_map & waveform_channel
     let mut color: Option<HSBK> = None;
     let update_interval_ms = app.settings.update_interval_ms;
+
+    ensure_waveform_channel(app, device.id());
+    app.waveform_map
+        .entry(device.id())
+        .or_insert(WaveformTracker {
+            active: false,
+            last_update: Instant::now(),
+            mode: WaveformMode::Audio,
+            region: RegionCaptureTarget::All,
+            stop_tx: None,
+        });
+
     if let Some(color_channel) = app.waveform_channel.get(&device.id()) {
-        let tracker: &mut WaveformTracker =
-            app.waveform_map
-                .entry(device.id())
-                .or_insert(WaveformTracker {
-                    active: false,
-                    last_update: Instant::now(),
-                    region: RegionCaptureTarget::All,
-                    stop_tx: None,
-                });
-        if tracker.active && (has_time_elapsed(update_interval_ms, tracker)) {
-            update_color_from_channel(&mut color, tracker, color_channel);
+        if let Some(tracker) = app.waveform_map.get_mut(&device.id()) {
+            if tracker.active
+                && tracker.mode == WaveformMode::Audio
+                && has_time_elapsed(update_interval_ms, tracker)
+            {
+                update_color_from_channel(&mut color, tracker, color_channel);
+            }
         }
-    } else {
+    }
+
+    let is_active = app
+        .waveform_map
+        .get(&device.id())
+        .is_some_and(|w| w.active && w.mode == WaveformMode::Audio);
+    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
+        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Audio);
+    }
+
+    if is_active {
+        ui.ctx()
+            .request_repaint_after(Duration::from_millis(update_interval_ms));
+    }
+
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: Some((update_interval_ms / 2) as u32),
+    })
+}
+
+fn ensure_waveform_channel(app: &mut MantleApp, device_id: u64) {
+    if !app.waveform_channel.contains_key(&device_id) {
         let (tx, rx) = mpsc::channel();
         app.waveform_channel.insert(
-            device.id(),
+            device_id,
             ColorChannelEntry {
                 tx,
                 rx,
@@ -599,79 +651,118 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
             },
         );
     }
-
-    let is_active = app.waveform_map.get(&device.id()).is_some_and(|w| w.active);
-    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
-        initialize_waveform_tracker(app, device, update_interval_ms);
-    }
-    color.map(|color| DeltaColor {
-        next: color,
-        duration: Some((update_interval_ms / 2) as u32),
-    })
 }
 
-fn initialize_waveform_tracker(app: &mut MantleApp, device: &DeviceInfo, update_interval_ms: u64) {
-    if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
-        waveform.active = !waveform.active;
-    } else {
-        let running_waveform = WaveformTracker {
+fn stop_active_waveform(app: &mut MantleApp, device_id: u64) {
+    if let Some(tracker) = app.waveform_map.get_mut(&device_id) {
+        if let Some(stop_tx) = tracker.stop_tx.take() {
+            let _ = stop_tx.send(());
+        }
+        tracker.active = false;
+    }
+    if let Some(channel) = app.waveform_channel.get_mut(&device_id) {
+        if let Some(handle) = channel.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn initialize_waveform_tracker(
+    app: &mut MantleApp,
+    device: &DeviceInfo,
+    update_interval_ms: u64,
+    mode: WaveformMode,
+) {
+    let device_id = device.id();
+
+    let is_toggle_off = app
+        .waveform_map
+        .get(&device_id)
+        .map(|w| w.active && w.mode == mode)
+        .unwrap_or(false);
+
+    let existing_region = app
+        .waveform_map
+        .get(&device_id)
+        .map(|w| w.region.clone())
+        .unwrap_or(RegionCaptureTarget::All);
+
+    stop_active_waveform(app, device_id);
+
+    if is_toggle_off {
+        return;
+    }
+
+    ensure_waveform_channel(app, device_id);
+
+    app.waveform_map.insert(
+        device_id,
+        WaveformTracker {
             active: true,
             last_update: Instant::now(),
-            region: RegionCaptureTarget::All,
+            mode: mode.clone(),
+            region: existing_region.clone(),
             stop_tx: None,
-        };
-        app.waveform_map
-            .insert(device.id(), running_waveform.clone());
-    }
-    // if the waveform is active, we need to spawn a thread to get the color
-    if app.waveform_map[&device.id()].active {
-        let buffer_clone = app.audio_manager.clone_samples_buffer();
-        let tx = app
-            .waveform_channel
-            .get(&device.id())
-            .expect("Failed to get color sender for device")
-            .tx
-            .clone();
-        let lifx_manager = app.lighting_manager.clone();
-        let device_id = device.id();
+        },
+    );
 
-        let (stop_tx, stop_rx) = mpsc::channel::<()>();
-        if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
-            waveform_trx.handle = Some(thread::spawn(move || loop {
-                let samples = buffer_clone.lock().unwrap().clone();
+    let tx = match app.waveform_channel.get(&device_id) {
+        Some(channel) => channel.tx.clone(),
+        None => return,
+    };
+    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+
+    let handle = match mode {
+        WaveformMode::Screencap => {
+            let region = existing_region;
+            thread::spawn(move || {
+                let screen_manager = match ScreencapManager::new() {
+                    Ok(sm) => sm,
+                    Err(e) => {
+                        log::error!("Failed to create screen manager in capture thread: {}", e);
+                        return;
+                    }
+                };
+                loop {
+                    match screen_manager.calculate_average_color(region.clone()) {
+                        Ok(color) => {
+                            if tx.send(color).is_err() {
+                                break;
+                            }
+                        }
+                        Err(e) => log::error!("Screen capture error: {}", e),
+                    }
+                    thread::sleep(Duration::from_millis(update_interval_ms));
+                    if stop_rx.try_recv().is_ok() {
+                        break;
+                    }
+                }
+            })
+        }
+        WaveformMode::Audio => {
+            let buffer_clone = app.audio_manager.clone_samples_buffer();
+            thread::spawn(move || loop {
+                let samples = match buffer_clone.lock() {
+                    Ok(buf) => buf.clone(),
+                    Err(_) => break,
+                };
                 let audio_color = AudioManager::samples_to_hsbk(samples);
-                if let Err(err) = lifx_manager.set_color_by_id(device_id, audio_color) {
-                    eprintln!("Failed to set color: {}", err);
+                if tx.send(audio_color).is_err() {
+                    break;
                 }
-                if let Err(err) = tx.send(audio_color) {
-                    eprintln!("Failed to send color data: {}", err);
-                }
-
-                thread::sleep(Duration::from_millis(update_interval_ms / 4));
+                thread::sleep(Duration::from_millis(update_interval_ms));
                 if stop_rx.try_recv().is_ok() {
                     break;
                 }
-            }));
+            })
         }
-        app.waveform_map
-            .get_mut(&device.id())
-            .expect("Failed to get stop tx for waveform")
-            .stop_tx = Some(stop_tx);
-    } else if let Some(waveform_trx) = app.waveform_channel.get_mut(&device.id()) {
-        if let Some(thread) = waveform_trx.handle.take() {
-            // Send a signal to stop the thread
-            if let Some(stop_tx) = app
-                .waveform_map
-                .get_mut(&device.id())
-                .expect("Failed to get waveform")
-                .stop_tx
-                .take()
-            {
-                stop_tx.send(()).expect("Failed to send stop signal");
-            }
-            // Wait for the thread to finish
-            thread.join().expect("Failed to join thread");
-        }
+    };
+
+    if let Some(channel) = app.waveform_channel.get_mut(&device_id) {
+        channel.handle = Some(handle);
+    }
+    if let Some(tracker) = app.waveform_map.get_mut(&device_id) {
+        tracker.stop_tx = Some(stop_tx);
     }
 }
 
@@ -684,8 +775,12 @@ fn update_color_from_channel(
     tracker: &mut WaveformTracker,
     color_channel: &ColorChannelEntry,
 ) {
-    if let Ok(computed_color) = color_channel.rx.try_recv() {
-        *color = Some(computed_color);
+    let mut latest = None;
+    while let Ok(computed_color) = color_channel.rx.try_recv() {
+        latest = Some(computed_color);
+    }
+    if let Some(latest_color) = latest {
+        *color = Some(latest_color);
         tracker.last_update = Instant::now();
     }
 }

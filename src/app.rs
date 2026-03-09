@@ -39,10 +39,17 @@ pub const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop
 pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png");
 pub const AUDIO_ICON: &[u8; 225] = include_bytes!("../res/icons/device-speaker.png");
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum WaveformMode {
+    Screencap,
+    Audio,
+}
+
 #[derive(Debug, Clone)]
 pub struct WaveformTracker {
     pub active: bool,
     pub last_update: Instant,
+    pub mode: WaveformMode,
     pub region: RegionCaptureTarget,
     pub stop_tx: Option<mpsc::Sender<()>>,
 }
@@ -483,9 +490,9 @@ impl eframe::App for MantleApp {
         if Instant::now() - self.lighting_manager.last_discovery
             > Duration::from_millis(self.settings.refresh_rate_ms)
         {
-            self.lighting_manager
-                .discover()
-                .expect("Failed to discover bulbs");
+            if let Err(e) = self.lighting_manager.discover() {
+                log::error!("Failed to discover bulbs: {}", e);
+            }
         }
         if let Err(e) = self.lighting_manager.refresh() {
             log::error!("Error refreshing manager: {}", e);

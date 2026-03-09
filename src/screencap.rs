@@ -164,6 +164,9 @@ impl ScreencapManager {
 
         let mut calculate_image_pixel_average = |image: &RgbaImage| {
             for pixel in image.pixels() {
+                if pixel[3] == 0 {
+                    continue;
+                }
                 red += pixel[0] as u64;
                 green += pixel[1] as u64;
                 blue += pixel[2] as u64;

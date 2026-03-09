@@ -12,6 +12,9 @@ env:
 jobs:
   test:
     name: test on ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,6 +41,9 @@ jobs:
 
   clippy_check:
     name: Clippy
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -68,6 +74,9 @@ jobs:
 
   format:
     name: Format
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -85,6 +94,9 @@ jobs:
 
   build:
     name: build on ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
