@@ -640,17 +640,14 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
 }
 
 fn ensure_waveform_channel(app: &mut MantleApp, device_id: u64) {
-    if !app.waveform_channel.contains_key(&device_id) {
+    app.waveform_channel.entry(device_id).or_insert_with(|| {
         let (tx, rx) = mpsc::channel();
-        app.waveform_channel.insert(
-            device_id,
-            ColorChannelEntry {
-                tx,
-                rx,
-                handle: None,
-            },
-        );
-    }
+        ColorChannelEntry {
+            tx,
+            rx,
+            handle: None,
+        }
+    });
 }
 
 fn stop_active_waveform(app: &mut MantleApp, device_id: u64) {

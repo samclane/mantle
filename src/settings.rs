@@ -417,7 +417,7 @@ impl MantleApp {
 
                             // Also add individual devices from the group
                             for device in group
-                                .get_bulbs(&*self.lighting_manager.bulbs.lock().unwrap())
+                                .get_bulbs(&self.lighting_manager.bulbs.lock().unwrap())
                                 .iter()
                             {
                                 // Avoid duplicating devices
