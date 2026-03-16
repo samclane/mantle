@@ -63,6 +63,18 @@ pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> 
         egui::Key::X => Ok(Key::KeyX),
         egui::Key::Y => Ok(Key::KeyY),
         egui::Key::Z => Ok(Key::KeyZ),
+        egui::Key::F1 => Ok(Key::F1),
+        egui::Key::F2 => Ok(Key::F2),
+        egui::Key::F3 => Ok(Key::F3),
+        egui::Key::F4 => Ok(Key::F4),
+        egui::Key::F5 => Ok(Key::F5),
+        egui::Key::F6 => Ok(Key::F6),
+        egui::Key::F7 => Ok(Key::F7),
+        egui::Key::F8 => Ok(Key::F8),
+        egui::Key::F9 => Ok(Key::F9),
+        egui::Key::F10 => Ok(Key::F10),
+        egui::Key::F11 => Ok(Key::F11),
+        egui::Key::F12 => Ok(Key::F12),
         _ => Err(KeyMappingError { key }),
     }
 }

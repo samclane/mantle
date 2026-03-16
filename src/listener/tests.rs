@@ -25,7 +25,9 @@ mod tests {
             map_egui_key_to_rdev_key(egui::Key::Enter).unwrap(),
             Key::Return
         );
-        assert!(map_egui_key_to_rdev_key(egui::Key::F1).is_err());
+        assert_eq!(map_egui_key_to_rdev_key(egui::Key::F1).unwrap(), Key::F1);
+        assert_eq!(map_egui_key_to_rdev_key(egui::Key::F12).unwrap(), Key::F12);
+        assert!(map_egui_key_to_rdev_key(egui::Key::F13).is_err());
     }
 
     #[test]
