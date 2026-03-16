@@ -20,14 +20,80 @@ mod tests {
 
     #[test]
     fn test_map_egui_key_to_rdev_key() {
+        // Letters
         assert_eq!(map_egui_key_to_rdev_key(egui::Key::A).unwrap(), Key::KeyA);
+        assert_eq!(map_egui_key_to_rdev_key(egui::Key::Z).unwrap(), Key::KeyZ);
+
+        // Navigation
         assert_eq!(
             map_egui_key_to_rdev_key(egui::Key::Enter).unwrap(),
             Key::Return
         );
+
+        // Digits
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Num0).unwrap(),
+            Key::Num0
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Num9).unwrap(),
+            Key::Num9
+        );
+
+        // Punctuation
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Comma).unwrap(),
+            Key::Comma
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Period).unwrap(),
+            Key::Dot
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Minus).unwrap(),
+            Key::Minus
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Equals).unwrap(),
+            Key::Equal
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Semicolon).unwrap(),
+            Key::SemiColon
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Quote).unwrap(),
+            Key::Quote
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Backslash).unwrap(),
+            Key::BackSlash
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Slash).unwrap(),
+            Key::Slash
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::OpenBracket).unwrap(),
+            Key::LeftBracket
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::CloseBracket).unwrap(),
+            Key::RightBracket
+        );
+        assert_eq!(
+            map_egui_key_to_rdev_key(egui::Key::Backtick).unwrap(),
+            Key::BackQuote
+        );
+
+        // Function keys
         assert_eq!(map_egui_key_to_rdev_key(egui::Key::F1).unwrap(), Key::F1);
         assert_eq!(map_egui_key_to_rdev_key(egui::Key::F12).unwrap(), Key::F12);
+
+        // Unmappable keys
         assert!(map_egui_key_to_rdev_key(egui::Key::F13).is_err());
+        assert!(map_egui_key_to_rdev_key(egui::Key::Copy).is_err());
+        assert!(map_egui_key_to_rdev_key(egui::Key::Pipe).is_err());
     }
 
     #[test]

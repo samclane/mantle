@@ -22,6 +22,7 @@ impl std::error::Error for KeyMappingError {}
 
 pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> {
     match key {
+        // Navigation / command keys
         egui::Key::ArrowDown => Ok(Key::DownArrow),
         egui::Key::ArrowLeft => Ok(Key::LeftArrow),
         egui::Key::ArrowRight => Ok(Key::RightArrow),
@@ -37,6 +38,33 @@ pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> 
         egui::Key::PageUp => Ok(Key::PageUp),
         egui::Key::Space => Ok(Key::Space),
         egui::Key::Tab => Ok(Key::Tab),
+
+        // Punctuation
+        egui::Key::Comma => Ok(Key::Comma),
+        egui::Key::Backslash => Ok(Key::BackSlash),
+        egui::Key::Slash => Ok(Key::Slash),
+        egui::Key::OpenBracket => Ok(Key::LeftBracket),
+        egui::Key::CloseBracket => Ok(Key::RightBracket),
+        egui::Key::Backtick => Ok(Key::BackQuote),
+        egui::Key::Minus => Ok(Key::Minus),
+        egui::Key::Period => Ok(Key::Dot),
+        egui::Key::Equals => Ok(Key::Equal),
+        egui::Key::Semicolon => Ok(Key::SemiColon),
+        egui::Key::Quote => Ok(Key::Quote),
+
+        // Digits
+        egui::Key::Num0 => Ok(Key::Num0),
+        egui::Key::Num1 => Ok(Key::Num1),
+        egui::Key::Num2 => Ok(Key::Num2),
+        egui::Key::Num3 => Ok(Key::Num3),
+        egui::Key::Num4 => Ok(Key::Num4),
+        egui::Key::Num5 => Ok(Key::Num5),
+        egui::Key::Num6 => Ok(Key::Num6),
+        egui::Key::Num7 => Ok(Key::Num7),
+        egui::Key::Num8 => Ok(Key::Num8),
+        egui::Key::Num9 => Ok(Key::Num9),
+
+        // Letters
         egui::Key::A => Ok(Key::KeyA),
         egui::Key::B => Ok(Key::KeyB),
         egui::Key::C => Ok(Key::KeyC),
@@ -63,6 +91,8 @@ pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> 
         egui::Key::X => Ok(Key::KeyX),
         egui::Key::Y => Ok(Key::KeyY),
         egui::Key::Z => Ok(Key::KeyZ),
+
+        // Function keys (F1-F12 only; rdev has no F13+ variants)
         egui::Key::F1 => Ok(Key::F1),
         egui::Key::F2 => Ok(Key::F2),
         egui::Key::F3 => Ok(Key::F3),
@@ -75,6 +105,8 @@ pub fn map_egui_key_to_rdev_key(key: egui::Key) -> Result<Key, KeyMappingError> 
         egui::Key::F10 => Ok(Key::F10),
         egui::Key::F11 => Ok(Key::F11),
         egui::Key::F12 => Ok(Key::F12),
+
+        // No rdev equivalent: Copy, Cut, Paste, Colon, Pipe, Questionmark, Plus, F13-F35
         _ => Err(KeyMappingError { key }),
     }
 }
