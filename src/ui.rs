@@ -146,7 +146,9 @@ pub fn handle_screencap(
     if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
         initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Screencap);
     }
+    let mut region_type_changed = false;
     if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
+        let prev_discriminant = std::mem::discriminant(&waveform.region);
         ui.vertical(|ui| {
             let mut subregion = app
                 .subregion_points
@@ -226,8 +228,15 @@ pub fn handle_screencap(
                     ui.label("Height:");
                     ui.add(egui::DragValue::new(&mut subregion.height));
                 });
+                render_subregion_preview(ui, &app.screen_manager, &mut subregion);
             }
         });
+        region_type_changed = waveform.active
+            && waveform.mode == WaveformMode::Screencap
+            && std::mem::discriminant(&waveform.region) != prev_discriminant;
+    }
+    if region_type_changed {
+        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Screencap);
     }
 
     if is_active {
@@ -301,6 +310,149 @@ pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64)
         } else if app.input_listener.is_key_pressed(rdev::Key::Escape) {
             *show_subregion = false;
         }
+    }
+}
+
+fn render_subregion_preview(
+    ui: &mut Ui,
+    screen_manager: &ScreencapManager,
+    subregion: &mut ScreenSubregion,
+) {
+    let monitors = &screen_manager.monitors;
+    if monitors.is_empty() {
+        return;
+    }
+
+    let mut x_min = i32::MAX;
+    let mut y_min = i32::MAX;
+    let mut x_max = i32::MIN;
+    let mut y_max = i32::MIN;
+    for monitor in monitors {
+        x_min = x_min.min(monitor.x());
+        y_min = y_min.min(monitor.y());
+        x_max = x_max.max(monitor.x() + monitor.width() as i32);
+        y_max = y_max.max(monitor.y() + monitor.height() as i32);
+    }
+
+    let total_width = (x_max - x_min) as f32;
+    let total_height = (y_max - y_min) as f32;
+    if total_width <= 0.0 || total_height <= 0.0 {
+        return;
+    }
+
+    let preview_width = ui.available_width().min(300.0);
+    let scale = preview_width / total_width;
+    let preview_height = total_height * scale;
+
+    ui.add_space(4.0);
+    let (response, painter) =
+        ui.allocate_painter(vec2(preview_width, preview_height), Sense::click_and_drag());
+    let origin = response.rect.min;
+
+    let preview_to_global = |pos: Pos2| -> (i32, i32) {
+        (
+            ((pos.x - origin.x) / scale) as i32 + x_min,
+            ((pos.y - origin.y) / scale) as i32 + y_min,
+        )
+    };
+
+    painter.rect_filled(response.rect, 2.0, Color32::from_gray(20));
+
+    for monitor in monitors {
+        let mon_rect = egui::Rect::from_min_size(
+            pos2(
+                origin.x + (monitor.x() - x_min) as f32 * scale,
+                origin.y + (monitor.y() - y_min) as f32 * scale,
+            ),
+            vec2(
+                monitor.width() as f32 * scale,
+                monitor.height() as f32 * scale,
+            ),
+        );
+        painter.rect(
+            mon_rect,
+            2.0,
+            Color32::from_gray(40),
+            Stroke::new(1.0, Color32::from_gray(90)),
+        );
+        painter.text(
+            mon_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            monitor.name(),
+            egui::FontId::proportional(10.0),
+            Color32::from_gray(110),
+        );
+    }
+
+    let drag_start_id = response.id.with("drag_start");
+
+    if response.drag_started() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let (gx, gy) = preview_to_global(pos);
+            let monitor = monitors.iter().find(|m| {
+                gx >= m.x()
+                    && gx < m.x() + m.width() as i32
+                    && gy >= m.y()
+                    && gy < m.y() + m.height() as i32
+            });
+            if let Some(mon) = monitor {
+                let rel_x = (gx - mon.x()).max(0);
+                let rel_y = (gy - mon.y()).max(0);
+                ui.memory_mut(|mem| {
+                    mem.data.insert_temp(drag_start_id, (rel_x, rel_y));
+                });
+                subregion.monitor = Some(Arc::new(mon.clone()));
+                subregion.x = rel_x;
+                subregion.y = rel_y;
+                subregion.width = 0;
+                subregion.height = 0;
+            }
+        }
+    }
+
+    if response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let (gx, gy) = preview_to_global(pos);
+            if let Some(start) = ui.memory(|mem| mem.data.get_temp::<(i32, i32)>(drag_start_id)) {
+                if let Some(ref mon) = subregion.monitor {
+                    let end_x = (gx - mon.x()).clamp(0, mon.width() as i32 - 1);
+                    let end_y = (gy - mon.y()).clamp(0, mon.height() as i32 - 1);
+                    subregion.x = start.0.min(end_x);
+                    subregion.y = start.1.min(end_y);
+                    subregion.width = (start.0 - end_x).unsigned_abs();
+                    subregion.height = (start.1 - end_y).unsigned_abs();
+                }
+            }
+        }
+    }
+
+    if subregion.width > 0 && subregion.height > 0 {
+        let (sub_gx, sub_gy) = match subregion.monitor {
+            Some(ref mon) => (mon.x() + subregion.x, mon.y() + subregion.y),
+            None => (subregion.x, subregion.y),
+        };
+        let sub_rect = egui::Rect::from_min_size(
+            pos2(
+                origin.x + (sub_gx - x_min) as f32 * scale,
+                origin.y + (sub_gy - y_min) as f32 * scale,
+            ),
+            vec2(
+                subregion.width as f32 * scale,
+                subregion.height as f32 * scale,
+            ),
+        );
+        painter.rect(
+            sub_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(60, 140, 255, 35),
+            Stroke::new(2.0, Color32::from_rgb(60, 140, 255)),
+        );
+    }
+
+    if response.hovered() {
+        ui.ctx().output_mut(|out| {
+            out.cursor_icon = egui::CursorIcon::Crosshair;
+        });
     }
 }
 
@@ -712,6 +864,11 @@ fn initialize_waveform_tracker(
     let handle = match mode {
         WaveformMode::Screencap => {
             let region = existing_region;
+            let shared_subregion = if matches!(region, RegionCaptureTarget::Subregion(_)) {
+                app.subregion_points.get(&device_id).cloned()
+            } else {
+                None
+            };
             thread::spawn(move || {
                 let screen_manager = match ScreencapManager::new() {
                     Ok(sm) => sm,
@@ -721,7 +878,14 @@ fn initialize_waveform_tracker(
                     }
                 };
                 loop {
-                    match screen_manager.calculate_average_color(region.clone()) {
+                    let capture_region = match &shared_subregion {
+                        Some(sub_lock) => {
+                            let sub = sub_lock.lock().expect("Failed to lock subregion");
+                            RegionCaptureTarget::Subregion(vec![sub.clone()])
+                        }
+                        None => region.clone(),
+                    };
+                    match screen_manager.calculate_average_color(capture_region) {
                         Ok(color) => {
                             if tx.send(color).is_err() {
                                 break;
