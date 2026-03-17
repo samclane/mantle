@@ -10,8 +10,8 @@ use crate::{
 
 use eframe::{
     egui::{
-        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, Sense, Shape, Stroke,
-        Ui, Vec2, WidgetInfo, WidgetType,
+        self, lerp, pos2, remap_clamp, vec2, Color32, Mesh, Pos2, Response, RichText, Sense, Shape,
+        Stroke, Ui, Vec2, WidgetInfo, WidgetType,
     },
     epaint::CubicBezierShape,
 };
@@ -200,10 +200,11 @@ pub fn color_slider(
             ui.painter().add(Shape::mesh(mesh));
         }
 
-        ui.painter().rect_stroke(rect, 0.0, visuals.bg_stroke); // outline
+        let rail_rounding = rect.height() / 2.0;
+        ui.painter()
+            .rect_stroke(rect, rail_rounding, visuals.bg_stroke);
 
         {
-            // Show where the slider is at:
             let x = lerp(
                 rect.left()..=rect.right(),
                 remap_clamp(
@@ -212,13 +213,19 @@ pub fn color_slider(
                     0.0..=1.0,
                 ),
             );
-            let radius = ui.spacing().slider_rail_height / 2.0 + 2.0;
+            let radius = ui.spacing().slider_rail_height / 2.0 + 3.0;
             let picked_color = get_color_at_value(*value);
+            ui.painter().circle(
+                pos2(x, rect.center().y),
+                radius + 1.0,
+                Color32::from_rgba_unmultiplied(0, 0, 0, 80),
+                Stroke::NONE,
+            );
             ui.painter().circle(
                 pos2(x, rect.center().y),
                 radius,
                 picked_color,
-                Stroke::new(visuals.fg_stroke.width, contrast_color(picked_color)),
+                Stroke::new(visuals.fg_stroke.width + 0.5, contrast_color(picked_color)),
             );
         }
 
@@ -301,6 +308,14 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
     }
 }
 
+fn slider_label(ui: &mut Ui, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(12.0)
+            .color(Color32::from_rgb(160, 160, 180)),
+    );
+}
+
 pub fn hsbk_sliders(
     ui: &mut Ui,
     hue: &mut u16,
@@ -311,19 +326,19 @@ pub fn hsbk_sliders(
 ) -> egui::Response {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
-            ui.label("Hue");
+            slider_label(ui, "Hue");
             hue_slider(ui, hue)
         });
         ui.horizontal(|ui| {
-            ui.label("Saturation");
+            slider_label(ui, "Saturation");
             saturation_slider(ui, saturation)
         });
         ui.horizontal(|ui| {
-            ui.label("Brightness");
+            slider_label(ui, "Brightness");
             brightness_slider(ui, brightness)
         });
         ui.horizontal(|ui| {
-            ui.label("Kelvin");
+            slider_label(ui, "Kelvin");
             kelvin_slider(ui, kelvin, device)
         });
     })

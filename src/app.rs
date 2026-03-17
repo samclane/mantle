@@ -21,16 +21,16 @@ use crate::{
     BulbInfo, LifxManager, ScreencapManager,
 };
 
-use eframe::egui::{self, Direction, Modifiers, RichText, Ui, Vec2};
+use eframe::egui::{self, Color32, Direction, Modifiers, RichText, Stroke, Ui, Vec2};
 use egui::Align2;
 use egui_toast::{Toast, ToastKind, ToastOptions, Toasts};
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
 // UI and window size constants
-pub const MAIN_WINDOW_SIZE: [f32; 2] = [320.0, 800.0];
+pub const MAIN_WINDOW_SIZE: [f32; 2] = [420.0, 800.0];
 pub const ABOUT_WINDOW_SIZE: [f32; 2] = [320.0, 480.0];
-pub const MIN_WINDOW_SIZE: [f32; 2] = [300.0, 220.0];
+pub const MIN_WINDOW_SIZE: [f32; 2] = [380.0, 220.0];
 
 // Icon data
 pub const ICON: &[u8; 1751] = include_bytes!("../res/logo32.png");
@@ -125,6 +125,8 @@ impl Default for MantleApp {
 
 impl MantleApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        Self::configure_theme(&cc.egui_ctx);
+
         if let Some(storage) = cc.storage {
             let mut app =
                 eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
@@ -160,6 +162,44 @@ impl MantleApp {
         Default::default()
     }
 
+    fn configure_theme(ctx: &egui::Context) {
+        let mut visuals = egui::Visuals::dark();
+
+        visuals.panel_fill = Color32::from_rgb(22, 22, 30);
+        visuals.window_fill = Color32::from_rgb(28, 28, 38);
+        visuals.extreme_bg_color = Color32::from_rgb(16, 16, 22);
+        visuals.faint_bg_color = Color32::from_rgb(32, 32, 44);
+
+        let widget_rounding = egui::Rounding::same(6.0);
+        visuals.widgets.noninteractive.rounding = widget_rounding;
+        visuals.widgets.inactive.rounding = widget_rounding;
+        visuals.widgets.hovered.rounding = widget_rounding;
+        visuals.widgets.active.rounding = widget_rounding;
+        visuals.widgets.open.rounding = widget_rounding;
+        visuals.window_rounding = egui::Rounding::same(10.0);
+        visuals.menu_rounding = egui::Rounding::same(8.0);
+
+        visuals.selection.bg_fill = Color32::from_rgb(180, 120, 30);
+        visuals.selection.stroke = Stroke::new(1.0, Color32::from_rgb(220, 160, 50));
+
+        visuals.widgets.inactive.bg_fill = Color32::from_rgb(40, 40, 55);
+        visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(35, 35, 48);
+        visuals.widgets.hovered.bg_fill = Color32::from_rgb(50, 50, 68);
+        visuals.widgets.active.bg_fill = Color32::from_rgb(60, 60, 80);
+
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(55, 55, 75));
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(100, 100, 140));
+        visuals.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_rgb(180, 120, 30));
+
+        ctx.set_visuals(visuals);
+
+        let mut style = (*ctx.style()).clone();
+        style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        style.spacing.slider_rail_height = 14.0;
+        style.spacing.button_padding = egui::vec2(8.0, 4.0);
+        ctx.set_style(style);
+    }
+
     fn sort_bulbs<'a>(&self, mut bulbs: Vec<&'a BulbInfo>) -> Vec<&'a BulbInfo> {
         bulbs.sort_by(|a, b| {
             let group_a = a.group_label();
@@ -180,16 +220,30 @@ impl MantleApp {
         match device {
             DeviceInfo::Bulb(bulb) => {
                 if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                    ui.label(RichText::new(s).size(14.0));
+                    ui.label(
+                        RichText::new(s)
+                            .size(14.0)
+                            .color(Color32::from_rgb(200, 200, 220)),
+                    );
                 }
                 bulb.get_color().cloned()
             }
             DeviceInfo::Group(group) => {
                 if let Ok(s) = group.label.cstr().to_str() {
                     if *group == self.lighting_manager.all_bulbs_group {
-                        ui.label(RichText::new(s).size(16.0).strong().underline());
+                        ui.label(
+                            RichText::new(s)
+                                .size(17.0)
+                                .strong()
+                                .color(Color32::from_rgb(220, 220, 240)),
+                        );
                     } else {
-                        ui.label(RichText::new(s).size(16.0).strong());
+                        ui.label(
+                            RichText::new(s)
+                                .size(16.0)
+                                .strong()
+                                .color(Color32::from_rgb(210, 210, 230)),
+                        );
                     }
                 }
                 Some(self.lighting_manager.get_avg_group_color(group, bulbs))
@@ -206,7 +260,11 @@ impl MantleApp {
     ) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label("Power");
+                ui.label(
+                    RichText::new("Power")
+                        .size(12.0)
+                        .color(Color32::from_rgb(160, 160, 180)),
+                );
                 toggle_button(
                     ui,
                     &self.lighting_manager,
@@ -216,7 +274,9 @@ impl MantleApp {
                 );
             });
             if let Some(before_color) = color_opt {
+                ui.add_space(2.0);
                 let mut after_color = self.display_color_controls(ui, device, before_color);
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     after_color = handle_eyedropper(self, ui, device).unwrap_or(after_color);
                     after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
@@ -259,19 +319,28 @@ impl MantleApp {
         device: &DeviceInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
     ) {
-        let color = self.get_device_display_color(ui, device, bulbs);
-        ui.horizontal(|ui| {
-            display_color_circle(
-                ui,
-                device,
-                color.unwrap_or(default_hsbk()),
-                Vec2::new(1.0, 1.0),
-                8.0,
-                bulbs,
-            );
-            self.render_device_controls(ui, device, color, bulbs);
-        });
-        ui.separator();
+        ui.add_space(2.0);
+        egui::Frame::none()
+            .rounding(egui::Rounding::same(10.0))
+            .inner_margin(egui::Margin::same(12.0))
+            .fill(Color32::from_rgb(30, 30, 42))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 65)))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let color = self.get_device_display_color(ui, device, bulbs);
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    display_color_circle(
+                        ui,
+                        device,
+                        color.unwrap_or(default_hsbk()),
+                        Vec2::new(1.0, 1.0),
+                        8.0,
+                        bulbs,
+                    );
+                    self.render_device_controls(ui, device, color, bulbs);
+                });
+            });
     }
 
     fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> DeltaColor {
