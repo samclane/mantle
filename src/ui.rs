@@ -144,7 +144,13 @@ pub fn handle_screencap(
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Screencap);
     if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
-        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Screencap);
+        initialize_waveform_tracker(
+            app,
+            device,
+            update_interval_ms,
+            WaveformMode::Screencap,
+            ui.ctx().clone(),
+        );
     }
     let mut region_type_changed = false;
     if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
@@ -236,12 +242,13 @@ pub fn handle_screencap(
             && std::mem::discriminant(&waveform.region) != prev_discriminant;
     }
     if region_type_changed {
-        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Screencap);
-    }
-
-    if is_active {
-        ui.ctx()
-            .request_repaint_after(Duration::from_millis(update_interval_ms));
+        initialize_waveform_tracker(
+            app,
+            device,
+            update_interval_ms,
+            WaveformMode::Screencap,
+            ui.ctx().clone(),
+        );
     }
 
     color.map(|color| DeltaColor {
@@ -777,12 +784,13 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Audio);
     if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
-        initialize_waveform_tracker(app, device, update_interval_ms, WaveformMode::Audio);
-    }
-
-    if is_active {
-        ui.ctx()
-            .request_repaint_after(Duration::from_millis(update_interval_ms));
+        initialize_waveform_tracker(
+            app,
+            device,
+            update_interval_ms,
+            WaveformMode::Audio,
+            ui.ctx().clone(),
+        );
     }
 
     color.map(|color| DeltaColor {
@@ -821,6 +829,7 @@ fn initialize_waveform_tracker(
     device: &DeviceInfo,
     update_interval_ms: u64,
     mode: WaveformMode,
+    ctx: egui::Context,
 ) {
     let device_id = device.id();
 
@@ -869,6 +878,7 @@ fn initialize_waveform_tracker(
             } else {
                 None
             };
+            let ctx = ctx.clone();
             thread::spawn(move || {
                 let screen_manager = match ScreencapManager::new() {
                     Ok(sm) => sm,
@@ -890,6 +900,7 @@ fn initialize_waveform_tracker(
                             if tx.send(color).is_err() {
                                 break;
                             }
+                            ctx.request_repaint();
                         }
                         Err(e) => log::error!("Screen capture error: {}", e),
                     }
@@ -911,6 +922,7 @@ fn initialize_waveform_tracker(
                 if tx.send(audio_color).is_err() {
                     break;
                 }
+                ctx.request_repaint();
                 thread::sleep(Duration::from_millis(update_interval_ms));
                 if stop_rx.try_recv().is_ok() {
                     break;
