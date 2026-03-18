@@ -298,14 +298,27 @@ fn render_subregion_preview(
         return;
     }
 
-    let preview_width = ui.available_width().min(300.0);
+    let pad = 6.0;
+    let preview_width = ui.available_width().min(300.0) - pad * 2.0;
     let scale = preview_width / total_width;
     let preview_height = total_height * scale;
+    let outer_width = preview_width + pad * 2.0;
+    let outer_height = preview_height + pad * 2.0;
 
     ui.add_space(4.0);
     let (response, painter) =
-        ui.allocate_painter(vec2(preview_width, preview_height), Sense::click_and_drag());
-    let origin = response.rect.min;
+        ui.allocate_painter(vec2(outer_width, outer_height), Sense::click_and_drag());
+
+    let outer_rect = response.rect;
+    let inner_rect = outer_rect.shrink(pad);
+    let origin = inner_rect.min;
+
+    painter.rect(
+        outer_rect,
+        6.0,
+        Color32::from_rgb(16, 16, 22),
+        Stroke::new(1.5, Color32::from_rgb(100, 100, 130)),
+    );
 
     let preview_to_global = |pos: Pos2| -> (i32, i32) {
         (
@@ -313,8 +326,6 @@ fn render_subregion_preview(
             ((pos.y - origin.y) / scale) as i32 + y_min,
         )
     };
-
-    painter.rect_filled(response.rect, 2.0, Color32::from_gray(20));
 
     for monitor in monitors {
         let mon_rect = egui::Rect::from_min_size(
@@ -329,16 +340,16 @@ fn render_subregion_preview(
         );
         painter.rect(
             mon_rect,
-            2.0,
-            Color32::from_gray(40),
-            Stroke::new(1.0, Color32::from_gray(90)),
+            4.0,
+            Color32::from_rgb(30, 30, 42),
+            Stroke::new(1.0, Color32::from_rgb(55, 55, 75)),
         );
         painter.text(
             mon_rect.center(),
             egui::Align2::CENTER_CENTER,
             monitor.name(),
             egui::FontId::proportional(10.0),
-            Color32::from_gray(110),
+            Color32::from_rgb(120, 120, 145),
         );
     }
 
@@ -401,9 +412,9 @@ fn render_subregion_preview(
         );
         painter.rect(
             sub_rect,
-            0.0,
-            Color32::from_rgba_unmultiplied(60, 140, 255, 35),
-            Stroke::new(2.0, Color32::from_rgb(60, 140, 255)),
+            2.0,
+            Color32::from_rgba_unmultiplied(180, 120, 30, 35),
+            Stroke::new(2.0, Color32::from_rgb(220, 160, 50)),
         );
     }
 
