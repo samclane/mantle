@@ -79,6 +79,13 @@ pub struct Products {
     pub products: Vec<Product>,
 }
 
+pub fn get_product_name(model: Option<&(u32, u32)>) -> Option<String> {
+    let products = get_products();
+    model
+        .and_then(|(_, product)| products.get(product))
+        .map(|info| info.name.clone())
+}
+
 pub fn get_products() -> HashMap<u32, Product> {
     let products: Products = serde_json::from_str(PRODUCTS).expect("Failed to parse products json");
     let mut product_map = HashMap::new();

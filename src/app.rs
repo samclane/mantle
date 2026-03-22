@@ -12,6 +12,7 @@ use crate::{
     device_info::DeviceInfo,
     display_color_circle,
     listener::input_listener::InputListener,
+    products::get_product_name,
     scenes::Scene,
     screencap::{RegionCaptureTarget, ScreenSubregion},
     settings::Settings,
@@ -219,13 +220,22 @@ impl MantleApp {
     ) -> Option<HSBK> {
         match device {
             DeviceInfo::Bulb(bulb) => {
-                if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                    ui.label(
-                        RichText::new(s)
-                            .size(14.0)
-                            .color(Color32::from_rgb(200, 200, 220)),
-                    );
-                }
+                ui.vertical(|ui| {
+                    if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
+                        ui.label(
+                            RichText::new(s)
+                                .size(14.0)
+                                .color(Color32::from_rgb(200, 200, 220)),
+                        );
+                    }
+                    if let Some(product_name) = get_product_name(bulb.model.data.as_ref()) {
+                        ui.label(
+                            RichText::new(product_name)
+                                .size(11.0)
+                                .color(Color32::from_rgb(140, 140, 160)),
+                        );
+                    }
+                });
                 bulb.get_color().cloned()
             }
             DeviceInfo::Group(group) => {
