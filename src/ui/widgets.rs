@@ -1,4 +1,8 @@
-use std::{collections::HashMap, ops::RangeInclusive, sync::MutexGuard};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::RangeInclusive,
+    sync::MutexGuard,
+};
 
 use crate::{
     color::kelvin_to_rgb,
@@ -343,4 +347,105 @@ pub fn hsbk_sliders(
         });
     })
     .response
+}
+
+/// Renders a horizontal strip of colored zone rectangles for multizone devices.
+/// Returns the updated set of selected zone indices.
+///
+/// Supports click to select a single zone, Ctrl+click to toggle individual
+/// zones, and click-and-drag to select a contiguous range.
+pub fn zone_strip(
+    ui: &mut Ui,
+    zones: &[Option<HSBK>],
+    selected: &HashSet<usize>,
+) -> HashSet<usize> {
+    let mut new_selected = selected.clone();
+    let zone_count = zones.len();
+    if zone_count == 0 {
+        return new_selected;
+    }
+
+    let available_width = ui.available_width();
+    let zone_width = (available_width / zone_count as f32).min(24.0).max(4.0);
+    let strip_height = 24.0;
+    let total_width = zone_width * zone_count as f32;
+
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(total_width, strip_height + 4.0),
+        Sense::click_and_drag(),
+    );
+
+    let pos_to_zone = |pos: Pos2| -> usize {
+        ((pos.x - rect.left()) / zone_width).clamp(0.0, (zone_count - 1) as f32) as usize
+    };
+
+    let drag_anchor_id = response.id.with("drag_anchor");
+
+    if response.drag_started() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let anchor = pos_to_zone(pos);
+            ui.data_mut(|d| d.insert_temp(drag_anchor_id, anchor));
+        }
+    }
+
+    if response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let current = pos_to_zone(pos);
+            let anchor: Option<usize> = ui.data(|d| d.get_temp(drag_anchor_id));
+            if let Some(anchor) = anchor {
+                let lo = anchor.min(current);
+                let hi = anchor.max(current);
+                new_selected = (lo..=hi).collect();
+            }
+        }
+    }
+
+    if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let clicked_zone = pos_to_zone(pos);
+            let modifiers = ui.input(|i| i.modifiers);
+            if modifiers.ctrl || modifiers.command {
+                if new_selected.contains(&clicked_zone) {
+                    new_selected.remove(&clicked_zone);
+                } else {
+                    new_selected.insert(clicked_zone);
+                }
+            } else if new_selected.len() == 1 && new_selected.contains(&clicked_zone) {
+                new_selected.clear();
+            } else {
+                new_selected.clear();
+                new_selected.insert(clicked_zone);
+            }
+        }
+    }
+
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        let rounding = egui::Rounding::same(3.0);
+        painter.rect_filled(rect, rounding, Color32::from_rgb(20, 20, 28));
+
+        for (i, zone_color) in zones.iter().enumerate() {
+            let x_start = rect.left() + i as f32 * zone_width;
+            let zone_rect = egui::Rect::from_min_size(
+                pos2(x_start, rect.top() + 2.0),
+                vec2(zone_width - 1.0, strip_height),
+            );
+
+            let fill = zone_color
+                .map(|hsbk| Color32::from(RGB8::from(hsbk)))
+                .unwrap_or(Color32::from_gray(40));
+
+            painter.rect_filled(zone_rect, 2.0, fill);
+
+            if new_selected.contains(&i) {
+                painter.rect_stroke(
+                    zone_rect.expand(1.0),
+                    2.0,
+                    Stroke::new(2.0, Color32::from_rgb(255, 200, 60)),
+                );
+            }
+        }
+    }
+
+    new_selected
 }

@@ -239,6 +239,35 @@ impl BulbInfo {
         }
     }
 
+    pub fn get_zone_color(&self, index: usize) -> Option<&HSBK> {
+        match &self.color {
+            DeviceColor::Multi(ref data) => data
+                .as_ref()
+                .and_then(|vec| vec.get(index))
+                .and_then(|opt| opt.as_ref()),
+            DeviceColor::Single(ref data) => data.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn get_zone_count(&self) -> usize {
+        match &self.color {
+            DeviceColor::Multi(ref data) => data.as_ref().map(|vec| vec.len()).unwrap_or(0),
+            _ => 0,
+        }
+    }
+
+    pub fn is_multizone(&self) -> bool {
+        matches!(self.color, DeviceColor::Multi(_))
+    }
+
+    pub fn get_zone_colors(&self) -> Option<&Vec<Option<HSBK>>> {
+        match &self.color {
+            DeviceColor::Multi(ref data) => data.as_ref(),
+            _ => None,
+        }
+    }
+
     pub fn group_label(&self) -> Option<String> {
         self.group.data.as_ref().map(|g| g.label.to_string())
     }

@@ -3,7 +3,9 @@ use crate::device_info::{BulbInfo, GroupInfo};
 use crate::refreshable_data::RefreshableData;
 use crate::DeviceColor;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
-use lifx_core::{get_product_info, BuildOptions, Message, RawMessage, Service, HSBK};
+use lifx_core::{
+    get_product_info, ApplicationRequest, BuildOptions, Message, RawMessage, Service, HSBK,
+};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -292,6 +294,28 @@ impl LifxManager {
     ) -> Result<usize, std::io::Error> {
         let bulbs: Vec<&BulbInfo> = group.get_bulbs(bulbs);
         bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
+    }
+
+    /// Set the color of specific zones on a multizone device.
+    pub fn set_color_zones(
+        &self,
+        bulb: &&BulbInfo,
+        start_index: u8,
+        end_index: u8,
+        color: HSBK,
+        duration: u32,
+        apply: ApplicationRequest,
+    ) -> Result<usize, std::io::Error> {
+        self.send_message(
+            bulb,
+            Message::SetColorZones {
+                start_index,
+                end_index,
+                color,
+                duration,
+                apply,
+            },
+        )
     }
 
     /// Set the color of a specific bulb.

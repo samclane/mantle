@@ -18,14 +18,14 @@ use crate::{
     settings::Settings,
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
-    ui::{handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders},
+    ui::{handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, zone_strip},
     BulbInfo, LifxManager, ScreencapManager,
 };
 
 use eframe::egui::{self, Color32, Direction, Modifiers, RichText, Stroke, Ui, Vec2};
 use egui::Align2;
 use egui_toast::{Toast, ToastKind, ToastOptions, Toasts};
-use lifx_core::HSBK;
+use lifx_core::{ApplicationRequest, HSBK};
 use serde::{Deserialize, Serialize};
 
 // UI and window size constants
@@ -89,6 +89,8 @@ pub struct MantleApp {
     #[serde(skip)]
     pub toasts: Toasts,
     #[serde(skip)]
+    pub selected_zones: HashMap<u64, HashSet<usize>>,
+    #[serde(skip)]
     pub waveform_channel: ColorChannel,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, WaveformTracker>,
@@ -114,6 +116,7 @@ impl Default for MantleApp {
             show_subregion: HashMap::new(),
             subregion_points: HashMap::new(),
             settings: Settings::default(),
+            selected_zones: HashMap::new(),
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
@@ -283,7 +286,28 @@ impl MantleApp {
                     bulbs,
                 );
             });
-            if let Some(before_color) = color_opt {
+
+            let is_multizone = matches!(device, DeviceInfo::Bulb(b) if b.is_multizone());
+            let device_id = device.id();
+
+            let selected = self
+                .selected_zones
+                .get(&device_id)
+                .cloned()
+                .unwrap_or_default();
+
+            let slider_color = if is_multizone && !selected.is_empty() {
+                if let DeviceInfo::Bulb(bulb) = device {
+                    let first_selected = *selected.iter().min().unwrap();
+                    bulb.get_zone_color(first_selected).cloned()
+                } else {
+                    color_opt
+                }
+            } else {
+                color_opt
+            };
+
+            if let Some(before_color) = slider_color {
                 ui.add_space(2.0);
                 let mut after_color = self.display_color_controls(ui, device, before_color);
                 ui.add_space(4.0);
@@ -292,16 +316,90 @@ impl MantleApp {
                     after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
                     after_color = handle_audio(self, ui, device).unwrap_or(after_color);
                 });
+
+                if is_multizone {
+                    if let DeviceInfo::Bulb(bulb) = device {
+                        if let Some(zones) = bulb.get_zone_colors() {
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new("Zones")
+                                        .size(12.0)
+                                        .color(Color32::from_rgb(160, 160, 180)),
+                                );
+                                if ui
+                                    .small_button(
+                                        if selected.len() == zones.len() && !zones.is_empty() {
+                                            "Deselect All"
+                                        } else {
+                                            "Select All"
+                                        },
+                                    )
+                                    .clicked()
+                                {
+                                    let new_sel =
+                                        if selected.len() == zones.len() && !zones.is_empty() {
+                                            HashSet::new()
+                                        } else {
+                                            (0..zones.len()).collect()
+                                        };
+                                    self.selected_zones.insert(device_id, new_sel);
+                                }
+                            });
+                            let current_selected = self
+                                .selected_zones
+                                .get(&device_id)
+                                .cloned()
+                                .unwrap_or_default();
+                            let new_selected = zone_strip(ui, zones, &current_selected);
+                            self.selected_zones.insert(device_id, new_selected);
+                        }
+                    }
+                }
+
                 if before_color != after_color.next {
                     match device {
                         DeviceInfo::Bulb(bulb) => {
-                            if let Err(e) = self.lighting_manager.set_color(
-                                &&**bulb,
-                                after_color.next,
-                                after_color.duration,
-                            ) {
-                                log::error!("Error setting color: {}", e);
-                                self.error_toast(&format!("Error setting color: {}", e));
+                            let selected = self
+                                .selected_zones
+                                .get(&device_id)
+                                .cloned()
+                                .unwrap_or_default();
+
+                            if bulb.is_multizone() && !selected.is_empty() {
+                                let duration = after_color.duration.unwrap_or(0);
+                                let selected_vec: Vec<usize> = selected.iter().copied().collect();
+                                for (i, &zone_idx) in selected_vec.iter().enumerate() {
+                                    let apply = if i == selected_vec.len() - 1 {
+                                        ApplicationRequest::Apply
+                                    } else {
+                                        ApplicationRequest::NoApply
+                                    };
+                                    if let Err(e) = self.lighting_manager.set_color_zones(
+                                        &&**bulb,
+                                        zone_idx as u8,
+                                        zone_idx as u8,
+                                        after_color.next,
+                                        duration,
+                                        apply,
+                                    ) {
+                                        log::error!("Error setting zone color: {}", e);
+                                        self.error_toast(&format!(
+                                            "Error setting zone color: {}",
+                                            e
+                                        ));
+                                        break;
+                                    }
+                                }
+                            } else {
+                                if let Err(e) = self.lighting_manager.set_color(
+                                    &&**bulb,
+                                    after_color.next,
+                                    after_color.duration,
+                                ) {
+                                    log::error!("Error setting color: {}", e);
+                                    self.error_toast(&format!("Error setting color: {}", e));
+                                }
                             }
                         }
                         DeviceInfo::Group(group) => {
