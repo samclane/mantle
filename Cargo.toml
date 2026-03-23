@@ -2,7 +2,7 @@
 name = "mantle"
 authors = ["Sawyer McLane"]
 description = "A simple LIFX control application"
-version = "0.0.10"
+version = "0.0.11"
 repository = "https://github.com/samclane/mantle"
 readme = "README.md"
 keywords = ["lifx", "home", "automation", "lighting"]
@@ -39,6 +39,18 @@ egui_plot = "0.30.0"
 rustfft = "6.2.0"
 strum = "0.27"
 strum_macros = "0.27"
+rmcp = { version = "1.2.0", features = ["server", "transport-io", "macros", "schemars"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
+[[bin]]
+name = "mantle"
+path = "src/main.rs"
+
+[[bin]]
+name = "mcp_server"
+path = "src/bin/mcp_server.rs"
+required-features = ["mcp"]
 
 [features]
 puffin = ["dep:puffin", "dep:puffin_http"]
+mcp = ["dep:rmcp", "dep:tokio"]

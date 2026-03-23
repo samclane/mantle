@@ -5,6 +5,8 @@ pub mod color;
 pub mod device_info;
 pub mod device_manager;
 pub mod listener;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod products;
 pub mod refreshable_data;
 pub mod scenes;
