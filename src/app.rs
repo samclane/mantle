@@ -368,17 +368,17 @@ impl MantleApp {
 
                             if bulb.is_multizone() && !selected.is_empty() {
                                 let duration = after_color.duration.unwrap_or(0);
-                                let selected_vec: Vec<usize> = selected.iter().copied().collect();
-                                for (i, &zone_idx) in selected_vec.iter().enumerate() {
-                                    let apply = if i == selected_vec.len() - 1 {
+                                let ranges = contiguous_ranges(&selected);
+                                for (i, (start, end)) in ranges.iter().enumerate() {
+                                    let apply = if i == ranges.len() - 1 {
                                         ApplicationRequest::Apply
                                     } else {
                                         ApplicationRequest::NoApply
                                     };
                                     if let Err(e) = self.lighting_manager.set_color_zones(
                                         &&**bulb,
-                                        zone_idx as u8,
-                                        zone_idx as u8,
+                                        *start as u8,
+                                        *end as u8,
                                         after_color.next,
                                         duration,
                                         apply,
@@ -682,4 +682,27 @@ impl eframe::App for MantleApp {
         self.settings_ui(ctx);
         self.show_toasts(ctx);
     }
+}
+
+/// Collapse a set of zone indices into sorted contiguous (start, end) ranges.
+fn contiguous_ranges(zones: &HashSet<usize>) -> Vec<(usize, usize)> {
+    if zones.is_empty() {
+        return Vec::new();
+    }
+    let mut sorted: Vec<usize> = zones.iter().copied().collect();
+    sorted.sort_unstable();
+    let mut ranges = Vec::new();
+    let mut start = sorted[0];
+    let mut end = start;
+    for &z in &sorted[1..] {
+        if z == end + 1 {
+            end = z;
+        } else {
+            ranges.push((start, end));
+            start = z;
+            end = z;
+        }
+    }
+    ranges.push((start, end));
+    ranges
 }
