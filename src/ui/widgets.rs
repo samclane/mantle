@@ -366,7 +366,7 @@ pub fn zone_strip(
     }
 
     let available_width = ui.available_width();
-    let zone_width = (available_width / zone_count as f32).min(24.0).max(4.0);
+    let zone_width = (available_width / zone_count as f32).clamp(4.0, 24.0);
     let strip_height = 24.0;
     let total_width = zone_width * zone_count as f32;
 
