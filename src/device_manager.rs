@@ -37,7 +37,13 @@ impl Clone for LifxManager {
 
 impl LifxManager {
     pub fn new() -> Result<LifxManager, failure::Error> {
-        let sock = UdpSocket::bind("0.0.0.0:56700")?;
+        Self::with_port(56700)
+    }
+
+    /// Create a LifxManager bound to a specific port. Use port `0` to let the
+    /// OS assign an available port (useful when 56700 is already taken).
+    pub fn with_port(port: u16) -> Result<LifxManager, failure::Error> {
+        let sock = UdpSocket::bind(format!("0.0.0.0:{port}"))?;
         sock.set_broadcast(true)?;
 
         let recv_sock = sock.try_clone()?;

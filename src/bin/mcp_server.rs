@@ -11,7 +11,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Starting Mantle MCP Server");
 
     let lifx_manager = tokio::task::spawn_blocking(|| {
-        LifxManager::new().expect("Failed to initialize LIFX manager")
+        LifxManager::new().or_else(|_| {
+            log::info!("Port 56700 in use, binding to an ephemeral port");
+            LifxManager::with_port(0)
+        }).expect("Failed to initialize LIFX manager")
     })
     .await?;
 
