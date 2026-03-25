@@ -38,6 +38,8 @@ jobs:
       if: runner.os == 'linux'
     - name: Run tests
       run: cargo test --verbose -- --nocapture
+    - name: Run tests (with MCP)
+      run: cargo test --verbose --features mcp -- --nocapture
 
   clippy_check:
     name: Clippy
@@ -71,6 +73,8 @@ jobs:
         if: runner.os == 'linux'
       - name: Run clippy
         run: cargo clippy -- -D warnings
+      - name: Run clippy (with MCP)
+        run: cargo clippy --features mcp -- -D warnings
 
   format:
     name: Format
@@ -120,3 +124,5 @@ jobs:
       if: runner.os == 'linux'
     - name: Run builds
       run: cargo build --verbose
+    - name: Build MCP server
+      run: cargo build --verbose --features mcp --bin mcp_server
