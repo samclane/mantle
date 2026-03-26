@@ -12,6 +12,7 @@ pub mod screencap;
 pub mod serializers;
 pub mod settings;
 pub mod shortcut;
+pub mod signalrgb;
 pub mod ui;
 pub mod utils;
 
@@ -21,5 +22,6 @@ pub use device_manager::LifxManager;
 pub use products::{get_products, Product};
 pub use refreshable_data::RefreshableData;
 pub use screencap::ScreencapManager;
+pub use signalrgb::{SignalRGBConfig, SignalRGBManager};
 pub use ui::{color_slider, display_color_circle, toggle_button};
 pub use utils::{capitalize_first_letter, AngleIter};

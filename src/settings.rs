@@ -12,6 +12,7 @@ use crate::{
     device_info::DeviceInfo,
     scenes::Scene,
     shortcut::{KeyboardShortcutAction, ShortcutEdit},
+    signalrgb::SignalRGBConfig,
     HSBK32,
 };
 
@@ -28,6 +29,7 @@ pub struct Settings {
     pub update_interval_ms: u64,
     pub scenes: Vec<Scene>,
     pub audio_buffer_size: usize,
+    pub signalrgb: SignalRGBConfig,
 }
 
 impl Default for Settings {
@@ -38,6 +40,7 @@ impl Default for Settings {
             update_interval_ms: DEFAULT_UPDATE_INTERVAL_MS,
             scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
+            signalrgb: SignalRGBConfig::default(),
         }
     }
 }
@@ -61,6 +64,8 @@ impl MantleApp {
                     self.render_update_rate(ui);
 
                     self.render_audio_buffer_size(ui);
+
+                    self.render_signalrgb_settings(ui);
 
                     self.render_add_shortcut_ui(ui);
 
@@ -288,6 +293,44 @@ impl MantleApp {
                     .text("ms"),
             );
         });
+    }
+
+    fn render_signalrgb_settings(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.heading("SignalRGB");
+        ui.add_space(5.0);
+
+        let was_enabled = self.settings.signalrgb.enabled;
+        ui.checkbox(
+            &mut self.settings.signalrgb.enabled,
+            "Enable SignalRGB integration",
+        );
+
+        egui::Grid::new("signalrgb_settings_grid").show(ui, |ui| {
+            ui.label("Host:");
+            ui.text_edit_singleline(&mut self.settings.signalrgb.host);
+            ui.end_row();
+
+            ui.label("Port:");
+            let mut port_str = self.settings.signalrgb.port.to_string();
+            if ui.text_edit_singleline(&mut port_str).changed() {
+                if let Ok(p) = port_str.parse::<u16>() {
+                    self.settings.signalrgb.port = p;
+                }
+            }
+            ui.end_row();
+        });
+
+        if self.settings.signalrgb.enabled != was_enabled
+            || self.signalrgb_manager.config != self.settings.signalrgb
+        {
+            self.signalrgb_manager.config = self.settings.signalrgb.clone();
+            if self.settings.signalrgb.enabled {
+                self.signalrgb_manager.reload_effects();
+            }
+        }
+
+        ui.add_space(10.0);
     }
 
     fn render_scenes_ui(&mut self, ui: &mut egui::Ui) {

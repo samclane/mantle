@@ -17,6 +17,7 @@ use crate::{
     screencap::{RegionCaptureTarget, ScreenSubregion},
     settings::Settings,
     shortcut::{KeyboardShortcutAction, ShortcutManager},
+    signalrgb::SignalRGBManager,
     toggle_button,
     ui::{handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, zone_strip},
     BulbInfo, LifxManager, ScreencapManager,
@@ -91,6 +92,9 @@ pub struct MantleApp {
     #[serde(skip)]
     pub selected_zones: HashMap<u64, HashSet<usize>>,
     #[serde(skip)]
+    pub signalrgb_manager: SignalRGBManager,
+    pub signalrgb_effect_search: String,
+    #[serde(skip)]
     pub waveform_channel: ColorChannel,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, WaveformTracker>,
@@ -117,6 +121,8 @@ impl Default for MantleApp {
             subregion_points: HashMap::new(),
             settings: Settings::default(),
             selected_zones: HashMap::new(),
+            signalrgb_manager: SignalRGBManager::default(),
+            signalrgb_effect_search: String::new(),
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
@@ -149,6 +155,8 @@ impl MantleApp {
                         })
                 })
                 .collect();
+
+            app.signalrgb_manager = SignalRGBManager::new(app.settings.signalrgb.clone());
 
             app.audio_manager
                 .build_input_stream(&app.settings.audio_buffer_size)
@@ -576,6 +584,11 @@ impl MantleApp {
                             );
                         }
                     }
+
+                    if self.signalrgb_manager.config.enabled {
+                        ui.add_space(12.0);
+                        self.render_signalrgb_panel(ui);
+                    }
                 });
             });
         });
@@ -654,6 +667,156 @@ impl MantleApp {
         let toast = self.toast_template(text, ToastKind::Warning);
         self.toasts.add(toast);
     }
+
+    fn render_signalrgb_panel(&mut self, ui: &mut Ui) {
+        let state = match self.signalrgb_manager.state.lock().ok() {
+            Some(s) => s.clone(),
+            None => return,
+        };
+
+        egui::Frame::none()
+            .rounding(egui::Rounding::same(10.0))
+            .inner_margin(egui::Margin::same(12.0))
+            .fill(Color32::from_rgb(30, 30, 42))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 65)))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("SignalRGB")
+                            .size(17.0)
+                            .strong()
+                            .color(Color32::from_rgb(220, 220, 240)),
+                    );
+                    let (status_color, status_text) = if state.connected {
+                        (Color32::from_rgb(80, 200, 120), "Connected")
+                    } else {
+                        (Color32::from_rgb(200, 80, 80), "Disconnected")
+                    };
+                    ui.label(RichText::new(status_text).size(11.0).color(status_color));
+                });
+
+                if !state.connected {
+                    if let Some(err) = &state.last_error {
+                        ui.label(
+                            RichText::new(err)
+                                .size(11.0)
+                                .color(Color32::from_rgb(200, 100, 100)),
+                        );
+                    }
+                    return;
+                }
+
+                ui.add_space(6.0);
+
+                if let Some(name) = &state.current_effect_name {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("Effect:")
+                                .size(12.0)
+                                .color(Color32::from_rgb(160, 160, 180)),
+                        );
+                        ui.label(
+                            RichText::new(name)
+                                .size(13.0)
+                                .color(Color32::from_rgb(200, 200, 220)),
+                        );
+                    });
+                }
+
+                ui.add_space(4.0);
+
+                if let Some(enabled) = state.enabled {
+                    let mut canvas_on = enabled;
+                    if ui.checkbox(&mut canvas_on, "Canvas Enabled").changed() {
+                        self.signalrgb_manager.set_enabled(canvas_on);
+                    }
+                }
+
+                if let Some(brightness) = state.global_brightness {
+                    let mut b = brightness as i32;
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("Brightness")
+                                .size(12.0)
+                                .color(Color32::from_rgb(160, 160, 180)),
+                        );
+                        if ui
+                            .add(egui::Slider::new(&mut b, 0..=100).suffix("%"))
+                            .changed()
+                        {
+                            self.signalrgb_manager.set_brightness(b as u32);
+                        }
+                    });
+                }
+
+                ui.add_space(4.0);
+
+                ui.horizontal(|ui| {
+                    if ui.button("Previous").clicked() {
+                        self.signalrgb_manager.previous_effect();
+                    }
+                    if ui.button("Shuffle").clicked() {
+                        self.signalrgb_manager.shuffle_effect();
+                    }
+                    if ui.button("Next").clicked() {
+                        self.signalrgb_manager.next_effect();
+                    }
+                });
+
+                ui.add_space(6.0);
+
+                if !state.effects.is_empty() {
+                    ui.collapsing("Effects", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("Search:")
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(160, 160, 180)),
+                            );
+                            ui.text_edit_singleline(&mut self.signalrgb_effect_search);
+                        });
+
+                        let search = self.signalrgb_effect_search.to_lowercase();
+                        let filtered: Vec<_> = state
+                            .effects
+                            .iter()
+                            .filter(|e| {
+                                search.is_empty()
+                                    || e.attributes.name.to_lowercase().contains(&search)
+                            })
+                            .collect();
+
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                for effect in filtered.iter().take(100) {
+                                    let is_current =
+                                        state.current_effect_id.as_deref() == Some(&effect.id);
+                                    let text_color = if is_current {
+                                        Color32::from_rgb(220, 170, 50)
+                                    } else {
+                                        Color32::from_rgb(190, 190, 210)
+                                    };
+                                    ui.horizontal(|ui| {
+                                        if ui
+                                            .button(
+                                                RichText::new(&effect.attributes.name)
+                                                    .size(12.0)
+                                                    .color(text_color),
+                                            )
+                                            .clicked()
+                                        {
+                                            self.signalrgb_manager.apply_effect(&effect.id);
+                                        }
+                                    });
+                                }
+                            });
+                    });
+                }
+            });
+    }
 }
 
 impl eframe::App for MantleApp {
@@ -674,6 +837,9 @@ impl eframe::App for MantleApp {
         if let Err(e) = self.lighting_manager.refresh() {
             log::error!("Error refreshing manager: {}", e);
             self.error_toast(&format!("Error refreshing manager: {}", e));
+        }
+        if self.signalrgb_manager.needs_refresh() {
+            self.signalrgb_manager.kick_refresh();
         }
         self.update_ui(ctx);
         self.init_toasts(ctx);

@@ -39,6 +39,7 @@ egui_plot = "0.30.0"
 rustfft = "6.2.0"
 strum = "0.27"
 strum_macros = "0.27"
+ureq = { version = "2", features = ["json"] }
 
 [features]
 puffin = ["dep:puffin", "dep:puffin_http"]
