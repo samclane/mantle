@@ -49,8 +49,8 @@ impl MantleApp {
         if show_settings {
             egui::Window::new("Settings")
                 .open(&mut show_settings)
-                .auto_sized()
-                .resizable(false)
+                .vscroll(true)
+                .resizable(true)
                 .show(ctx, |ui| {
                     ui.heading("Settings");
                     ui.separator();
