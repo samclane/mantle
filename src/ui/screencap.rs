@@ -426,12 +426,22 @@ fn render_subregion_preview(
                 subregion.height as f32 * scale,
             ),
         );
+
+        let time = ui.ctx().input(|i| i.time);
+        let pulse = (time * 3.0).sin() as f32;
+        let stroke_alpha = (180.0 + 75.0 * pulse) as u8;
+        let fill_alpha = (25.0 + 15.0 * pulse) as u8;
+
         painter.rect(
             sub_rect,
             2.0,
-            Color32::from_rgba_unmultiplied(180, 120, 30, 35),
-            Stroke::new(2.0, Color32::from_rgb(220, 160, 50)),
+            Color32::from_rgba_unmultiplied(180, 120, 30, fill_alpha),
+            Stroke::new(
+                2.0 + 0.5 * (pulse + 1.0) * 0.5,
+                Color32::from_rgba_unmultiplied(220, 160, 50, stroke_alpha),
+            ),
         );
+        ui.ctx().request_repaint();
     }
 
     if response.hovered() {

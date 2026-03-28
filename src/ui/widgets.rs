@@ -29,18 +29,61 @@ pub fn create_highlighted_button(
     icon: &[u8],
     active: bool,
 ) -> Response {
-    let highlight = if active {
-        ui.visuals().widgets.hovered.bg_stroke.color
-    } else {
-        ui.visuals().widgets.inactive.bg_fill
-    };
-    ui.add(
+    let active_color = ui.visuals().widgets.hovered.bg_stroke.color;
+    let inactive_color = ui.visuals().widgets.inactive.bg_fill;
+
+    let btn_id = ui.make_persistent_id(("hlbtn", icon_name));
+    let prev_hovered: bool = ui.data(|d| d.get_temp(btn_id).unwrap_or(false));
+    let hover_t = ui.ctx().animate_bool_responsive(btn_id, prev_hovered);
+    let active_t = ui
+        .ctx()
+        .animate_bool_responsive(btn_id.with("active"), active);
+
+    let fill = lerp_color32(inactive_color, active_color, active_t);
+    let fill = lerp_color32(
+        fill,
+        brighten_color(fill, 40),
+        hover_t * (1.0 - active_t * 0.5),
+    );
+
+    let response = ui.add(
         egui::Button::image(
             egui::Image::from_bytes(icon_name, icon.to_vec())
                 .fit_to_exact_size(ui.spacing().interact_size),
         )
         .sense(Sense::click())
-        .fill(highlight),
+        .fill(fill),
+    );
+
+    ui.data_mut(|d| d.insert_temp(btn_id, response.hovered()));
+
+    if hover_t > 0.01 {
+        let glow_alpha = (30.0 * hover_t) as u8;
+        ui.painter().rect_filled(
+            response.rect.expand(2.0 * hover_t),
+            ui.visuals().widgets.inactive.rounding,
+            Color32::from_rgba_unmultiplied(180, 160, 220, glow_alpha),
+        );
+    }
+
+    response
+}
+
+fn lerp_color32(a: Color32, b: Color32, t: f32) -> Color32 {
+    Color32::from_rgba_unmultiplied(
+        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
+        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
+        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
+        (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
+    )
+}
+
+fn brighten_color(c: Color32, amount: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(
+        c.r().saturating_add(amount),
+        c.g().saturating_add(amount),
+        c.b().saturating_add(amount),
+        c.a(),
     )
 }
 
@@ -57,24 +100,40 @@ pub fn display_color_circle(
         DeviceInfo::Group(group) => group.is_any_bulb_on(bulbs) as u16 * u16::MAX,
     };
     let desired_size = ui.spacing().interact_size * desired_size;
-    // Arc code from https://vcs.cozydsp.space/cozy-dsp/cozy-ui/src/commit/d4706ec9f4592137307ce8acafb56b881ea54e35/src/util.rs#L49
     let rgb = RGB8::from(color);
     let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
     let center = response.rect.center();
     let radius = response.rect.width() / scale;
-    let inner_stroke = Stroke::new(radius / 2.0, Color32::from(rgb));
-    let outer_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(64));
-    let off_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(32));
-    let start_angle: f32 = 0.0;
-    let end_angle: f32 = (2.0 * std::f32::consts::PI) * (color.brightness as f32 / u16::MAX as f32);
-    if power != 0.0 as u16 {
-        painter.circle(center, radius, Color32::TRANSPARENT, outer_stroke);
-        painter.extend(
-            AngleIter::new(start_angle, end_angle).map(|(start_angle, end_angle)| {
+
+    let power_id = response.id.with("power");
+    let power_on = power != 0;
+    let power_t = ui.ctx().animate_bool_responsive(power_id, power_on);
+
+    let arc_id = response.id.with("brightness_arc");
+    let target_angle: f32 =
+        (2.0 * std::f32::consts::PI) * (color.brightness as f32 / u16::MAX as f32);
+    let end_angle = ui.ctx().animate_value_with_time(arc_id, target_angle, 0.15);
+
+    let arc_alpha = (255.0 * power_t) as u8;
+    let arc_rgb = Color32::from(rgb);
+    let inner_stroke = Stroke::new(
+        radius / 2.0,
+        Color32::from_rgba_unmultiplied(arc_rgb.r(), arc_rgb.g(), arc_rgb.b(), arc_alpha),
+    );
+
+    let off_gray = (32.0 + 32.0 * power_t) as u8;
+    let bg_stroke = Stroke::new((5. / 6.) * radius, Color32::from_gray(off_gray));
+    painter.circle(center, radius, Color32::TRANSPARENT, bg_stroke);
+
+    if power_t > 0.01 {
+        let start_angle: f32 = 0.0;
+        let animated_end = end_angle * power_t;
+        if animated_end > 0.001 {
+            painter.extend(AngleIter::new(start_angle, animated_end).map(|(sa, ea)| {
                 let xc = center.x;
                 let yc = center.y;
-                let p1 = center + radius * Vec2::new(start_angle.cos(), -start_angle.sin());
-                let p4 = center + radius * Vec2::new(end_angle.cos(), -end_angle.sin());
+                let p1 = center + radius * Vec2::new(sa.cos(), -sa.sin());
+                let p4 = center + radius * Vec2::new(ea.cos(), -ea.sin());
                 let a = p1 - center;
                 let b = p4 - center;
                 let q1 = a.length_sq();
@@ -90,10 +149,8 @@ pub fn display_color_circle(
                     Color32::TRANSPARENT,
                     inner_stroke,
                 ))
-            }),
-        );
-    } else {
-        painter.circle(center, radius, Color32::TRANSPARENT, off_stroke);
+            }));
+        }
     }
 }
 
@@ -488,11 +545,19 @@ pub fn zone_strip(
 
             painter.rect_filled(zone_rect, 2.0, fill);
 
-            if new_selected.contains(&i) {
+            let sel_id = response.id.with(("zone_sel", i));
+            let sel_t = ui
+                .ctx()
+                .animate_bool_responsive(sel_id, new_selected.contains(&i));
+            if sel_t > 0.01 {
+                let alpha = (255.0 * sel_t) as u8;
                 painter.rect_stroke(
-                    zone_rect.expand(1.0),
+                    zone_rect.expand(sel_t),
                     2.0,
-                    Stroke::new(2.0, Color32::from_rgb(255, 200, 60)),
+                    Stroke::new(
+                        2.0 * sel_t,
+                        Color32::from_rgba_unmultiplied(255, 200, 60, alpha),
+                    ),
                 );
             }
         }

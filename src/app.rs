@@ -432,11 +432,27 @@ impl MantleApp {
         bulbs: &mut MutexGuard<HashMap<u64, BulbInfo>>,
     ) {
         ui.add_space(2.0);
-        egui::Frame::none()
+
+        let card_id = ui.make_persistent_id(("device_card", device.id()));
+        let prev_hovered: bool = ui.data(|d| d.get_temp(card_id).unwrap_or(false));
+        let hover_t = ui.ctx().animate_bool_responsive(card_id, prev_hovered);
+
+        let fill = Color32::from_rgb(
+            (30.0 + 8.0 * hover_t) as u8,
+            (30.0 + 8.0 * hover_t) as u8,
+            (42.0 + 12.0 * hover_t) as u8,
+        );
+        let stroke_color = Color32::from_rgb(
+            (50.0 + 30.0 * hover_t) as u8,
+            (50.0 + 30.0 * hover_t) as u8,
+            (65.0 + 45.0 * hover_t) as u8,
+        );
+
+        let frame_resp = egui::Frame::none()
             .rounding(egui::Rounding::same(10.0))
             .inner_margin(egui::Margin::same(12.0))
-            .fill(Color32::from_rgb(30, 30, 42))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 65)))
+            .fill(fill)
+            .stroke(Stroke::new(1.0 + 0.5 * hover_t, stroke_color))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 let color = self.get_device_display_color(ui, device, bulbs);
@@ -453,6 +469,9 @@ impl MantleApp {
                     self.render_device_controls(ui, device, color, bulbs);
                 });
             });
+
+        let is_hovered = frame_resp.response.hovered();
+        ui.data_mut(|d| d.insert_temp(card_id, is_hovered));
     }
 
     fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> DeltaColor {
