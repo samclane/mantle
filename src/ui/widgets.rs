@@ -157,13 +157,18 @@ pub fn color_slider(
     label: &str,
     get_color_at_value: impl Fn(u16) -> Color32,
 ) -> Response {
-    let desired_size = vec2(ui.spacing().slider_width, ui.spacing().interact_size.y);
+    let slider_width = (ui.available_width() - 70.0).max(60.0);
+    let desired_size = vec2(slider_width, ui.spacing().interact_size.y);
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
+
+    let handle_radius = ui.spacing().slider_rail_height / 2.0 + 1.0;
+    let handle_left = rect.left() + handle_radius;
+    let handle_right = rect.right() - handle_radius;
 
     if let Some(mpos) = response.interact_pointer_pos() {
         *value = remap_clamp(
             mpos.x,
-            rect.left()..=rect.right(),
+            handle_left..=handle_right,
             RangeInclusive::new(*range.start() as f32, *range.end() as f32),
         )
         .round() as u16;
@@ -182,25 +187,57 @@ pub fn color_slider(
         let visuals = ui.style().interact(&response);
 
         {
-            // fill color:
+            let half_h = ui.spacing().slider_rail_height / 2.0;
+            let radius = half_h;
+            let cy = rect.center().y;
+            let cap_steps: u32 = 8;
+
             let mut mesh = Mesh::default();
-            for i in 0..=SLIDER_RESOLUTION {
-                let t = i as f32 / (SLIDER_RESOLUTION as f32);
-                let color = get_color_at_value((t * u16::MAX as f32) as u16);
-                let x = lerp(rect.left()..=rect.right(), t);
-                // round edges:
-                let y_offset = if i == 0 || i == SLIDER_RESOLUTION {
-                    (ui.spacing().slider_rail_height / 2.0) - 2.
-                } else {
-                    ui.spacing().slider_rail_height / 2.0
-                };
-                mesh.colored_vertex(pos2(x, rect.center().y + y_offset), color);
-                mesh.colored_vertex(pos2(x, rect.center().y - y_offset), color);
-                if i < SLIDER_RESOLUTION {
-                    mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
-                    mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
+
+            let left_color = get_color_at_value(0);
+            let center_idx = mesh.vertices.len() as u32;
+            mesh.colored_vertex(pos2(rect.left() + radius, cy), left_color);
+            for j in 0..=cap_steps {
+                let angle = std::f32::consts::FRAC_PI_2
+                    + j as f32 * std::f32::consts::PI / cap_steps as f32;
+                let px = rect.left() + radius + radius * angle.cos();
+                let py = cy - radius * angle.sin();
+                let vi = mesh.vertices.len() as u32;
+                mesh.colored_vertex(pos2(px, py), left_color);
+                if j > 0 {
+                    mesh.add_triangle(center_idx, vi - 1, vi);
                 }
             }
+
+            let body_start = mesh.vertices.len() as u32;
+            for i in 0..=SLIDER_RESOLUTION {
+                let t = i as f32 / SLIDER_RESOLUTION as f32;
+                let color = get_color_at_value((t * u16::MAX as f32) as u16);
+                let x = lerp((rect.left() + radius)..=(rect.right() - radius), t);
+                mesh.colored_vertex(pos2(x, cy + half_h), color);
+                mesh.colored_vertex(pos2(x, cy - half_h), color);
+                if i < SLIDER_RESOLUTION {
+                    let bi = body_start + i * 2;
+                    mesh.add_triangle(bi, bi + 1, bi + 2);
+                    mesh.add_triangle(bi + 1, bi + 2, bi + 3);
+                }
+            }
+
+            let right_color = get_color_at_value(u16::MAX);
+            let center_idx = mesh.vertices.len() as u32;
+            mesh.colored_vertex(pos2(rect.right() - radius, cy), right_color);
+            for j in 0..=cap_steps {
+                let angle = std::f32::consts::FRAC_PI_2
+                    - j as f32 * std::f32::consts::PI / cap_steps as f32;
+                let px = rect.right() - radius + radius * angle.cos();
+                let py = cy - radius * angle.sin();
+                let vi = mesh.vertices.len() as u32;
+                mesh.colored_vertex(pos2(px, py), right_color);
+                if j > 0 {
+                    mesh.add_triangle(center_idx, vi - 1, vi);
+                }
+            }
+
             ui.painter().add(Shape::mesh(mesh));
         }
 
@@ -210,14 +247,14 @@ pub fn color_slider(
 
         {
             let x = lerp(
-                rect.left()..=rect.right(),
+                handle_left..=handle_right,
                 remap_clamp(
                     *value as f32,
                     RangeInclusive::new(*range.start() as f32, *range.end() as f32),
                     0.0..=1.0,
                 ),
             );
-            let radius = ui.spacing().slider_rail_height / 2.0 + 3.0;
+            let radius = handle_radius;
             let picked_color = get_color_at_value(*value);
             ui.painter().circle(
                 pos2(x, rect.center().y),

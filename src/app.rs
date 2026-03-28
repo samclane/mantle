@@ -18,7 +18,10 @@ use crate::{
     settings::Settings,
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
-    ui::{handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, zone_strip},
+    ui::{
+        handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, render_capture_target,
+        zone_strip,
+    },
     BulbInfo, LifxManager, ScreencapManager,
 };
 
@@ -316,6 +319,7 @@ impl MantleApp {
                     after_color = handle_screencap(self, ui, device).unwrap_or(after_color);
                     after_color = handle_audio(self, ui, device).unwrap_or(after_color);
                 });
+                render_capture_target(self, ui, device);
 
                 if is_multizone {
                     if let DeviceInfo::Bulb(bulb) = device {

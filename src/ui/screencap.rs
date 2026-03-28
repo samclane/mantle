@@ -103,91 +103,112 @@ pub fn handle_screencap(
             ui.ctx().clone(),
         );
     }
+    color.map(|color| DeltaColor {
+        next: color,
+        duration: Some((update_interval_ms / 2) as u32),
+    })
+}
+
+pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) {
+    let update_interval_ms = app.settings.update_interval_ms;
     let mut region_type_changed = false;
     if let Some(waveform) = app.waveform_map.get_mut(&device.id()) {
         let prev_discriminant = std::mem::discriminant(&waveform.region);
-        ui.vertical(|ui| {
-            let mut subregion = app
-                .subregion_points
-                .entry(device.id())
-                .or_default()
-                .lock()
-                .expect("Failed to get subregion");
 
-            let mut options = vec![("All".to_string(), RegionCaptureTarget::All)];
+        let mut subregion = app
+            .subregion_points
+            .entry(device.id())
+            .or_default()
+            .lock()
+            .expect("Failed to get subregion");
 
-            let mut monitor_options: Vec<(String, RegionCaptureTarget)> = app
-                .screen_manager
-                .monitors
-                .iter()
-                .map(|monitor| {
-                    (
-                        monitor.name().to_string(),
-                        RegionCaptureTarget::Monitor(vec![monitor.clone()]),
-                    )
-                })
-                .collect();
-            monitor_options.sort_by(|a, b| a.0.cmp(&b.0));
-            options.extend(monitor_options);
+        let mut options = vec![("All".to_string(), RegionCaptureTarget::All)];
 
-            let mut window_options: Vec<(String, RegionCaptureTarget)> = app
-                .screen_manager
-                .windows
-                .iter()
-                .map(|window| {
-                    (
-                        window.title().to_string(),
-                        RegionCaptureTarget::Window(vec![window.clone()]),
-                    )
-                })
-                .collect();
-            window_options.sort_by(|a, b| a.0.cmp(&b.0));
-            options.extend(window_options);
+        let mut monitor_options: Vec<(String, RegionCaptureTarget)> = app
+            .screen_manager
+            .monitors
+            .iter()
+            .map(|monitor| {
+                (
+                    monitor.name().to_string(),
+                    RegionCaptureTarget::Monitor(vec![monitor.clone()]),
+                )
+            })
+            .collect();
+        monitor_options.sort_by(|a, b| a.0.cmp(&b.0));
+        options.extend(monitor_options);
 
-            options.push((
-                "Subregion".to_string(),
-                RegionCaptureTarget::Subregion(vec![subregion.clone()]),
-            ));
+        let mut window_options: Vec<(String, RegionCaptureTarget)> = app
+            .screen_manager
+            .windows
+            .iter()
+            .map(|window| {
+                (
+                    window.title().to_string(),
+                    RegionCaptureTarget::Window(vec![window.clone()]),
+                )
+            })
+            .collect();
+        window_options.sort_by(|a, b| a.0.cmp(&b.0));
+        options.extend(window_options);
 
-            let selected_text = match &waveform.region {
-                RegionCaptureTarget::All => "All".to_string(),
-                RegionCaptureTarget::Monitor(monitors) => monitors
-                    .first()
-                    .map(|m| m.name().to_string())
-                    .unwrap_or("Monitor".to_string()),
-                RegionCaptureTarget::Window(windows) => windows
-                    .first()
-                    .map(|w| w.title().to_string())
-                    .unwrap_or("Window".to_string()),
-                RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
-            };
-            ui.push_id(device.id(), |ui| {
-                egui::ComboBox::from_label("Capture Target")
+        options.push((
+            "Subregion".to_string(),
+            RegionCaptureTarget::Subregion(vec![subregion.clone()]),
+        ));
+
+        let selected_text = match &waveform.region {
+            RegionCaptureTarget::All => "All".to_string(),
+            RegionCaptureTarget::Monitor(monitors) => monitors
+                .first()
+                .map(|m| m.name().to_string())
+                .unwrap_or("Monitor".to_string()),
+            RegionCaptureTarget::Window(windows) => windows
+                .first()
+                .map(|w| w.title().to_string())
+                .unwrap_or("Window".to_string()),
+            RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
+        };
+        ui.push_id(device.id(), |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Capture Target");
+                let combo_width = (ui.available_width() - 8.0).max(80.0);
+                egui::ComboBox::from_id_salt("capture_target")
                     .selected_text(selected_text)
+                    .width(combo_width)
                     .show_ui(ui, |ui| {
                         for (label, capture_target) in options {
                             ui.selectable_value(&mut waveform.region, capture_target, label);
                         }
                     });
             });
+        });
 
-            if let RegionCaptureTarget::Subregion(_) = waveform.region {
-                ui.horizontal(|ui| {
-                    ui.label("X:");
-                    ui.add(egui::DragValue::new(&mut subregion.x));
-
-                    ui.label("Y:");
-                    ui.add(egui::DragValue::new(&mut subregion.y));
-
+        if let RegionCaptureTarget::Subregion(_) = waveform.region {
+            let wide = ui.available_width() > 300.0;
+            ui.horizontal(|ui| {
+                ui.label("X:");
+                ui.add(egui::DragValue::new(&mut subregion.x));
+                ui.label("Y:");
+                ui.add(egui::DragValue::new(&mut subregion.y));
+                if wide {
                     ui.label("Width:");
                     ui.add(egui::DragValue::new(&mut subregion.width));
-
+                    ui.label("Height:");
+                    ui.add(egui::DragValue::new(&mut subregion.height));
+                }
+            });
+            if !wide {
+                ui.horizontal(|ui| {
+                    ui.label("Width:");
+                    ui.add(egui::DragValue::new(&mut subregion.width));
                     ui.label("Height:");
                     ui.add(egui::DragValue::new(&mut subregion.height));
                 });
-                render_subregion_preview(ui, &app.screen_manager, &mut subregion);
             }
-        });
+            render_subregion_preview(ui, &app.screen_manager, &mut subregion);
+        }
+
         region_type_changed = waveform.active
             && waveform.mode == WaveformMode::Screencap
             && std::mem::discriminant(&waveform.region) != prev_discriminant;
@@ -201,11 +222,6 @@ pub fn handle_screencap(
             ui.ctx().clone(),
         );
     }
-
-    color.map(|color| DeltaColor {
-        next: color,
-        duration: Some((update_interval_ms / 2) as u32),
-    })
 }
 
 pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64) {
@@ -299,7 +315,7 @@ fn render_subregion_preview(
     }
 
     let pad = 6.0;
-    let preview_width = ui.available_width().min(300.0) - pad * 2.0;
+    let preview_width = ui.available_width() - pad * 2.0;
     let scale = preview_width / total_width;
     let preview_height = total_height * scale;
     let outer_width = preview_width + pad * 2.0;
