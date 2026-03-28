@@ -255,7 +255,9 @@ pub fn color_slider(
                 ),
             );
             let dragging = response.is_pointer_button_down_on();
-            let anim_t = ui.ctx().animate_bool_responsive(response.id.with("handle_grow"), dragging);
+            let anim_t = ui
+                .ctx()
+                .animate_bool_responsive(response.id.with("handle_grow"), dragging);
             let radius = egui::lerp(handle_radius..=(handle_radius * 1.8), anim_t);
             let picked_color = get_color_at_value(*value);
             ui.painter().circle(
