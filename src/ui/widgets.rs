@@ -102,51 +102,61 @@ pub fn toggle_button(
     lifx_manager: &LifxManager,
     device: &DeviceInfo,
     scale: Vec2,
-    registered_bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+    registered_bulbs: &mut MutexGuard<HashMap<u64, BulbInfo>>,
 ) -> egui::Response {
     let desired_size = ui.spacing().interact_size * scale;
     let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
-    ui.horizontal(|ui| {
-        let on = match device {
-            DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
-            DeviceInfo::Group(group) => group.is_any_bulb_on(registered_bulbs),
-        };
-        if response.clicked() {
-            let level = if on { 0 } else { u16::MAX };
-            match device {
-                DeviceInfo::Bulb(bulb) => {
-                    if let Err(e) = lifx_manager.set_power(&&**bulb, level) {
-                        log::error!("Error toggling bulb: {}", e);
-                    } else {
-                        log::info!("Toggled bulb {:?}", bulb.name);
-                    }
-                }
-                DeviceInfo::Group(group) => {
-                    if let Err(e) = lifx_manager.set_group_power(group, registered_bulbs, level) {
-                        log::error!("Error toggling group: {}", e);
-                    } else {
-                        log::info!("Toggled group {:?}", group.label);
+    let on = match device {
+        DeviceInfo::Bulb(bulb) => bulb.power_level.data.unwrap_or(0) != 0,
+        DeviceInfo::Group(group) => group.is_any_bulb_on(registered_bulbs),
+    };
+    if response.clicked() {
+        let level = if on { 0 } else { u16::MAX };
+        match device {
+            DeviceInfo::Bulb(bulb) => {
+                if let Err(e) = lifx_manager.set_power(&&**bulb, level) {
+                    log::error!("Error toggling bulb: {}", e);
+                } else {
+                    log::info!("Toggled bulb {:?}", bulb.name);
+                    if let Some(live_bulb) = registered_bulbs.get_mut(&bulb.target) {
+                        live_bulb.power_level.update(level);
                     }
                 }
             }
-            response.mark_changed();
+            DeviceInfo::Group(group) => {
+                if let Err(e) = lifx_manager.set_group_power(group, registered_bulbs, level) {
+                    log::error!("Error toggling group: {}", e);
+                } else {
+                    log::info!("Toggled group {:?}", group.label);
+                    let targets: Vec<u64> = group
+                        .get_bulbs(registered_bulbs)
+                        .iter()
+                        .map(|b| b.target)
+                        .collect();
+                    for target in targets {
+                        if let Some(live_bulb) = registered_bulbs.get_mut(&target) {
+                            live_bulb.power_level.update(level);
+                        }
+                    }
+                }
+            }
         }
-        response.widget_info(|| {
-            WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle")
-        });
-        if ui.is_rect_visible(rect) {
-            let how_on = ui.ctx().animate_bool_responsive(response.id, on);
-            let visuals = ui.style().interact_selectable(&response, on);
-            let rect = rect.expand(visuals.expansion);
-            let radius = 0.5 * rect.height();
-            ui.painter()
-                .rect(rect, radius, visuals.bg_fill, visuals.bg_stroke);
-            let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
-            let center = egui::pos2(circle_x, rect.center().y);
-            ui.painter()
-                .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
-        }
-    });
+        response.mark_changed();
+    }
+    response
+        .widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle"));
+    if ui.is_rect_visible(rect) {
+        let how_on = ui.ctx().animate_bool_responsive(response.id, on);
+        let visuals = ui.style().interact_selectable(&response, on);
+        let rect = rect.expand(visuals.expansion);
+        let radius = 0.5 * rect.height();
+        ui.painter()
+            .rect(rect, radius, visuals.bg_fill, visuals.bg_stroke);
+        let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
+        let center = egui::pos2(circle_x, rect.center().y);
+        ui.painter()
+            .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
+    }
     response
 }
 

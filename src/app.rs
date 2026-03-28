@@ -272,7 +272,7 @@ impl MantleApp {
         ui: &mut egui::Ui,
         device: &DeviceInfo,
         color_opt: Option<HSBK>,
-        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        bulbs: &mut MutexGuard<HashMap<u64, BulbInfo>>,
     ) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -429,7 +429,7 @@ impl MantleApp {
         &mut self,
         ui: &mut Ui,
         device: &DeviceInfo,
-        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        bulbs: &mut MutexGuard<HashMap<u64, BulbInfo>>,
     ) {
         ui.add_space(2.0);
         egui::Frame::none()
@@ -554,14 +554,18 @@ impl MantleApp {
                 let bulbs = bulbs.lock();
                 let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
-                    if let Ok(bulbs) = bulbs {
+                    if let Ok(mut bulbs) = bulbs {
                         self.display_device(
                             ui,
                             &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
-                            &bulbs,
+                            &mut bulbs,
                         );
-                        let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
-                        for bulb in sorted_bulbs {
+                        let sorted_bulbs: Vec<BulbInfo> = self
+                            .sort_bulbs(bulbs.values().collect())
+                            .into_iter()
+                            .cloned()
+                            .collect();
+                        for bulb in &sorted_bulbs {
                             if let Some(group) = bulb.group.data.as_ref() {
                                 let group_name = group.label.cstr().to_str().unwrap_or_default();
                                 if !seen_groups.contains(group_name) {
@@ -569,14 +573,14 @@ impl MantleApp {
                                     self.display_device(
                                         ui,
                                         &DeviceInfo::Group(group.clone()),
-                                        &bulbs,
+                                        &mut bulbs,
                                     );
                                 }
                             }
                             self.display_device(
                                 ui,
                                 &DeviceInfo::Bulb(Box::new(bulb.clone())),
-                                &bulbs,
+                                &mut bulbs,
                             );
                         }
                     }
