@@ -32,7 +32,7 @@ pub fn create_highlighted_button(
     let active_color = ui.visuals().widgets.hovered.bg_stroke.color;
     let inactive_color = ui.visuals().widgets.inactive.bg_fill;
 
-    let btn_id = ui.make_persistent_id(("hlbtn", icon_name));
+    let btn_id = ui.next_auto_id();
     let prev_hovered: bool = ui.data(|d| d.get_temp(btn_id).unwrap_or(false));
     let hover_t = ui.ctx().animate_bool_responsive(btn_id, prev_hovered);
     let active_t = ui
