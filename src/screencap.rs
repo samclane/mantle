@@ -249,3 +249,150 @@ impl ScreencapManager {
         .into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screen_subregion_default_is_zeroed() {
+        let sub = ScreenSubregion::default();
+        assert!(sub.monitor.is_none());
+        assert_eq!(sub.x, 0);
+        assert_eq!(sub.y, 0);
+        assert_eq!(sub.width, 0);
+        assert_eq!(sub.height, 0);
+    }
+
+    #[test]
+    fn screen_subregion_reset_clears_fields() {
+        let mut sub = ScreenSubregion {
+            monitor: None,
+            x: 100,
+            y: 200,
+            width: 300,
+            height: 400,
+        };
+        sub.reset();
+        assert!(sub.monitor.is_none());
+        assert_eq!(sub.x, 0);
+        assert_eq!(sub.y, 0);
+        assert_eq!(sub.width, 0);
+        assert_eq!(sub.height, 0);
+    }
+
+    #[test]
+    fn screen_subregion_eq_same_fields() {
+        let a = ScreenSubregion {
+            monitor: None,
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        let b = ScreenSubregion {
+            monitor: None,
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn screen_subregion_ne_different_fields() {
+        let a = ScreenSubregion {
+            monitor: None,
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        let b = ScreenSubregion {
+            monitor: None,
+            x: 99,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn compare_by_id_same_ids() {
+        let items = vec![1u64, 2, 3];
+        let items2 = vec![1u64, 2, 3];
+        assert!(RegionCaptureTarget::compare_by_id(&items, &items2, |x| *x));
+    }
+
+    #[test]
+    fn compare_by_id_different_lengths() {
+        let items = vec![1u64, 2];
+        let items2 = vec![1u64, 2, 3];
+        assert!(!RegionCaptureTarget::compare_by_id(&items, &items2, |x| *x));
+    }
+
+    #[test]
+    fn compare_by_id_different_ids() {
+        let items = vec![1u64, 2, 3];
+        let items2 = vec![1u64, 2, 99];
+        assert!(!RegionCaptureTarget::compare_by_id(&items, &items2, |x| *x));
+    }
+
+    #[test]
+    fn compare_by_id_empty() {
+        let items: Vec<u64> = vec![];
+        let items2: Vec<u64> = vec![];
+        assert!(RegionCaptureTarget::compare_by_id(&items, &items2, |x| *x));
+    }
+
+    #[test]
+    fn region_capture_target_all_eq() {
+        assert_eq!(RegionCaptureTarget::All, RegionCaptureTarget::All);
+    }
+
+    #[test]
+    fn region_capture_target_mismatched_variants() {
+        assert_ne!(
+            RegionCaptureTarget::All,
+            RegionCaptureTarget::Subregion(vec![])
+        );
+    }
+
+    #[test]
+    fn region_capture_target_subregion_delegates_eq() {
+        let s1 = vec![ScreenSubregion {
+            monitor: None,
+            x: 1,
+            y: 2,
+            width: 3,
+            height: 4,
+        }];
+        let s2 = vec![ScreenSubregion {
+            monitor: None,
+            x: 1,
+            y: 2,
+            width: 3,
+            height: 4,
+        }];
+        assert_eq!(
+            RegionCaptureTarget::Subregion(s1),
+            RegionCaptureTarget::Subregion(s2)
+        );
+    }
+
+    #[test]
+    fn screen_subregion_serde_round_trip() {
+        let sub = ScreenSubregion {
+            monitor: None,
+            x: 10,
+            y: 20,
+            width: 1920,
+            height: 1080,
+        };
+        let json = serde_json::to_string(&sub).unwrap();
+        let deserialized: ScreenSubregion = serde_json::from_str(&json).unwrap();
+        assert_eq!(sub, deserialized);
+    }
+}

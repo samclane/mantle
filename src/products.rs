@@ -94,3 +94,98 @@ pub fn get_products() -> HashMap<u32, Product> {
     }
     product_map
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_products_parses_embedded_json() {
+        let products = get_products();
+        assert!(!products.is_empty());
+    }
+
+    #[test]
+    fn get_products_contains_known_pid() {
+        let products = get_products();
+        let product = products.get(&1).expect("PID 1 should exist");
+        assert_eq!(product.name, "LIFX Original 1000");
+    }
+
+    #[test]
+    fn get_product_name_valid_model() {
+        let model = (1u32, 1u32);
+        let name = get_product_name(Some(&model));
+        assert_eq!(name, Some("LIFX Original 1000".to_string()));
+    }
+
+    #[test]
+    fn get_product_name_invalid_model() {
+        let model = (0u32, 999999u32);
+        assert_eq!(get_product_name(Some(&model)), None);
+    }
+
+    #[test]
+    fn get_product_name_none_input() {
+        assert_eq!(get_product_name(None), None);
+    }
+
+    #[test]
+    fn temperature_range_to_range_u16() {
+        let range = TemperatureRange {
+            min: 2500,
+            max: 9000,
+        };
+        assert_eq!(range.to_range_u16(), 2500u16..=9000u16);
+    }
+
+    #[test]
+    fn temperature_range_to_range_f32() {
+        let range = TemperatureRange {
+            min: 2500,
+            max: 9000,
+        };
+        assert_eq!(range.to_range_f32(), 2500.0f32..=9000.0f32);
+    }
+
+    #[test]
+    fn temperature_range_into_tuple() {
+        let range = TemperatureRange {
+            min: 2500,
+            max: 9000,
+        };
+        let tuple: (u16, u16) = range.into();
+        assert_eq!(tuple, (2500, 9000));
+    }
+
+    #[test]
+    fn features_get_features_unknown_model_returns_default() {
+        let features = Features::get_features(Some(&(0, 999999)));
+        assert_eq!(features.color, None);
+        assert_eq!(features.chain, None);
+    }
+
+    #[test]
+    fn features_get_features_none_returns_default() {
+        let features = Features::get_features(None);
+        assert_eq!(features.color, None);
+    }
+
+    #[test]
+    fn features_as_ref_returns_some() {
+        let features = Features::default();
+        assert!(features.as_ref().is_some());
+    }
+
+    #[test]
+    fn kelvin_range_constants() {
+        assert_eq!(KELVIN_RANGE.min, 2500);
+        assert_eq!(KELVIN_RANGE.max, 9000);
+    }
+
+    #[test]
+    fn lifx_range_full_u16() {
+        assert_eq!(*LIFX_RANGE.start(), 0);
+        assert_eq!(*LIFX_RANGE.end(), u16::MAX);
+    }
+}

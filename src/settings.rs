@@ -473,3 +473,66 @@ impl MantleApp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_default_refresh_rate() {
+        let settings = Settings::default();
+        assert_eq!(settings.refresh_rate_ms, 500);
+    }
+
+    #[test]
+    fn settings_default_update_interval() {
+        let settings = Settings::default();
+        assert_eq!(settings.update_interval_ms, 500);
+    }
+
+    #[test]
+    fn settings_default_audio_buffer() {
+        let settings = Settings::default();
+        assert_eq!(settings.audio_buffer_size, AUDIO_BUFFER_DEFAULT);
+    }
+
+    #[test]
+    fn settings_default_empty_shortcuts() {
+        let settings = Settings::default();
+        assert!(settings.custom_shortcuts.is_empty());
+    }
+
+    #[test]
+    fn settings_default_empty_scenes() {
+        let settings = Settings::default();
+        assert!(settings.scenes.is_empty());
+    }
+
+    #[test]
+    fn settings_serde_round_trip() {
+        let settings = Settings {
+            custom_shortcuts: Vec::new(),
+            refresh_rate_ms: 1000,
+            update_interval_ms: 2000,
+            scenes: Vec::new(),
+            audio_buffer_size: 4096,
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.refresh_rate_ms, 1000);
+        assert_eq!(deserialized.update_interval_ms, 2000);
+        assert_eq!(deserialized.audio_buffer_size, 4096);
+        assert!(deserialized.custom_shortcuts.is_empty());
+        assert!(deserialized.scenes.is_empty());
+    }
+
+    #[test]
+    fn settings_serde_round_trip_default() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.refresh_rate_ms, settings.refresh_rate_ms);
+        assert_eq!(deserialized.update_interval_ms, settings.update_interval_ms);
+        assert_eq!(deserialized.audio_buffer_size, settings.audio_buffer_size);
+    }
+}

@@ -379,4 +379,166 @@ mod tests {
         shortcut_manager.remove_shortcut(shortcut_action);
         assert_eq!(shortcut_manager.shortcuts.lock().unwrap().len(), 0);
     }
+
+    fn make_group_device() -> DeviceInfo {
+        DeviceInfo::Group(GroupInfo {
+            group: LifxIdent([0; 16]),
+            label: LifxString::new(&CString::new("TestGroup").unwrap()),
+            updated_at: 0u64,
+        })
+    }
+
+    #[test]
+    fn keyboard_shortcut_default_empty() {
+        let shortcut = KeyboardShortcut::default();
+        assert!(shortcut.input_action_keys.is_empty());
+        assert_eq!(shortcut.name, "");
+    }
+
+    #[test]
+    fn update_display_string_single_key() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let mut shortcut = KeyboardShortcut::new(InputAction::from(keys), "".to_string());
+        shortcut.update_display_string();
+        assert_eq!(shortcut.name, "KeyA");
+    }
+
+    #[test]
+    fn update_display_string_multi_key() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::ControlLeft), InputItem::Key(Key::KeyA)]
+            .into_iter()
+            .collect();
+        let mut shortcut = KeyboardShortcut::new(InputAction::from(keys), "".to_string());
+        shortcut.update_display_string();
+        assert!(shortcut.name.contains("ControlLeft"));
+        assert!(shortcut.name.contains("KeyA"));
+        assert!(shortcut.name.contains(" + "));
+    }
+
+    #[test]
+    fn update_display_string_empty() {
+        let mut shortcut = KeyboardShortcut::default();
+        shortcut.update_display_string();
+        assert_eq!(shortcut.name, "");
+    }
+
+    #[test]
+    fn keyboard_shortcut_action_partial_eq() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Test".to_string());
+        let device = make_group_device();
+
+        let a = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "Test".to_string(),
+        };
+        let b = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "Test".to_string(),
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn keyboard_shortcut_action_ne_different_name() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Test".to_string());
+        let device = make_group_device();
+
+        let a = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "Alpha".to_string(),
+        };
+        let b = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "Beta".to_string(),
+        };
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn keyboard_shortcut_action_ne_different_action() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Test".to_string());
+        let device = make_group_device();
+
+        let a = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "Test".to_string(),
+        };
+        let b = KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::TogglePower,
+            device: Some(device.clone()),
+            name: "Test".to_string(),
+        };
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn keyboard_shortcut_serde_round_trip() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::ControlLeft), InputItem::Key(Key::KeyA)]
+            .into_iter()
+            .collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Ctrl+A".to_string());
+        let json = serde_json::to_string(&shortcut).unwrap();
+        let back: KeyboardShortcut = serde_json::from_str(&json).unwrap();
+        assert_eq!(shortcut, back);
+    }
+
+    #[test]
+    fn keyboard_shortcut_action_serde_round_trip() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Test".to_string());
+        let device = make_group_device();
+        let action = KeyboardShortcutAction {
+            shortcut,
+            action: UserAction::Refresh,
+            device: Some(device),
+            name: "MyShortcut".to_string(),
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: KeyboardShortcutAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, back);
+    }
+
+    #[test]
+    fn keyboard_shortcut_debug_format() {
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyA)].into_iter().collect();
+        let shortcut = KeyboardShortcut::new(InputAction::from(keys), "Test".to_string());
+        let debug = format!("{:?}", shortcut);
+        assert!(debug.contains("KeyboardShortcut"));
+        assert!(debug.contains("KeyA"));
+    }
+
+    #[test]
+    fn shortcut_manager_default() {
+        let manager = ShortcutManager::default();
+        assert!(manager.shortcuts.lock().unwrap().is_empty());
+        assert!(manager.active_shortcuts.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn shortcut_manager_add_action() {
+        let mut manager = ShortcutManager::default();
+        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyB)].into_iter().collect();
+        let action = KeyboardShortcutAction {
+            shortcut: KeyboardShortcut::new(InputAction::from(keys), "B".to_string()),
+            action: UserAction::TogglePower,
+            device: Some(make_group_device()),
+            name: "Toggle".to_string(),
+        };
+        manager.add_action(action).unwrap();
+        assert_eq!(manager.shortcuts.lock().unwrap().len(), 1);
+    }
 }

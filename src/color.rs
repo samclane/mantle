@@ -347,4 +347,122 @@ mod tests {
         let color = Color32::WHITE;
         assert_eq!(contrast_color(color), Color32::BLACK);
     }
+
+    #[test]
+    fn hsbk32_round_trip_identity() {
+        let original = HSBK {
+            hue: 12345,
+            saturation: 54321,
+            brightness: 32768,
+            kelvin: 4000,
+        };
+        let hsbk32: HSBK32 = original.into();
+        let back: HSBK = hsbk32.into();
+        assert_eq!(original, back);
+    }
+
+    #[test]
+    fn rgb8_to_hsbk32_round_trip() {
+        let rgb = RGB8::new(255, 0, 0, Some(DEFAULT_KELVIN));
+        let hsbk32: HSBK32 = rgb.into();
+        let rgb_back: RGB8 = hsbk32.into();
+        assert!((rgb.red as i16 - rgb_back.red as i16).unsigned_abs() <= 5);
+        assert!((rgb.green as i16 - rgb_back.green as i16).unsigned_abs() <= 5);
+        assert!((rgb.blue as i16 - rgb_back.blue as i16).unsigned_abs() <= 5);
+    }
+
+    #[test]
+    fn kelvin_to_rgb_low_temperature() {
+        let color = kelvin_to_rgb(1000);
+        assert_eq!(color.red, 255);
+        assert!(color.green < 100);
+        assert_eq!(color.blue, 0);
+        assert_eq!(color.temperature, Some(1000));
+    }
+
+    #[test]
+    fn kelvin_to_rgb_high_temperature() {
+        let color = kelvin_to_rgb(9000);
+        assert!(color.red > 0);
+        assert!(color.green > 0);
+        assert_eq!(color.blue, 255);
+        assert_eq!(color.temperature, Some(9000));
+    }
+
+    #[test]
+    fn kelvin_to_rgb_boundary_6600() {
+        let color = kelvin_to_rgb(6600);
+        assert!(color.red > 0);
+        assert!(color.green > 0);
+        assert_eq!(color.blue, 255);
+    }
+
+    #[test]
+    fn default_hsbk_all_zero() {
+        let hsbk = default_hsbk();
+        assert_eq!(hsbk.hue, 0);
+        assert_eq!(hsbk.saturation, 0);
+        assert_eq!(hsbk.brightness, 0);
+        assert_eq!(hsbk.kelvin, 0);
+    }
+
+    #[test]
+    fn rgb8_to_color32() {
+        let rgb = RGB8::new(100, 150, 200, None);
+        let c32: Color32 = rgb.into();
+        assert_eq!(c32.r(), 100);
+        assert_eq!(c32.g(), 150);
+        assert_eq!(c32.b(), 200);
+    }
+
+    #[test]
+    fn color32_to_hsbk32_to_color32() {
+        let original = Color32::from_rgb(255, 0, 0);
+        let hsbk32: HSBK32 = original.into();
+        let back: Color32 = hsbk32.into();
+        assert!((original.r() as i16 - back.r() as i16).unsigned_abs() <= 5);
+        assert!((original.g() as i16 - back.g() as i16).unsigned_abs() <= 5);
+        assert!((original.b() as i16 - back.b() as i16).unsigned_abs() <= 5);
+    }
+
+    #[test]
+    fn hsbk32_default_is_zero() {
+        let h = HSBK32::default();
+        assert_eq!(h.hue, 0);
+        assert_eq!(h.saturation, 0);
+        assert_eq!(h.brightness, 0);
+        assert_eq!(h.kelvin, 0);
+    }
+
+    #[test]
+    fn rgb8_iter() {
+        let rgb = RGB8::new(10, 20, 30, None);
+        let values: Vec<u8> = rgb.iter().collect();
+        assert_eq!(values, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn rgb8_black_to_hsbk() {
+        let rgb = RGB8::new(0, 0, 0, Some(DEFAULT_KELVIN));
+        let hsbk: HSBK = rgb.into();
+        assert_eq!(hsbk.brightness, 0);
+        assert_eq!(hsbk.saturation, 0);
+    }
+
+    #[test]
+    fn rgb8_white_to_hsbk() {
+        let rgb = RGB8::new(255, 255, 255, Some(DEFAULT_KELVIN));
+        let hsbk: HSBK = rgb.into();
+        assert_eq!(hsbk.brightness, u16::MAX);
+        assert_eq!(hsbk.saturation, 0);
+    }
+
+    #[test]
+    fn contrast_color_mid_gray() {
+        let dark_gray = Color32::from_rgb(80, 80, 80);
+        assert_eq!(contrast_color(dark_gray), Color32::WHITE);
+
+        let bright_gray = Color32::from_rgb(200, 200, 200);
+        assert_eq!(contrast_color(bright_gray), Color32::BLACK);
+    }
 }

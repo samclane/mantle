@@ -403,4 +403,126 @@ mod tests {
             }),
         );
     }
+
+    #[test]
+    fn display_toggle_power() {
+        assert_eq!(format!("{}", UserAction::TogglePower), "Toggle Power");
+    }
+
+    #[test]
+    fn display_set_power() {
+        assert_eq!(
+            format!("{}", UserAction::SetPower { power: true }),
+            "Set Power: true"
+        );
+        assert_eq!(
+            format!("{}", UserAction::SetPower { power: false }),
+            "Set Power: false"
+        );
+    }
+
+    #[test]
+    fn display_set_hue() {
+        assert_eq!(
+            format!("{}", UserAction::SetHue { hue: 1000 }),
+            "Set Hue: 1000"
+        );
+    }
+
+    #[test]
+    fn display_set_saturation() {
+        assert_eq!(
+            format!("{}", UserAction::SetSaturation { saturation: 500 }),
+            "Set Saturation: 500"
+        );
+    }
+
+    #[test]
+    fn display_set_kelvin() {
+        assert_eq!(
+            format!("{}", UserAction::SetKelvin { kelvin: 4000 }),
+            "Set Kelvin: 4000"
+        );
+    }
+
+    #[test]
+    fn display_set_scene() {
+        let scene = Scene::new(vec![], "My Scene".to_string());
+        assert_eq!(
+            format!("{}", UserAction::SetScene { scene }),
+            "Set Scene: My Scene"
+        );
+    }
+
+    #[test]
+    fn from_scene_produces_set_scene() {
+        let scene = Scene::new(vec![], "Test".to_string());
+        let action: UserAction = scene.clone().into();
+        match action {
+            UserAction::SetScene { scene: s } => assert_eq!(s.name, "Test"),
+            _ => panic!("Expected SetScene variant"),
+        }
+    }
+
+    #[test]
+    fn from_user_action_to_string_matches_display() {
+        let action = UserAction::SetBrightness { brightness: 42 };
+        let display = format!("{}", action);
+        let string: String = action.into();
+        assert_eq!(display, string);
+    }
+
+    #[test]
+    fn serde_round_trip_refresh() {
+        let action = UserAction::Refresh;
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, UserAction::Refresh);
+    }
+
+    #[test]
+    fn serde_round_trip_toggle_power() {
+        let action = UserAction::TogglePower;
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, UserAction::TogglePower);
+    }
+
+    #[test]
+    fn serde_round_trip_set_color() {
+        let action = UserAction::SetColor {
+            hue: 100,
+            saturation: 200,
+            brightness: 300,
+            kelvin: 4000,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, action);
+    }
+
+    #[test]
+    fn serde_round_trip_set_power() {
+        let action = UserAction::SetPower { power: true };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, action);
+    }
+
+    #[test]
+    fn serde_round_trip_set_brightness() {
+        let action = UserAction::SetBrightness { brightness: 12345 };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, action);
+    }
+
+    #[test]
+    fn serde_round_trip_set_scene() {
+        let scene = Scene::new(vec![], "TestScene".to_string());
+        let action = UserAction::SetScene { scene };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: UserAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, action);
+    }
 }

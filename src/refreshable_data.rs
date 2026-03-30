@@ -51,3 +51,84 @@ impl<T> RefreshableData<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_msg() -> Message {
+        Message::GetService
+    }
+
+    #[test]
+    fn empty_has_no_data() {
+        let rd: RefreshableData<u32> = RefreshableData::empty(Duration::from_secs(60), dummy_msg());
+        assert!(rd.data.is_none());
+    }
+
+    #[test]
+    fn empty_needs_refresh_immediately() {
+        let rd: RefreshableData<u32> = RefreshableData::empty(Duration::from_secs(60), dummy_msg());
+        assert!(rd.needs_refresh());
+    }
+
+    #[test]
+    fn new_has_data() {
+        let rd = RefreshableData::new(42u32, Duration::from_secs(60), dummy_msg());
+        assert_eq!(rd.data, Some(42));
+    }
+
+    #[test]
+    fn new_does_not_need_refresh_immediately() {
+        let rd = RefreshableData::new(42u32, Duration::from_secs(60), dummy_msg());
+        assert!(!rd.needs_refresh());
+    }
+
+    #[test]
+    fn needs_refresh_with_zero_max_age() {
+        let rd = RefreshableData::new(42u32, Duration::ZERO, dummy_msg());
+        std::thread::sleep(Duration::from_millis(1));
+        assert!(rd.needs_refresh());
+    }
+
+    #[test]
+    fn update_replaces_data() {
+        let mut rd: RefreshableData<u32> =
+            RefreshableData::empty(Duration::from_secs(60), dummy_msg());
+        assert!(rd.data.is_none());
+        rd.update(99);
+        assert_eq!(rd.data, Some(99));
+    }
+
+    #[test]
+    fn update_resets_timer() {
+        let mut rd = RefreshableData::new(1u32, Duration::ZERO, dummy_msg());
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(rd.needs_refresh());
+        rd.update(2);
+        rd.max_age = Duration::from_secs(60);
+        assert!(!rd.needs_refresh());
+    }
+
+    #[test]
+    fn as_ref_returns_some_when_populated() {
+        let rd = RefreshableData::new(42u32, Duration::from_secs(60), dummy_msg());
+        assert_eq!(rd.as_ref(), Some(&42));
+    }
+
+    #[test]
+    fn as_ref_returns_none_when_empty() {
+        let rd: RefreshableData<u32> = RefreshableData::empty(Duration::from_secs(60), dummy_msg());
+        assert_eq!(rd.as_ref(), None);
+    }
+
+    #[test]
+    fn stores_refresh_msg() {
+        let rd: RefreshableData<u32> =
+            RefreshableData::empty(Duration::from_secs(60), Message::GetLabel);
+        match rd.refresh_msg {
+            Message::GetLabel => {}
+            _ => panic!("Expected GetLabel"),
+        }
+    }
+}
