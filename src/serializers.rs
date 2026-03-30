@@ -21,7 +21,9 @@ where
     D: serde::Deserializer<'de>,
 {
     let secs: u64 = serde::Deserialize::deserialize(deserializer)?;
-    Ok(Instant::now() - Duration::from_secs(secs))
+    Ok(Instant::now()
+        .checked_sub(Duration::from_secs(secs))
+        .unwrap_or_else(Instant::now))
 }
 
 #[derive(Serialize, Deserialize)]

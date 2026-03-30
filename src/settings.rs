@@ -320,13 +320,8 @@ impl MantleApp {
                 false,
             )
             .show_header(ui, |ui| {
-                ui.label(
-                    egui::RichText::new(&scene.name).strong(),
-                );
-                ui.label(format!(
-                    "{} devices",
-                    scene.device_color_pairs.len()
-                ));
+                ui.label(egui::RichText::new(&scene.name).strong());
+                ui.label(format!("{} devices", scene.device_color_pairs.len()));
                 if ui.button("Apply").clicked() {
                     match scene.apply(&mut self.lighting_manager) {
                         Ok(_) => {
@@ -362,9 +357,7 @@ impl MantleApp {
                             DeviceInfo::Bulb(_) => "Bulb",
                             DeviceInfo::Group(_) => "Group",
                         };
-                        let name = device
-                            .name()
-                            .unwrap_or_else(|| "Unknown".to_string());
+                        let name = device.name().unwrap_or_else(|| "Unknown".to_string());
                         ui.label(format!("{prefix}: {name}"));
                     });
                 }

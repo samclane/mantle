@@ -112,24 +112,42 @@ impl Serialize for DeviceColor {
     }
 }
 
+/// Mirrors the serialization format: Unknown → None, Single → Some(HSBK32),
+/// Multi → Some(Option<Vec<Option<HSBK32>>>).
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DeviceColorData {
+    Multi(Option<Vec<Option<HSBK32>>>),
+    Single(HSBK32),
+}
+
 impl<'de> Deserialize<'de> for DeviceColor {
     fn deserialize<D>(deserializer: D) -> Result<DeviceColor, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
-        let data32 = Option::<HSBK32>::deserialize(deserializer)?;
-        let data: Option<HSBK> = data32.map(HSBK::from);
+        let color_zones_msg = Message::GetColorZones {
+            start_index: 0,
+            end_index: u8::MAX,
+        };
 
-        match data {
-            Some(data) => Ok(DeviceColor::Single(RefreshableData::new(
-                data,
-                Duration::from_secs(60),
-                Message::GetColorZones {
-                    start_index: 0,
-                    end_index: u8::MAX,
-                },
-            ))),
+        match Option::<DeviceColorData>::deserialize(deserializer)? {
             None => Ok(DeviceColor::Unknown),
+            Some(DeviceColorData::Single(hsbk32)) => Ok(DeviceColor::Single(RefreshableData::new(
+                HSBK::from(hsbk32),
+                Duration::from_secs(60),
+                color_zones_msg,
+            ))),
+            Some(DeviceColorData::Multi(zones)) => {
+                let hsbk_zones =
+                    zones.map(|v| v.into_iter().map(|opt| opt.map(HSBK::from)).collect());
+                Ok(DeviceColor::Multi(RefreshableData {
+                    data: hsbk_zones,
+                    max_age: Duration::from_secs(60),
+                    last_updated: Instant::now(),
+                    refresh_msg: color_zones_msg,
+                }))
+            }
         }
     }
 }
