@@ -307,53 +307,84 @@ impl MantleApp {
     }
 
     fn render_scenes_table(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("scenes_grid").striped(true).show(ui, |ui| {
-            ui.label(egui::RichText::new("Name").strong());
-            ui.label(egui::RichText::new("Devices").strong());
-            ui.label(egui::RichText::new("Actions").strong());
-            ui.end_row();
+        let mut to_remove = Vec::new();
+        let mut applied = false;
+        let mut application_errors = Vec::new();
+        let mut removed = false;
 
-            let mut to_remove = Vec::new();
-            let mut applied = false;
-            let mut application_errors = Vec::new();
-            let mut removed = false;
-            for scene in &self.settings.scenes {
-                ui.label(&scene.name);
-                ui.label(format!("{} devices", scene.device_color_pairs.len()));
-                ui.horizontal(|ui| {
-                    if ui.button("Apply").clicked() {
-                        // applied = scene.apply(&mut self.lighting_manager).is_ok();
-                        match scene.apply(&mut self.lighting_manager) {
-                            Ok(_) => {
-                                applied = true;
-                            }
-                            Err(errors) => {
-                                application_errors = errors;
-                            }
+        for scene in &self.settings.scenes {
+            let header_id = ui.make_persistent_id(format!("scene_{}", scene.name));
+            egui::collapsing_header::CollapsingState::load_with_default_open(
+                ui.ctx(),
+                header_id,
+                false,
+            )
+            .show_header(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(&scene.name).strong(),
+                );
+                ui.label(format!(
+                    "{} devices",
+                    scene.device_color_pairs.len()
+                ));
+                if ui.button("Apply").clicked() {
+                    match scene.apply(&mut self.lighting_manager) {
+                        Ok(_) => {
+                            applied = true;
+                        }
+                        Err(errors) => {
+                            application_errors = errors;
                         }
                     }
-                    if ui.button("Remove").clicked() {
-                        to_remove.push(scene.name.clone());
-                        removed = true;
-                    }
-                });
-                ui.end_row();
-            }
-            if applied {
-                self.success_toast("Scene applied successfully");
-            } else if !application_errors.is_empty() {
-                self.error_toast(&format!(
-                    "Failed to apply scene: {}",
-                    application_errors.join(", ")
-                ));
-            }
-            for name in to_remove {
-                self.settings.scenes.retain(|s| s.name != name);
-            }
-            if removed {
-                self.info_toast("Scene removed");
-            }
-        });
+                }
+                if ui.button("Remove").clicked() {
+                    to_remove.push(scene.name.clone());
+                    removed = true;
+                }
+            })
+            .body(|ui| {
+                for (device, color) in &scene.device_color_pairs {
+                    ui.horizontal(|ui| {
+                        let swatch_size = egui::vec2(14.0, 14.0);
+                        let (response, painter) =
+                            ui.allocate_painter(swatch_size, egui::Sense::hover());
+                        let center = response.rect.center();
+                        let radius = swatch_size.x / 2.0;
+                        let swatch_color = egui::Color32::from(*color);
+                        painter.circle_filled(center, radius, swatch_color);
+                        painter.circle_stroke(
+                            center,
+                            radius,
+                            egui::Stroke::new(1.0, ui.visuals().text_color()),
+                        );
+
+                        let prefix = match device {
+                            DeviceInfo::Bulb(_) => "Bulb",
+                            DeviceInfo::Group(_) => "Group",
+                        };
+                        let name = device
+                            .name()
+                            .unwrap_or_else(|| "Unknown".to_string());
+                        ui.label(format!("{prefix}: {name}"));
+                    });
+                }
+            });
+        }
+
+        if applied {
+            self.success_toast("Scene applied successfully");
+        } else if !application_errors.is_empty() {
+            self.error_toast(&format!(
+                "Failed to apply scene: {}",
+                application_errors.join(", ")
+            ));
+        }
+        for name in to_remove {
+            self.settings.scenes.retain(|s| s.name != name);
+        }
+        if removed {
+            self.info_toast("Scene removed");
+        }
     }
 
     fn render_new_scene_ui(&mut self, ui: &mut egui::Ui) {
