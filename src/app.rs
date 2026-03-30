@@ -92,6 +92,8 @@ pub struct MantleApp {
     #[serde(skip)]
     pub toasts: Toasts,
     #[serde(skip)]
+    pub monitor_preview_textures: HashMap<u32, egui::TextureHandle>,
+    #[serde(skip)]
     pub selected_zones: HashMap<u64, HashSet<usize>>,
     #[serde(skip)]
     pub waveform_channel: ColorChannel,
@@ -122,6 +124,7 @@ impl Default for MantleApp {
             selected_zones: HashMap::new(),
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
+            monitor_preview_textures: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
             toasts: Toasts::new(),
             audio_manager: AudioManager::default(),

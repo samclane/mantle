@@ -3,7 +3,7 @@ use std::sync::Arc;
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use xcap::{
-    image::{GenericImageView, RgbaImage},
+    image::{imageops::FilterType, GenericImageView, RgbaImage},
     Monitor, Window, XCapError,
 };
 
@@ -134,6 +134,29 @@ impl ScreencapManager {
             temperature: None,
         }
         .into())
+    }
+
+    /// Capture a monitor screenshot and downscale it to fit within `max_width`,
+    /// returning an egui-compatible `ColorImage`.
+    pub fn capture_monitor_preview(
+        monitor: &Monitor,
+        max_width: u32,
+    ) -> Result<eframe::egui::ColorImage, XCapError> {
+        let image = monitor.capture_image()?;
+        let aspect = image.height() as f32 / image.width() as f32;
+        let target_width = max_width.min(image.width()).max(1);
+        let target_height = ((target_width as f32 * aspect) as u32).max(1);
+        let resized = xcap::image::imageops::resize(
+            &image,
+            target_width,
+            target_height,
+            FilterType::Triangle,
+        );
+        let size = [resized.width() as usize, resized.height() as usize];
+        let pixels = resized.into_raw();
+        Ok(eframe::egui::ColorImage::from_rgba_unmultiplied(
+            size, &pixels,
+        ))
     }
 
     pub fn bounding_box(&self) -> eframe::egui::Rect {

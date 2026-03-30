@@ -21,7 +21,9 @@ use super::{
     widgets::create_highlighted_button,
 };
 
-use eframe::egui::{self, pos2, vec2, Color32, Pos2, Sense, Stroke, Ui};
+use std::collections::HashMap;
+
+use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Ui};
 use lifx_core::HSBK;
 
 const DEBOUNCE_DELAY_MS: u64 = 100;
@@ -206,7 +208,12 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
                     ui.add(egui::DragValue::new(&mut subregion.height));
                 });
             }
-            render_subregion_preview(ui, &app.screen_manager, &mut subregion);
+            render_subregion_preview(
+                ui,
+                &app.screen_manager,
+                &mut subregion,
+                &mut app.monitor_preview_textures,
+            );
         }
 
         region_type_changed = waveform.active
@@ -291,6 +298,7 @@ fn render_subregion_preview(
     ui: &mut Ui,
     screen_manager: &ScreencapManager,
     subregion: &mut ScreenSubregion,
+    textures: &mut HashMap<u32, TextureHandle>,
 ) {
     let monitors = &screen_manager.monitors;
     if monitors.is_empty() {
@@ -314,12 +322,38 @@ fn render_subregion_preview(
         return;
     }
 
+    ui.horizontal(|ui| {
+        ui.add_space(4.0);
+        if ui.small_button("Refresh Preview").clicked() {
+            textures.clear();
+        }
+    });
+
     let pad = 6.0;
     let preview_width = ui.available_width() - pad * 2.0;
     let scale = preview_width / total_width;
     let preview_height = total_height * scale;
     let outer_width = preview_width + pad * 2.0;
     let outer_height = preview_height + pad * 2.0;
+
+    // Lazily capture and cache monitor screenshots as textures
+    const PREVIEW_MAX_WIDTH: u32 = 480;
+    for monitor in monitors {
+        let mon_id = monitor.id();
+        textures.entry(mon_id).or_insert_with(|| {
+            let color_image = ScreencapManager::capture_monitor_preview(monitor, PREVIEW_MAX_WIDTH)
+                .unwrap_or_else(|_| {
+                    let w = (monitor.width() as f32 * scale).ceil() as usize;
+                    let h = (monitor.height() as f32 * scale).ceil() as usize;
+                    egui::ColorImage::new([w.max(1), h.max(1)], Color32::from_rgb(30, 30, 42))
+                });
+            ui.ctx().load_texture(
+                format!("monitor_preview_{}", mon_id),
+                color_image,
+                egui::TextureOptions::LINEAR,
+            )
+        });
+    }
 
     ui.add_space(4.0);
     let (response, painter) =
@@ -343,6 +377,7 @@ fn render_subregion_preview(
         )
     };
 
+    let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
     for monitor in monitors {
         let mon_rect = egui::Rect::from_min_size(
             pos2(
@@ -354,18 +389,17 @@ fn render_subregion_preview(
                 monitor.height() as f32 * scale,
             ),
         );
-        painter.rect(
+
+        if let Some(tex) = textures.get(&monitor.id()) {
+            painter.image(tex.id(), mon_rect, uv, Color32::WHITE);
+        } else {
+            painter.rect(mon_rect, 4.0, Color32::from_rgb(30, 30, 42), Stroke::NONE);
+        }
+
+        painter.rect_stroke(
             mon_rect,
             4.0,
-            Color32::from_rgb(30, 30, 42),
             Stroke::new(1.0, Color32::from_rgb(55, 55, 75)),
-        );
-        painter.text(
-            mon_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            monitor.name(),
-            egui::FontId::proportional(10.0),
-            Color32::from_rgb(120, 120, 145),
         );
     }
 
