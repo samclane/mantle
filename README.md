@@ -44,3 +44,4 @@ Join the Discord server [here](https://discord.gg/TwqSeTTYqX) to provide feedbac
 - [`lifx-core`](https://github.com/eminence/lifx)
 - [`lifxlan (Python)`](https://github.com/mclarkk/lifxlan)
 - [`eframe_template`](https://github.com/emilk/eframe_template)
+- [`tabler icons`](https://tabler.io/icons)
