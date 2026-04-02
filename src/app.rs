@@ -42,6 +42,7 @@ pub const EYEDROPPER_ICON: &[u8; 238] = include_bytes!("../res/icons/color-picke
 pub const MONITOR_ICON: &[u8; 204] = include_bytes!("../res/icons/device-desktop.png");
 pub const SUBREGION_ICON: &[u8; 218] = include_bytes!("../res/icons/square.png");
 pub const AUDIO_ICON: &[u8; 225] = include_bytes!("../res/icons/device-speaker.png");
+pub const SCREENSHOT_ICON: &[u8] = include_bytes!("../res/icons/screenshot.png");
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WaveformMode {

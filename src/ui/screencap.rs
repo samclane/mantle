@@ -6,7 +6,8 @@ use std::{
 
 use crate::{
     app::{
-        MantleApp, WaveformMode, WaveformTracker, EYEDROPPER_ICON, MONITOR_ICON, SUBREGION_ICON,
+        MantleApp, WaveformMode, WaveformTracker, EYEDROPPER_ICON, MONITOR_ICON, SCREENSHOT_ICON,
+        SUBREGION_ICON,
     },
     color::DeltaColor,
     device_info::DeviceInfo,
@@ -154,11 +155,6 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
         window_options.sort_by(|a, b| a.0.cmp(&b.0));
         options.extend(window_options);
 
-        options.push((
-            "Subregion".to_string(),
-            RegionCaptureTarget::Subregion(vec![subregion.clone()]),
-        ));
-
         let selected_text = match &waveform.region {
             RegionCaptureTarget::All => "All".to_string(),
             RegionCaptureTarget::Monitor(monitors) => monitors
@@ -171,9 +167,15 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
                 .unwrap_or("Window".to_string()),
             RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
         };
+        let is_subregion = matches!(&waveform.region, RegionCaptureTarget::Subregion(_));
         ui.push_id(device.id(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Capture Target");
+                if create_highlighted_button(ui, "screenshot", SCREENSHOT_ICON, is_subregion)
+                    .clicked()
+                {
+                    waveform.region = RegionCaptureTarget::Subregion(vec![subregion.clone()]);
+                }
                 let combo_width = (ui.available_width() - 8.0).max(80.0);
                 egui::ComboBox::from_id_salt("capture_target")
                     .selected_text(selected_text)
