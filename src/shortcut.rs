@@ -270,7 +270,7 @@ impl Widget for ShortcutEdit<'_> {
             ui.visuals().text_color(),
         );
 
-        response
+        response.on_hover_text("Click to record a key combination")
     }
 }
 

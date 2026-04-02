@@ -266,7 +266,9 @@ impl UserAction {
                     ui.label("No device selected")
                 }
             }
-            UserAction::SetPower { power } => ui.checkbox(power, "Power"),
+            UserAction::SetPower { power } => ui
+                .checkbox(power, "Power")
+                .on_hover_text("Set power on or off"),
             UserAction::SetHue { hue } => hue_slider(ui, hue),
             UserAction::SetBrightness { brightness } => brightness_slider(ui, brightness),
             UserAction::SetSaturation { saturation } => saturation_slider(ui, saturation),
@@ -277,26 +279,24 @@ impl UserAction {
                     ui.label("No device selected")
                 }
             }
-            UserAction::SetScene { scene } => {
-                // combo box
-                egui::ComboBox::from_label("Scene")
-                    .selected_text(scene.name.clone())
-                    .show_ui(ui, |ui| {
-                        for scene in scenes {
-                            if ui
-                                .selectable_value(
-                                    &mut scene.name.clone(),
-                                    scene.name.clone(),
-                                    scene.name.clone(),
-                                )
-                                .clicked()
-                            {
-                                *self = UserAction::SetScene { scene };
-                            }
+            UserAction::SetScene { scene } => egui::ComboBox::from_label("Scene")
+                .selected_text(scene.name.clone())
+                .show_ui(ui, |ui| {
+                    for scene in scenes {
+                        if ui
+                            .selectable_value(
+                                &mut scene.name.clone(),
+                                scene.name.clone(),
+                                scene.name.clone(),
+                            )
+                            .clicked()
+                        {
+                            *self = UserAction::SetScene { scene };
                         }
-                    })
-                    .response
-            }
+                    }
+                })
+                .response
+                .on_hover_text("Select a saved scene to apply"),
         }
     }
 }

@@ -152,6 +152,8 @@ pub fn display_color_circle(
             }));
         }
     }
+
+    response.on_hover_text("Current brightness level");
 }
 
 pub fn toggle_button(
@@ -439,19 +441,20 @@ pub fn hsbk_sliders(
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             slider_label(ui, "Hue");
-            hue_slider(ui, hue)
+            hue_slider(ui, hue).on_hover_text("Adjust the color hue (0\u{2013}65535)")
         });
         ui.horizontal(|ui| {
             slider_label(ui, "Saturation");
-            saturation_slider(ui, saturation)
+            saturation_slider(ui, saturation).on_hover_text("Adjust color saturation")
         });
         ui.horizontal(|ui| {
             slider_label(ui, "Brightness");
-            brightness_slider(ui, brightness)
+            brightness_slider(ui, brightness).on_hover_text("Adjust light brightness")
         });
         ui.horizontal(|ui| {
             slider_label(ui, "Kelvin");
             kelvin_slider(ui, kelvin, device)
+                .on_hover_text("Adjust color temperature (warm to cool)")
         });
     })
     .response
@@ -562,6 +565,8 @@ pub fn zone_strip(
             }
         }
     }
+
+    response.on_hover_text("Click to select a zone, Ctrl+click to toggle, drag to select range");
 
     new_selected
 }

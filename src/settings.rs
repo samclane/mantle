@@ -145,7 +145,8 @@ impl MantleApp {
     fn render_new_shortcut_grid(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new("new_shortcut_grid").show(ui, |ui| {
             ui.label("Name:");
-            ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name);
+            ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name)
+                .on_hover_text("Name to identify this shortcut");
             ui.end_row();
 
             egui::ComboBox::from_label("Action")
@@ -162,7 +163,9 @@ impl MantleApp {
                             self.shortcut_manager.new_shortcut.action = action.clone();
                         }
                     }
-                });
+                })
+                .response
+                .on_hover_text("Choose the action this shortcut performs");
             // based on selected action, show relevant fields
             self.shortcut_manager.new_shortcut.action.ui(
                 ui,
@@ -209,12 +212,15 @@ impl MantleApp {
                                 Some(DeviceInfo::Group(group.clone()));
                         });
                     }
-                });
+                })
+                .response
+                .on_hover_text("Choose the target device or group");
 
             ui.label("Shortcut:");
             ui.add(ShortcutEdit::new(
                 &mut self.shortcut_manager.new_shortcut.shortcut,
-            ));
+            ))
+            .on_hover_text("Click to start recording a key combination");
             ui.end_row();
         });
     }
@@ -274,7 +280,8 @@ impl MantleApp {
                     UPDATE_INTERVAL_MS_RANGE,
                 )
                 .text("ms"),
-            );
+            )
+            .on_hover_text("Interval between screen/audio color updates");
         });
     }
 
@@ -284,7 +291,8 @@ impl MantleApp {
             ui.add(
                 egui::Slider::new(&mut self.settings.audio_buffer_size, AUDIO_BUFFER_RANGE)
                     .text("samples"),
-            );
+            )
+            .on_hover_text("Number of audio samples per capture buffer");
         });
     }
 
@@ -294,7 +302,8 @@ impl MantleApp {
             ui.add(
                 egui::Slider::new(&mut self.settings.refresh_rate_ms, REFRESH_RATE_RANGE)
                     .text("ms"),
-            );
+            )
+            .on_hover_text("How often to poll LIFX devices for status updates");
         });
     }
 
@@ -400,7 +409,8 @@ impl MantleApp {
         // Provide UI to create a new scene
         ui.horizontal(|ui| {
             ui.label("Scene Name:");
-            ui.text_edit_singleline(&mut self.new_scene.name);
+            ui.text_edit_singleline(&mut self.new_scene.name)
+                .on_hover_text("Enter a name for the new scene");
         });
         ui.add_space(5.0);
         ui.label("Select Devices:");

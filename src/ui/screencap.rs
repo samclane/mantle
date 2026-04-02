@@ -191,7 +191,9 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
                         for (label, capture_target) in options {
                             ui.selectable_value(&mut waveform.region, capture_target, label);
                         }
-                    });
+                    })
+                    .response
+                    .on_hover_text("Choose which screen area to capture colors from");
             });
         });
 
@@ -199,22 +201,28 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
             let wide = ui.available_width() > 300.0;
             ui.horizontal(|ui| {
                 ui.label("X:");
-                ui.add(egui::DragValue::new(&mut subregion.x));
+                ui.add(egui::DragValue::new(&mut subregion.x))
+                    .on_hover_text("Horizontal offset of the capture region");
                 ui.label("Y:");
-                ui.add(egui::DragValue::new(&mut subregion.y));
+                ui.add(egui::DragValue::new(&mut subregion.y))
+                    .on_hover_text("Vertical offset of the capture region");
                 if wide {
                     ui.label("Width:");
-                    ui.add(egui::DragValue::new(&mut subregion.width));
+                    ui.add(egui::DragValue::new(&mut subregion.width))
+                        .on_hover_text("Width of the capture region in pixels");
                     ui.label("Height:");
-                    ui.add(egui::DragValue::new(&mut subregion.height));
+                    ui.add(egui::DragValue::new(&mut subregion.height))
+                        .on_hover_text("Height of the capture region in pixels");
                 }
             });
             if !wide {
                 ui.horizontal(|ui| {
                     ui.label("Width:");
-                    ui.add(egui::DragValue::new(&mut subregion.width));
+                    ui.add(egui::DragValue::new(&mut subregion.width))
+                        .on_hover_text("Width of the capture region in pixels");
                     ui.label("Height:");
-                    ui.add(egui::DragValue::new(&mut subregion.height));
+                    ui.add(egui::DragValue::new(&mut subregion.height))
+                        .on_hover_text("Height of the capture region in pixels");
                 });
             }
             render_subregion_preview(
@@ -499,4 +507,6 @@ fn render_subregion_preview(
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
     }
+
+    response.on_hover_text("Click and drag to define the capture subregion");
 }
