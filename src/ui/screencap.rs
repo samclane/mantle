@@ -36,7 +36,10 @@ pub fn handle_eyedropper(
 ) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
     let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
-    if create_highlighted_button(ui, "eyedropper", EYEDROPPER_ICON, *show_eyedropper).clicked() {
+    if create_highlighted_button(ui, "eyedropper", EYEDROPPER_ICON, *show_eyedropper)
+        .on_hover_text("Pick a color from the screen")
+        .clicked()
+    {
         *show_eyedropper = !*show_eyedropper;
     }
     if *show_eyedropper {
@@ -97,7 +100,10 @@ pub fn handle_screencap(
         .waveform_map
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Screencap);
-    if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active).clicked() {
+    if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active)
+        .on_hover_text("Toggle screen color capture")
+        .clicked()
+    {
         initialize_waveform_tracker(
             app,
             device,
@@ -172,6 +178,7 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
             ui.horizontal(|ui| {
                 ui.label("Capture Target");
                 if create_highlighted_button(ui, "screenshot", SCREENSHOT_ICON, is_subregion)
+                    .on_hover_text("Capture a screen subregion")
                     .clicked()
                 {
                     waveform.region = RegionCaptureTarget::Subregion(vec![subregion.clone()]);
@@ -242,7 +249,10 @@ pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64)
 
     let mut subregion = subregion_lock.lock().expect("Failed to get subregion");
 
-    if create_highlighted_button(ui, "subregion", SUBREGION_ICON, *show_subregion).clicked() {
+    if create_highlighted_button(ui, "subregion", SUBREGION_ICON, *show_subregion)
+        .on_hover_text("Select screen subregion bounds")
+        .clicked()
+    {
         *show_subregion = !*show_subregion;
         if *show_subregion {
             subregion.reset();
@@ -326,7 +336,11 @@ fn render_subregion_preview(
 
     ui.horizontal(|ui| {
         ui.add_space(4.0);
-        if ui.small_button("Refresh Preview").clicked() {
+        if ui
+            .small_button("Refresh Preview")
+            .on_hover_text("Refresh monitor preview screenshots")
+            .clicked()
+        {
             textures.clear();
         }
     });

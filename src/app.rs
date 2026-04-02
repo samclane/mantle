@@ -291,7 +291,8 @@ impl MantleApp {
                     device,
                     Vec2::new(1.0, 1.0),
                     bulbs,
-                );
+                )
+                .on_hover_text("Toggle power");
             });
 
             let is_multizone = matches!(device, DeviceInfo::Bulb(b) if b.is_multizone());
@@ -343,6 +344,7 @@ impl MantleApp {
                                             "Select All"
                                         },
                                     )
+                                    .on_hover_text("Select or deselect all zones")
                                     .clicked()
                                 {
                                     let new_sel =
@@ -524,6 +526,7 @@ impl MantleApp {
                     egui::Button::new("Refresh")
                         .shortcut_text(ui.ctx().format_shortcut(&refresh_shortcut)),
                 )
+                .on_hover_text("Rediscover LIFX devices")
                 .clicked()
             {
                 if let Err(e) = self.lighting_manager.refresh() {
@@ -532,11 +535,19 @@ impl MantleApp {
                 }
                 ui.close_menu();
             }
-            if ui.add(egui::Button::new("Settings")).clicked() {
+            if ui
+                .add(egui::Button::new("Settings"))
+                .on_hover_text("Open settings window")
+                .clicked()
+            {
                 self.show_settings = true;
                 ui.close_menu();
             }
-            if ui.add(egui::Button::new("Audio Debug")).clicked() {
+            if ui
+                .add(egui::Button::new("Audio Debug"))
+                .on_hover_text("Toggle audio debug window")
+                .clicked()
+            {
                 self.show_audio_debug = !self.show_audio_debug;
                 ui.close_menu();
             }
@@ -545,6 +556,7 @@ impl MantleApp {
                     egui::Button::new("Quit")
                         .shortcut_text(ui.ctx().format_shortcut(&close_shortcut)),
                 )
+                .on_hover_text("Exit the application")
                 .clicked()
             {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -556,7 +568,11 @@ impl MantleApp {
     fn help_menu_button(&mut self, ui: &mut Ui) {
         ui.menu_button("Help", |ui| {
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-            if ui.add(egui::Button::new("About")).clicked() {
+            if ui
+                .add(egui::Button::new("About"))
+                .on_hover_text("About Mantle")
+                .clicked()
+            {
                 self.show_about = true;
                 ui.close_menu();
             }

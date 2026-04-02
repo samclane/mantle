@@ -47,7 +47,10 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         .waveform_map
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Audio);
-    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active).clicked() {
+    if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active)
+        .on_hover_text("Toggle audio-reactive color")
+        .clicked()
+    {
         initialize_waveform_tracker(
             app,
             device,

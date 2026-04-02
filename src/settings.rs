@@ -94,7 +94,11 @@ impl MantleApp {
 
     fn render_new_shortcut_field(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button("Clear").clicked() {
+            if ui
+                .button("Clear")
+                .on_hover_text("Clear shortcut fields")
+                .clicked()
+            {
                 self.shortcut_manager.new_shortcut.name.clear();
                 self.shortcut_manager
                     .new_shortcut
@@ -108,7 +112,11 @@ impl MantleApp {
                 self.info_toast("Fields cleared");
             }
 
-            if ui.button("Add Shortcut").clicked() {
+            if ui
+                .button("Add Shortcut")
+                .on_hover_text("Register this keyboard shortcut")
+                .clicked()
+            {
                 self.settings
                     .custom_shortcuts
                     .push(self.shortcut_manager.new_shortcut.clone());
@@ -322,7 +330,11 @@ impl MantleApp {
             .show_header(ui, |ui| {
                 ui.label(egui::RichText::new(&scene.name).strong());
                 ui.label(format!("{} devices", scene.device_color_pairs.len()));
-                if ui.button("Apply").clicked() {
+                if ui
+                    .button("Apply")
+                    .on_hover_text("Apply this scene to your lights")
+                    .clicked()
+                {
                     match scene.apply(&mut self.lighting_manager) {
                         Ok(_) => {
                             applied = true;
@@ -332,7 +344,11 @@ impl MantleApp {
                         }
                     }
                 }
-                if ui.button("Remove").clicked() {
+                if ui
+                    .button("Remove")
+                    .on_hover_text("Delete this scene")
+                    .clicked()
+                {
                     to_remove.push(scene.name.clone());
                     removed = true;
                 }
@@ -471,7 +487,11 @@ impl MantleApp {
                 }
             });
         ui.add_space(5.0);
-        if ui.button("Save Scene").clicked() {
+        if ui
+            .button("Save Scene")
+            .on_hover_text("Save the current device colors as a scene")
+            .clicked()
+        {
             // Save the new scene
             let device_color_pairs = self
                 .new_scene
