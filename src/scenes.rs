@@ -4,6 +4,29 @@ use serde::{Deserialize, Serialize};
 use crate::{color::default_hsbk, device_info::DeviceInfo, LifxManager, HSBK32};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScheduledScene {
+    pub scene_name: String,
+    pub hour: u8,
+    pub minute: u8,
+    pub enabled: bool,
+    /// Track whether this schedule already fired today to avoid repeats
+    #[serde(skip)]
+    pub last_fired_date: Option<(u32, u32, u32)>,
+}
+
+impl Default for ScheduledScene {
+    fn default() -> Self {
+        Self {
+            scene_name: String::new(),
+            hour: 12,
+            minute: 0,
+            enabled: true,
+            last_fired_date: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Scene {
     pub device_color_pairs: Vec<(DeviceInfo, HSBK32)>,
     pub name: String,

@@ -19,8 +19,8 @@ use crate::{
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
     ui::{
-        handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, render_capture_target,
-        zone_strip,
+        color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders,
+        render_capture_target, zone_strip,
     },
     BulbInfo, LifxManager, ScreencapManager,
 };
@@ -30,6 +30,8 @@ use egui::Align2;
 use egui_toast::{Toast, ToastKind, ToastOptions, Toasts};
 use lifx_core::{ApplicationRequest, HSBK};
 use serde::{Deserialize, Serialize};
+use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+use tray_icon::TrayIcon;
 
 // UI and window size constants
 pub const MAIN_WINDOW_SIZE: [f32; 2] = [420.0, 800.0];
@@ -84,6 +86,11 @@ pub struct MantleApp {
     pub shortcut_handle: Option<JoinHandle<()>>,
     #[serde(skip)]
     pub shortcut_manager: ShortcutManager,
+    #[serde(skip)]
+    pub renaming_device: Option<u64>,
+    #[serde(skip)]
+    pub rename_buffer: String,
+    pub search_query: String,
     pub show_about: bool,
     pub show_audio_debug: bool,
     pub show_eyedropper: HashMap<u64, bool>,
@@ -92,6 +99,14 @@ pub struct MantleApp {
     pub subregion_points: HashMap<u64, Arc<Mutex<ScreenSubregion>>>,
     #[serde(skip)]
     pub toasts: Toasts,
+    #[serde(skip)]
+    pub tray_icon: Option<TrayIcon>,
+    #[serde(skip)]
+    pub tray_menu_show: Option<MenuItem>,
+    #[serde(skip)]
+    pub tray_menu_toggle_power: Option<MenuItem>,
+    #[serde(skip)]
+    pub tray_menu_quit: Option<MenuItem>,
     #[serde(skip)]
     pub monitor_preview_textures: HashMap<u32, egui::TextureHandle>,
     #[serde(skip)]
@@ -116,6 +131,9 @@ impl Default for MantleApp {
             shortcut_manager,
             shortcut_handle,
             listener_handle,
+            renaming_device: None,
+            rename_buffer: String::new(),
+            search_query: String::new(),
             show_about: false,
             show_settings: false,
             show_eyedropper: HashMap::new(),
@@ -127,7 +145,13 @@ impl Default for MantleApp {
             waveform_channel: HashMap::new(),
             monitor_preview_textures: HashMap::new(),
             new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
-            toasts: Toasts::new(),
+            toasts: Toasts::new()
+                .anchor(Align2::CENTER_TOP, (0.0, 10.0))
+                .direction(Direction::TopDown),
+            tray_icon: None,
+            tray_menu_show: None,
+            tray_menu_toggle_power: None,
+            tray_menu_quit: None,
             audio_manager: AudioManager::default(),
             show_audio_debug: false,
         }
@@ -135,6 +159,65 @@ impl Default for MantleApp {
 }
 
 impl MantleApp {
+    fn setup_tray_icon(&mut self) {
+        let menu = Menu::new();
+        let show_item = MenuItem::new("Show/Hide", true, None);
+        let toggle_item = MenuItem::new("Toggle All Power", true, None);
+        let quit_item = MenuItem::new("Quit", true, None);
+        let _ = menu.append(&show_item);
+        let _ = menu.append(&toggle_item);
+        let _ = menu.append(&quit_item);
+
+        let icon_data = image::load_from_memory(ICON)
+            .map(|img| {
+                let rgba = img.to_rgba8();
+                let (w, h) = rgba.dimensions();
+                tray_icon::Icon::from_rgba(rgba.into_raw(), w, h).ok()
+            })
+            .ok()
+            .flatten();
+
+        if let Some(icon) = icon_data {
+            match tray_icon::TrayIconBuilder::new()
+                .with_menu(Box::new(menu))
+                .with_tooltip("Mantle - LIFX Controller")
+                .with_icon(icon)
+                .build()
+            {
+                Ok(tray) => {
+                    self.tray_icon = Some(tray);
+                    self.tray_menu_show = Some(show_item);
+                    self.tray_menu_toggle_power = Some(toggle_item);
+                    self.tray_menu_quit = Some(quit_item);
+                }
+                Err(e) => log::error!("Failed to create tray icon: {}", e),
+            }
+        }
+    }
+
+    fn handle_tray_events(&mut self, ctx: &egui::Context) {
+        if let Ok(event) = MenuEvent::receiver().try_recv() {
+            if let Some(ref show) = self.tray_menu_show {
+                if event.id == show.id() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                }
+            }
+            if let Some(ref toggle) = self.tray_menu_toggle_power {
+                if event.id == toggle.id() {
+                    if let Err(e) = self.lighting_manager.toggle_power() {
+                        log::error!("Failed to toggle power: {}", e);
+                    }
+                }
+            }
+            if let Some(ref quit) = self.tray_menu_quit {
+                if event.id == quit.id() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+        }
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self::configure_theme(&cc.egui_ctx);
 
@@ -168,9 +251,12 @@ impl MantleApp {
                     failures
                 ));
             }
+            app.setup_tray_icon();
             return app;
         }
-        Default::default()
+        let mut app = Self::default();
+        app.setup_tray_icon();
+        app
     }
 
     fn configure_theme(ctx: &egui::Context) {
@@ -223,21 +309,68 @@ impl MantleApp {
     }
 
     fn get_device_display_color(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         device: &DeviceInfo,
         bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
     ) -> Option<HSBK> {
         match device {
             DeviceInfo::Bulb(bulb) => {
+                let device_id = bulb.target;
+                let is_renaming = self.renaming_device == Some(device_id);
                 ui.vertical(|ui| {
-                    if let Some(s) = bulb.name.data.as_ref().and_then(|s| s.to_str().ok()) {
-                        ui.label(
-                            RichText::new(s)
-                                .size(14.0)
-                                .color(Color32::from_rgb(200, 200, 220)),
-                        );
-                    }
+                    ui.horizontal(|ui| {
+                        let elapsed = bulb.last_seen.elapsed();
+                        let is_online = elapsed < Duration::from_secs(30);
+                        let dot_color = if is_online {
+                            Color32::from_rgb(80, 200, 120)
+                        } else {
+                            Color32::from_rgb(200, 80, 80)
+                        };
+                        let (dot_resp, painter) =
+                            ui.allocate_painter(Vec2::new(8.0, 14.0), egui::Sense::hover());
+                        painter.circle_filled(dot_resp.rect.center(), 3.5, dot_color);
+                        let tooltip = if is_online {
+                            format!("Online (seen {:.0}s ago)", elapsed.as_secs_f32())
+                        } else {
+                            format!("Offline (last seen {:.0}s ago)", elapsed.as_secs_f32())
+                        };
+                        dot_resp.on_hover_text(tooltip);
+
+                        if is_renaming {
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(&mut self.rename_buffer)
+                                    .desired_width(120.0),
+                            );
+                            if resp.lost_focus() {
+                                if let Ok(cstr) = std::ffi::CString::new(self.rename_buffer.clone())
+                                {
+                                    let label = lifx_core::LifxString::new(&cstr);
+                                    if let Err(e) = self.lighting_manager.set_label(&&**bulb, label)
+                                    {
+                                        log::error!("Failed to rename device: {}", e);
+                                    }
+                                }
+                                self.renaming_device = None;
+                            }
+                        } else if let Some(s) =
+                            bulb.name.data.as_ref().and_then(|s| s.to_str().ok())
+                        {
+                            let name_resp = ui.add(
+                                egui::Label::new(
+                                    RichText::new(s)
+                                        .size(14.0)
+                                        .color(Color32::from_rgb(200, 200, 220)),
+                                )
+                                .sense(egui::Sense::click()),
+                            );
+                            if name_resp.double_clicked() {
+                                self.renaming_device = Some(device_id);
+                                self.rename_buffer = s.to_string();
+                            }
+                            name_resp.on_hover_text("Double-click to rename");
+                        }
+                    });
                     if let Some(product_name) = get_product_name(bulb.model.data.as_ref()) {
                         ui.label(
                             RichText::new(product_name)
@@ -363,6 +496,45 @@ impl MantleApp {
                                 .unwrap_or_default();
                             let new_selected = zone_strip(ui, zones, &current_selected);
                             self.selected_zones.insert(device_id, new_selected);
+
+                            ui.add_space(2.0);
+                            if ui
+                                .small_button("Apply Gradient")
+                                .on_hover_text(
+                                    "Fill all zones with a gradient from the current slider color",
+                                )
+                                .clicked()
+                            {
+                                let zone_count = zones.len();
+                                if zone_count > 0 {
+                                    let start_hue: f32 = 0.0;
+                                    let end_hue: f32 = 54613.0;
+                                    let duration = after_color.duration.unwrap_or(0);
+                                    for i in 0..zone_count {
+                                        let t = i as f32 / (zone_count - 1).max(1) as f32;
+                                        let zone_hue =
+                                            (start_hue + (end_hue - start_hue) * t) as u16;
+                                        let zone_color = HSBK {
+                                            hue: zone_hue,
+                                            saturation: after_color.next.saturation,
+                                            brightness: after_color.next.brightness,
+                                            kelvin: after_color.next.kelvin,
+                                        };
+                                        let apply = if i == zone_count - 1 {
+                                            ApplicationRequest::Apply
+                                        } else {
+                                            ApplicationRequest::NoApply
+                                        };
+                                        if let Err(e) = self.lighting_manager.set_color_zones(
+                                            &&**bulb, i as u8, i as u8, zone_color, duration, apply,
+                                        ) {
+                                            log::error!("Error setting gradient zone: {}", e);
+                                            break;
+                                        }
+                                    }
+                                    self.success_toast("Gradient applied");
+                                }
+                            }
                         }
                     }
                 }
@@ -495,6 +667,120 @@ impl MantleApp {
             &mut kelvin,
             device,
         );
+
+        const PRESETS: &[(&str, HSBK)] = &[
+            (
+                "Warm",
+                HSBK {
+                    hue: 0,
+                    saturation: 0,
+                    brightness: 65535,
+                    kelvin: 2700,
+                },
+            ),
+            (
+                "Day",
+                HSBK {
+                    hue: 0,
+                    saturation: 0,
+                    brightness: 65535,
+                    kelvin: 5600,
+                },
+            ),
+            (
+                "Cool",
+                HSBK {
+                    hue: 0,
+                    saturation: 0,
+                    brightness: 65535,
+                    kelvin: 9000,
+                },
+            ),
+            (
+                "Red",
+                HSBK {
+                    hue: 0,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+            (
+                "Orange",
+                HSBK {
+                    hue: 5461,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+            (
+                "Yellow",
+                HSBK {
+                    hue: 10922,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+            (
+                "Green",
+                HSBK {
+                    hue: 21845,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+            (
+                "Blue",
+                HSBK {
+                    hue: 43690,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+            (
+                "Purple",
+                HSBK {
+                    hue: 54613,
+                    saturation: 65535,
+                    brightness: 65535,
+                    kelvin: 3500,
+                },
+            ),
+        ];
+
+        ui.add_space(2.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            color_wheel(ui, &mut hue, &mut saturation, 28.0);
+            ui.add_space(2.0);
+            for (label, preset) in PRESETS {
+                let swatch_color = Color32::from(crate::HSBK32::from(*preset));
+                let size = egui::vec2(18.0, 18.0);
+                let (resp, painter) = ui.allocate_painter(size, egui::Sense::click());
+                let rounding = egui::Rounding::same(3.0);
+                painter.rect_filled(resp.rect, rounding, swatch_color);
+                if resp.hovered() {
+                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5, Color32::WHITE));
+                }
+                if resp.clicked() {
+                    hue = preset.hue;
+                    saturation = preset.saturation;
+                    brightness = preset.brightness;
+                    kelvin = preset.kelvin;
+                }
+                resp.on_hover_text(*label);
+            }
+        });
+
+        let duration = if self.settings.transition_duration_ms > 0 {
+            Some(self.settings.transition_duration_ms as u32)
+        } else {
+            None
+        };
         DeltaColor {
             next: HSBK {
                 hue,
@@ -502,7 +788,7 @@ impl MantleApp {
                 brightness,
                 kelvin,
             },
-            duration: None,
+            duration,
         }
     }
 
@@ -584,43 +870,147 @@ impl MantleApp {
             egui::menu::bar(ui, |ui| {
                 self.file_menu_button(ui);
                 self.help_menu_button(ui);
+                ui.separator();
+                let search_field = ui.add(
+                    egui::TextEdit::singleline(&mut self.search_query)
+                        .desired_width(120.0)
+                        .hint_text("Search lights..."),
+                );
+                if ui.input_mut(|i| {
+                    i.consume_shortcut(&egui::KeyboardShortcut::new(Modifiers::CTRL, egui::Key::F))
+                }) {
+                    search_field.request_focus();
+                }
             });
         });
-        // a little test bar graph to show the audio data
         egui::CentralPanel::default().show(ctx, |ui| {
+            if !self.search_query.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("Filtering: \"{}\"", self.search_query))
+                            .size(11.0)
+                            .color(Color32::from_rgb(180, 120, 30)),
+                    );
+                    if ui.small_button("Clear").clicked() {
+                        self.search_query.clear();
+                    }
+                });
+                ui.add_space(2.0);
+            }
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let bulbs = self.lighting_manager.bulbs.clone();
                 let bulbs = bulbs.lock();
-                let mut seen_groups = HashSet::<String>::new();
                 ui.vertical(|ui| {
                     if let Ok(mut bulbs) = bulbs {
-                        self.display_device(
-                            ui,
-                            &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
-                            &mut bulbs,
-                        );
-                        let sorted_bulbs: Vec<BulbInfo> = self
-                            .sort_bulbs(bulbs.values().collect())
-                            .into_iter()
-                            .cloned()
-                            .collect();
-                        for bulb in &sorted_bulbs {
-                            if let Some(group) = bulb.group.data.as_ref() {
-                                let group_name = group.label.cstr().to_str().unwrap_or_default();
-                                if !seen_groups.contains(group_name) {
-                                    seen_groups.insert(group_name.to_owned());
-                                    self.display_device(
-                                        ui,
-                                        &DeviceInfo::Group(group.clone()),
-                                        &mut bulbs,
-                                    );
+                        if bulbs.is_empty() {
+                            ui.add_space(40.0);
+                            ui.vertical_centered(|ui| {
+                                ui.add(egui::Spinner::new().size(32.0));
+                                ui.add_space(12.0);
+                                ui.label(
+                                    RichText::new("Searching for LIFX devices...")
+                                        .size(16.0)
+                                        .color(Color32::from_rgb(160, 160, 180)),
+                                );
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new(
+                                        "Make sure your lights are powered on and connected to the same network.",
+                                    )
+                                    .size(12.0)
+                                    .color(Color32::from_rgb(120, 120, 140)),
+                                );
+                                ui.add_space(12.0);
+                                if ui.button("Refresh").clicked() {
+                                    if let Err(e) = self.lighting_manager.discover() {
+                                        log::error!("Failed to discover bulbs: {}", e);
+                                        self.error_toast(&format!(
+                                            "Failed to discover bulbs: {}",
+                                            e
+                                        ));
+                                    }
                                 }
-                            }
+                            });
+                        } else {
                             self.display_device(
                                 ui,
-                                &DeviceInfo::Bulb(Box::new(bulb.clone())),
+                                &DeviceInfo::Group(
+                                    self.lighting_manager.all_bulbs_group.clone(),
+                                ),
                                 &mut bulbs,
                             );
+                            let sorted_bulbs: Vec<BulbInfo> = self
+                                .sort_bulbs(bulbs.values().collect())
+                                .into_iter()
+                                .cloned()
+                                .collect();
+                            let query_lower = self.search_query.to_lowercase();
+                            let filtered_bulbs: Vec<&BulbInfo> = sorted_bulbs
+                                .iter()
+                                .filter(|bulb| {
+                                    self.search_query.is_empty()
+                                        || bulb
+                                            .name_label()
+                                            .map(|n| n.to_lowercase().contains(&query_lower))
+                                            .unwrap_or(false)
+                                        || bulb
+                                            .group_label()
+                                            .map(|g| g.to_lowercase().contains(&query_lower))
+                                            .unwrap_or(false)
+                                })
+                                .collect();
+
+                            let mut grouped: Vec<(Option<crate::device_info::GroupInfo>, Vec<&BulbInfo>)> = Vec::new();
+                            let mut ungrouped: Vec<&BulbInfo> = Vec::new();
+
+                            for bulb in &filtered_bulbs {
+                                if let Some(group) = bulb.group.data.as_ref() {
+                                    let group_name = group.label.cstr().to_str().unwrap_or_default();
+                                    if let Some(entry) = grouped.iter_mut().find(|(g, _)| {
+                                        g.as_ref().map(|gi| gi.label.cstr().to_str().unwrap_or_default()) == Some(group_name)
+                                    }) {
+                                        entry.1.push(bulb);
+                                    } else {
+                                        grouped.push((Some(group.clone()), vec![bulb]));
+                                    }
+                                } else {
+                                    ungrouped.push(bulb);
+                                }
+                            }
+
+                            for (group_opt, group_bulbs) in &grouped {
+                                if let Some(group) = group_opt {
+                                    let group_id = ui.make_persistent_id(("group_collapse", group.id()));
+                                    egui::collapsing_header::CollapsingState::load_with_default_open(
+                                        ui.ctx(),
+                                        group_id,
+                                        true,
+                                    )
+                                    .show_header(ui, |ui| {
+                                        self.display_device(
+                                            ui,
+                                            &DeviceInfo::Group(group.clone()),
+                                            &mut bulbs,
+                                        );
+                                    })
+                                    .body(|ui| {
+                                        for bulb in group_bulbs {
+                                            self.display_device(
+                                                ui,
+                                                &DeviceInfo::Bulb(Box::new((*bulb).clone())),
+                                                &mut bulbs,
+                                            );
+                                        }
+                                    });
+                                }
+                            }
+                            for bulb in &ungrouped {
+                                self.display_device(
+                                    ui,
+                                    &DeviceInfo::Bulb(Box::new((*bulb).clone())),
+                                    &mut bulbs,
+                                );
+                            }
                         }
                     }
                 });
@@ -661,10 +1051,36 @@ impl MantleApp {
         }
     }
 
-    fn init_toasts(&mut self, _ctx: &egui::Context) {
-        self.toasts = Toasts::new()
-            .anchor(Align2::CENTER_TOP, (0.0, 10.0))
-            .direction(Direction::TopDown);
+    fn check_scheduled_scenes(&mut self) {
+        use std::time::SystemTime;
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let secs_today = now % 86400;
+        let today_date = (now / 86400) as u32;
+
+        let scenes = self.settings.scenes.clone();
+        for sched in self.settings.scheduled_scenes.iter_mut() {
+            if !sched.enabled {
+                continue;
+            }
+            let target_secs = sched.hour as u64 * 3600 + sched.minute as u64 * 60;
+            let already_fired = sched
+                .last_fired_date
+                .map(|(d, _, _)| d == today_date)
+                .unwrap_or(false);
+            if secs_today >= target_secs && secs_today < target_secs + 60 && !already_fired {
+                if let Some(scene) = scenes.iter().find(|s| s.name == sched.scene_name) {
+                    if let Err(e) = scene.apply(&mut self.lighting_manager) {
+                        log::error!("Scheduled scene '{}' failed: {:?}", sched.scene_name, e);
+                    } else {
+                        log::info!("Scheduled scene '{}' applied", sched.scene_name);
+                    }
+                    sched.last_fired_date = Some((today_date, 0, 0));
+                }
+            }
+        }
     }
 
     fn show_toasts(&mut self, ctx: &egui::Context) {
@@ -712,6 +1128,7 @@ impl eframe::App for MantleApp {
         #[cfg(feature = "puffin")]
         puffin::GlobalProfiler::lock().new_frame();
 
+        self.handle_tray_events(ctx);
         ctx.request_repaint_after(Duration::from_millis(self.settings.refresh_rate_ms));
 
         if Instant::now() - self.lighting_manager.last_discovery
@@ -725,8 +1142,8 @@ impl eframe::App for MantleApp {
             log::error!("Error refreshing manager: {}", e);
             self.error_toast(&format!("Error refreshing manager: {}", e));
         }
+        self.check_scheduled_scenes();
         self.update_ui(ctx);
-        self.init_toasts(ctx);
         self.show_about_window(ctx);
         self.show_audio_debug_window(ctx);
         self.settings_ui(ctx);

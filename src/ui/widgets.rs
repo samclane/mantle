@@ -570,3 +570,73 @@ pub fn zone_strip(
 
     new_selected
 }
+
+/// Interactive HSB color wheel. Returns true if the color was changed.
+pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32) -> bool {
+    let desired_size = Vec2::splat(radius * 2.0 + 8.0);
+    let (response, painter) = ui.allocate_painter(desired_size, Sense::click_and_drag());
+    let center = response.rect.center();
+    let mut changed = false;
+
+    const SEGMENTS: usize = 64;
+    const RINGS: usize = 16;
+    for ring in 0..RINGS {
+        let inner_r = radius * ring as f32 / RINGS as f32;
+        let outer_r = radius * (ring + 1) as f32 / RINGS as f32;
+        let sat_frac = (ring as f32 + 0.5) / RINGS as f32;
+
+        for seg in 0..SEGMENTS {
+            let angle0 = std::f32::consts::TAU * seg as f32 / SEGMENTS as f32;
+            let angle1 = std::f32::consts::TAU * (seg + 1) as f32 / SEGMENTS as f32;
+            let hue_val = (seg as f32 / SEGMENTS as f32 * 65535.0) as u16;
+
+            let color = Color32::from(HSBK32 {
+                hue: hue_val as u32,
+                saturation: (sat_frac * 65535.0) as u32,
+                brightness: 65535,
+                kelvin: 3500,
+            });
+
+            let p0 = center + Vec2::new(angle0.cos(), angle0.sin()) * inner_r;
+            let p1 = center + Vec2::new(angle1.cos(), angle1.sin()) * inner_r;
+            let p2 = center + Vec2::new(angle1.cos(), angle1.sin()) * outer_r;
+            let p3 = center + Vec2::new(angle0.cos(), angle0.sin()) * outer_r;
+
+            let mut mesh = Mesh::default();
+            mesh.colored_vertex(p0, color);
+            mesh.colored_vertex(p1, color);
+            mesh.colored_vertex(p2, color);
+            mesh.colored_vertex(p3, color);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            painter.add(Shape::mesh(mesh));
+        }
+    }
+
+    painter.circle_stroke(
+        center,
+        radius,
+        Stroke::new(1.5, Color32::from_rgb(60, 60, 80)),
+    );
+
+    let current_angle = *hue as f32 / 65535.0 * std::f32::consts::TAU;
+    let current_r = *saturation as f32 / 65535.0 * radius;
+    let indicator_pos = center + Vec2::new(current_angle.cos(), current_angle.sin()) * current_r;
+    painter.circle_filled(indicator_pos, 5.0, Color32::WHITE);
+    painter.circle_stroke(indicator_pos, 5.0, Stroke::new(1.5, Color32::BLACK));
+
+    if response.clicked() || response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let delta = pos - center;
+            let angle = delta.y.atan2(delta.x);
+            let dist = delta.length().min(radius);
+            let new_hue = ((angle / std::f32::consts::TAU).rem_euclid(1.0) * 65535.0) as u16;
+            let new_sat = ((dist / radius) * 65535.0) as u16;
+            *hue = new_hue;
+            *saturation = new_sat;
+            changed = true;
+        }
+    }
+
+    changed
+}

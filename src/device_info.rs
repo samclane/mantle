@@ -182,10 +182,13 @@ impl DeviceInfo {
         }
     }
 
+    /// Returns the color of the device.
+    /// For groups, use `LifxManager::get_avg_group_color` instead, since
+    /// computing the average requires access to the bulbs HashMap.
     pub fn color(&self) -> Option<&HSBK> {
         match self {
             DeviceInfo::Bulb(b) => b.get_color(),
-            DeviceInfo::Group(_) => None, // TODO: Implement group color
+            DeviceInfo::Group(_) => None,
         }
     }
 }
@@ -218,7 +221,7 @@ impl BulbInfo {
         &self,
         sock: &UdpSocket,
         data: &RefreshableData<T>,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         if data.needs_refresh() {
             let options = BuildOptions {
                 target: Some(self.target),
@@ -232,7 +235,7 @@ impl BulbInfo {
         Ok(())
     }
 
-    pub fn query_for_missing_info(&mut self, sock: &UdpSocket) -> Result<(), failure::Error> {
+    pub fn query_for_missing_info(&mut self, sock: &UdpSocket) -> Result<(), anyhow::Error> {
         self.refresh_if_needed(sock, &self.name)?;
         self.refresh_if_needed(sock, &self.model)?;
         self.refresh_if_needed(sock, &self.location)?;

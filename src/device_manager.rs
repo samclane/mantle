@@ -36,7 +36,7 @@ impl Clone for LifxManager {
 }
 
 impl LifxManager {
-    pub fn new() -> Result<LifxManager, failure::Error> {
+    pub fn new() -> Result<LifxManager, anyhow::Error> {
         let sock = UdpSocket::bind("0.0.0.0:56700")?;
         sock.set_broadcast(true)?;
 
@@ -214,13 +214,16 @@ impl LifxManager {
                     }
                     Err(e) => log::error!("Error unpacking raw message from {}: {}", addr, e),
                 },
-                Err(e) => panic!("recv_from err {:?}", e),
+                Err(e) => {
+                    log::error!("recv_from error: {:?}", e);
+                    std::thread::sleep(Duration::from_millis(100));
+                }
             }
         }
     }
 
     /// Discover LIFX bulbs on the local network.
-    pub fn discover(&mut self) -> Result<usize, failure::Error> {
+    pub fn discover(&mut self) -> Result<usize, anyhow::Error> {
         log::debug!("Doing discovery");
         let mut count = 0;
 
@@ -253,7 +256,7 @@ impl LifxManager {
     }
 
     /// Refresh the state of all known bulbs.
-    pub fn refresh(&self) -> Result<usize, failure::Error> {
+    pub fn refresh(&self) -> Result<usize, anyhow::Error> {
         let mut count = 0;
         if let Ok(mut bulbs) = self.bulbs.lock() {
             let bulbs = bulbs.values_mut();
@@ -473,6 +476,15 @@ impl LifxManager {
                 let _ = self.set_power(&bulb, pwr);
             }
         }
+    }
+
+    /// Set the label (name) of a specific bulb.
+    pub fn set_label(
+        &self,
+        bulb: &&BulbInfo,
+        label: lifx_core::LifxString,
+    ) -> Result<usize, std::io::Error> {
+        self.send_message(bulb, Message::SetLabel { label })
     }
 
     /// Set a specific color field of all bulbs in a group.

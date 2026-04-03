@@ -10,23 +10,27 @@ use crate::{
     audio::AUDIO_BUFFER_DEFAULT,
     color::default_hsbk,
     device_info::DeviceInfo,
-    scenes::Scene,
+    scenes::{Scene, ScheduledScene},
     shortcut::{KeyboardShortcutAction, ShortcutEdit},
     HSBK32,
 };
 
 const DEFAULT_REFRESH_RATE_MS: u64 = 500;
 const DEFAULT_UPDATE_INTERVAL_MS: u64 = 500;
+const DEFAULT_TRANSITION_MS: u64 = 0;
 const REFRESH_RATE_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
 const UPDATE_INTERVAL_MS_RANGE: std::ops::RangeInclusive<u64> = 50..=10_000;
+const TRANSITION_MS_RANGE: std::ops::RangeInclusive<u64> = 0..=5_000;
 const AUDIO_BUFFER_RANGE: std::ops::RangeInclusive<usize> = 1024..=AUDIO_BUFFER_DEFAULT;
 
 #[derive(Deserialize, Serialize)]
 pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
     pub refresh_rate_ms: u64,
+    pub transition_duration_ms: u64,
     pub update_interval_ms: u64,
     pub scenes: Vec<Scene>,
+    pub scheduled_scenes: Vec<ScheduledScene>,
     pub audio_buffer_size: usize,
 }
 
@@ -35,8 +39,10 @@ impl Default for Settings {
         Self {
             custom_shortcuts: Vec::new(),
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
+            transition_duration_ms: DEFAULT_TRANSITION_MS,
             update_interval_ms: DEFAULT_UPDATE_INTERVAL_MS,
             scenes: Vec::new(),
+            scheduled_scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
         }
     }
@@ -60,12 +66,17 @@ impl MantleApp {
 
                     self.render_update_rate(ui);
 
+                    self.render_transition_duration(ui);
+
                     self.render_audio_buffer_size(ui);
 
                     self.render_add_shortcut_ui(ui);
 
                     ui.separator();
                     self.render_scenes_ui(ui);
+
+                    ui.separator();
+                    self.render_scene_schedule_ui(ui);
                 });
 
             self.show_settings = show_settings;
@@ -117,27 +128,30 @@ impl MantleApp {
                 .on_hover_text("Register this keyboard shortcut")
                 .clicked()
             {
-                self.settings
-                    .custom_shortcuts
-                    .push(self.shortcut_manager.new_shortcut.clone());
-                self.shortcut_manager.add_shortcut(
-                    self.shortcut_manager.new_shortcut.name.clone(),
-                    self.shortcut_manager.new_shortcut.shortcut.clone(),
-                    self.shortcut_manager.new_shortcut.action.clone(),
-                    self.shortcut_manager.new_shortcut.device.clone().unwrap(),
-                );
-                // Clear the fields after adding
-                self.shortcut_manager.new_shortcut.name.clear();
-                self.shortcut_manager
-                    .new_shortcut
-                    .shortcut
-                    .input_action_keys
-                    .clear();
-                self.shortcut_manager
-                    .new_shortcut
-                    .shortcut
-                    .update_display_string();
-                self.success_toast("Shortcut added successfully");
+                if let Some(device) = self.shortcut_manager.new_shortcut.device.clone() {
+                    self.settings
+                        .custom_shortcuts
+                        .push(self.shortcut_manager.new_shortcut.clone());
+                    self.shortcut_manager.add_shortcut(
+                        self.shortcut_manager.new_shortcut.name.clone(),
+                        self.shortcut_manager.new_shortcut.shortcut.clone(),
+                        self.shortcut_manager.new_shortcut.action.clone(),
+                        device,
+                    );
+                    self.shortcut_manager.new_shortcut.name.clear();
+                    self.shortcut_manager
+                        .new_shortcut
+                        .shortcut
+                        .input_action_keys
+                        .clear();
+                    self.shortcut_manager
+                        .new_shortcut
+                        .shortcut
+                        .update_display_string();
+                    self.success_toast("Shortcut added successfully");
+                } else {
+                    self.error_toast("Please select a target device before adding a shortcut");
+                }
             }
         });
     }
@@ -285,6 +299,20 @@ impl MantleApp {
         });
     }
 
+    fn render_transition_duration(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Transition Duration:");
+            ui.add(
+                egui::Slider::new(
+                    &mut self.settings.transition_duration_ms,
+                    TRANSITION_MS_RANGE,
+                )
+                .text("ms"),
+            )
+            .on_hover_text("How long color changes take to fade (0 = instant)");
+        });
+    }
+
     fn render_audio_buffer_size(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("Audio Buffer Size:");
@@ -307,11 +335,114 @@ impl MantleApp {
         });
     }
 
+    fn render_scene_schedule_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Scene Schedule");
+        ui.add_space(5.0);
+
+        let scene_names: Vec<String> = self
+            .settings
+            .scenes
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        let mut to_remove = Vec::new();
+        for (i, sched) in self.settings.scheduled_scenes.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut sched.enabled, "");
+                egui::ComboBox::from_id_salt(format!("sched_scene_{}", i))
+                    .selected_text(&sched.scene_name)
+                    .width(100.0)
+                    .show_ui(ui, |ui| {
+                        for name in &scene_names {
+                            if ui
+                                .selectable_label(sched.scene_name == *name, name)
+                                .clicked()
+                            {
+                                sched.scene_name = name.clone();
+                            }
+                        }
+                    });
+                ui.label("at");
+                ui.add(
+                    egui::DragValue::new(&mut sched.hour)
+                        .range(0..=23)
+                        .suffix("h"),
+                );
+                ui.label(":");
+                ui.add(
+                    egui::DragValue::new(&mut sched.minute)
+                        .range(0..=59)
+                        .suffix("m"),
+                );
+                if ui.small_button("Remove").clicked() {
+                    to_remove.push(i);
+                }
+            });
+        }
+        for i in to_remove.into_iter().rev() {
+            self.settings.scheduled_scenes.remove(i);
+        }
+
+        if ui.small_button("Add Schedule").clicked() {
+            self.settings
+                .scheduled_scenes
+                .push(ScheduledScene::default());
+        }
+    }
+
     fn render_scenes_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Scenes");
         ui.add_space(5.0);
 
-        // Display existing scenes in a grid
+        ui.horizontal(|ui| {
+            if ui
+                .button("Export Scenes")
+                .on_hover_text("Save all scenes to a JSON file")
+                .clicked()
+            {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_file_name("mantle_scenes.json")
+                    .add_filter("JSON", &["json"])
+                    .save_file()
+                {
+                    match serde_json::to_string_pretty(&self.settings.scenes) {
+                        Ok(json) => match std::fs::write(&path, json) {
+                            Ok(_) => self.success_toast("Scenes exported successfully"),
+                            Err(e) => self.error_toast(&format!("Failed to write file: {}", e)),
+                        },
+                        Err(e) => self.error_toast(&format!("Failed to serialize scenes: {}", e)),
+                    }
+                }
+            }
+            if ui
+                .button("Import Scenes")
+                .on_hover_text("Load scenes from a JSON file")
+                .clicked()
+            {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"])
+                    .pick_file()
+                {
+                    match std::fs::read_to_string(&path) {
+                        Ok(json) => match serde_json::from_str::<Vec<Scene>>(&json) {
+                            Ok(imported) => {
+                                let count = imported.len();
+                                for scene in imported {
+                                    if !self.settings.scenes.iter().any(|s| s.name == scene.name) {
+                                        self.settings.scenes.push(scene);
+                                    }
+                                }
+                                self.success_toast(&format!("Imported {} scene(s)", count));
+                            }
+                            Err(e) => self.error_toast(&format!("Invalid scene file: {}", e)),
+                        },
+                        Err(e) => self.error_toast(&format!("Failed to read file: {}", e)),
+                    }
+                }
+            }
+        });
+        ui.add_space(5.0);
+
         self.render_scenes_table(ui);
 
         ui.add_space(15.0);
@@ -567,8 +698,10 @@ mod tests {
         let settings = Settings {
             custom_shortcuts: Vec::new(),
             refresh_rate_ms: 1000,
+            transition_duration_ms: 0,
             update_interval_ms: 2000,
             scenes: Vec::new(),
+            scheduled_scenes: Vec::new(),
             audio_buffer_size: 4096,
         };
         let json = serde_json::to_string(&settings).unwrap();

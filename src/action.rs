@@ -279,24 +279,23 @@ impl UserAction {
                     ui.label("No device selected")
                 }
             }
-            UserAction::SetScene { scene } => egui::ComboBox::from_label("Scene")
-                .selected_text(scene.name.clone())
-                .show_ui(ui, |ui| {
-                    for scene in scenes {
-                        if ui
-                            .selectable_value(
-                                &mut scene.name.clone(),
-                                scene.name.clone(),
-                                scene.name.clone(),
-                            )
-                            .clicked()
-                        {
-                            *self = UserAction::SetScene { scene };
+            UserAction::SetScene {
+                scene: current_scene,
+            } => {
+                let current_name = current_scene.name.clone();
+                egui::ComboBox::from_label("Scene")
+                    .selected_text(&current_name)
+                    .show_ui(ui, |ui| {
+                        for s in scenes {
+                            let is_selected = s.name == current_name;
+                            if ui.selectable_label(is_selected, &s.name).clicked() {
+                                *self = UserAction::SetScene { scene: s };
+                            }
                         }
-                    }
-                })
-                .response
-                .on_hover_text("Select a saved scene to apply"),
+                    })
+                    .response
+                    .on_hover_text("Select a saved scene to apply")
+            }
         }
     }
 }

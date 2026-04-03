@@ -19,10 +19,8 @@ opt-level = 3
 [dependencies]
 lifx-core = "0.4.0"
 get_if_addrs = "0.5.3"
-failure = "0.1.8"
 eframe = { version = "0.30.0", features = ["persistence"] }
 egui_extras = { version = "0.30.0", features = ["default", "image"] }
-env_logger = { version = "0.11.5", features = ["auto-color", "humantime"] }
 serde = { version = "1.0.209", features = ["derive"] }
 serde_json = "1.0.127"
 log = "0.4.22"
@@ -39,6 +37,9 @@ egui_plot = "0.30.0"
 rustfft = "6.2.0"
 strum = "0.27"
 strum_macros = "0.27"
+tray-icon = "0.22.0"
+rfd = "0.17.2"
+anyhow = "1.0.102"
 
 [features]
 puffin = ["dep:puffin", "dep:puffin_http"]

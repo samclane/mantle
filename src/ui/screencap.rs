@@ -43,7 +43,6 @@ pub fn handle_eyedropper(
         *show_eyedropper = !*show_eyedropper;
     }
     if *show_eyedropper {
-        let screencap = ScreencapManager::new().expect("Failed to create screencap manager");
         ui.ctx().output_mut(|out| {
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
@@ -52,7 +51,7 @@ pub fn handle_eyedropper(
                 .input_listener
                 .get_last_mouse_position()
                 .expect("Failed to get mouse position");
-            match screencap.color_from_click(position.x, position.y) {
+            match app.screen_manager.color_from_click(position.x, position.y) {
                 Ok(c) => color = Some(c),
                 Err(e) => eprintln!("Failed to get color: {}", e),
             }
