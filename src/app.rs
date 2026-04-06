@@ -278,6 +278,7 @@ impl MantleApp {
 
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self::configure_theme(&cc.egui_ctx);
+        Self::configure_fonts(&cc.egui_ctx);
 
         if let Some(storage) = cc.storage {
             let mut app =
@@ -316,6 +317,45 @@ impl MantleApp {
         let mut app = Self::default();
         app.setup_tray_icon(&cc.egui_ctx);
         app
+    }
+
+    fn configure_fonts(ctx: &egui::Context) {
+        let cjk_font_path = if cfg!(target_os = "windows") {
+            Some(std::path::PathBuf::from("C:\\Windows\\Fonts\\msyh.ttc"))
+        } else if cfg!(target_os = "macos") {
+            Some(std::path::PathBuf::from(
+                "/System/Library/Fonts/PingFang.ttc",
+            ))
+        } else {
+            [
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            ]
+            .iter()
+            .map(std::path::PathBuf::from)
+            .find(|p| p.exists())
+        };
+
+        if let Some(path) = cjk_font_path {
+            if let Ok(data) = std::fs::read(&path) {
+                let mut fonts = egui::FontDefinitions::default();
+                fonts
+                    .font_data
+                    .insert("cjk".to_owned(), egui::FontData::from_owned(data).into());
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Proportional)
+                    .or_default()
+                    .push("cjk".to_owned());
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Monospace)
+                    .or_default()
+                    .push("cjk".to_owned());
+                ctx.set_fonts(fonts);
+            }
+        }
     }
 
     fn configure_theme(ctx: &egui::Context) {

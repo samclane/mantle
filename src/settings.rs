@@ -55,6 +55,7 @@ fn locale_display_name(code: &str) -> &str {
     match code {
         "en" => "English",
         "es" => "Español",
+        "zh-CN" => "简体中文",
         _ => code,
     }
 }
