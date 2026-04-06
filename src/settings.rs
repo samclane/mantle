@@ -14,6 +14,7 @@ use crate::{
     shortcut::{KeyboardShortcutAction, ShortcutEdit},
     HSBK32,
 };
+use rust_i18n::t;
 
 const DEFAULT_REFRESH_RATE_MS: u64 = 500;
 const DEFAULT_UPDATE_INTERVAL_MS: u64 = 500;
@@ -53,12 +54,12 @@ impl MantleApp {
         let mut show_settings = self.show_settings;
 
         if show_settings {
-            egui::Window::new("Settings")
+            egui::Window::new(t!("settings.title").to_string())
                 .open(&mut show_settings)
                 .vscroll(true)
                 .resizable(true)
                 .show(ctx, |ui| {
-                    ui.heading("Settings");
+                    ui.heading(t!("settings.title").to_string());
                     ui.separator();
                     ui.add_space(10.0);
 
@@ -84,7 +85,7 @@ impl MantleApp {
     }
 
     fn render_add_shortcut_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Keyboard Shortcuts");
+        ui.heading(t!("settings.keyboard_shortcuts").to_string());
         ui.add_space(5.0);
 
         // Display existing shortcuts in a grid
@@ -93,7 +94,7 @@ impl MantleApp {
         ui.add_space(15.0);
         ui.separator();
         ui.add_space(10.0);
-        ui.heading("Add New Shortcut");
+        ui.heading(t!("settings.add_new_shortcut").to_string());
         ui.add_space(5.0);
 
         self.render_new_shortcut_grid(ui);
@@ -106,8 +107,8 @@ impl MantleApp {
     fn render_new_shortcut_field(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if ui
-                .button("Clear")
-                .on_hover_text("Clear shortcut fields")
+                .button(t!("settings.clear").to_string())
+                .on_hover_text(t!("settings.clear_hover").to_string())
                 .clicked()
             {
                 self.shortcut_manager.new_shortcut.name.clear();
@@ -120,12 +121,12 @@ impl MantleApp {
                     .new_shortcut
                     .shortcut
                     .update_display_string();
-                self.info_toast("Fields cleared");
+                self.info_toast(&t!("settings.fields_cleared"));
             }
 
             if ui
-                .button("Add Shortcut")
-                .on_hover_text("Register this keyboard shortcut")
+                .button(t!("settings.add_shortcut").to_string())
+                .on_hover_text(t!("settings.add_shortcut_hover").to_string())
                 .clicked()
             {
                 if let Some(device) = self.shortcut_manager.new_shortcut.device.clone() {
@@ -148,9 +149,9 @@ impl MantleApp {
                         .new_shortcut
                         .shortcut
                         .update_display_string();
-                    self.success_toast("Shortcut added successfully");
+                    self.success_toast(&t!("settings.shortcut_added"));
                 } else {
-                    self.error_toast("Please select a target device before adding a shortcut");
+                    self.error_toast(&t!("settings.no_device_selected"));
                 }
             }
         });
@@ -158,12 +159,12 @@ impl MantleApp {
 
     fn render_new_shortcut_grid(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new("new_shortcut_grid").show(ui, |ui| {
-            ui.label("Name:");
+            ui.label(t!("settings.name_label").to_string());
             ui.text_edit_singleline(&mut self.shortcut_manager.new_shortcut.name)
-                .on_hover_text("Name to identify this shortcut");
+                .on_hover_text(t!("settings.name_hover").to_string());
             ui.end_row();
 
-            egui::ComboBox::from_label("Action")
+            egui::ComboBox::from_label(t!("settings.action_label").to_string())
                 .selected_text(self.shortcut_manager.new_shortcut.action.to_string())
                 .show_ui(ui, |ui| {
                     for action in UserAction::iter() {
@@ -179,7 +180,7 @@ impl MantleApp {
                     }
                 })
                 .response
-                .on_hover_text("Choose the action this shortcut performs");
+                .on_hover_text(t!("settings.action_hover").to_string());
             // based on selected action, show relevant fields
             self.shortcut_manager.new_shortcut.action.ui(
                 ui,
@@ -188,7 +189,7 @@ impl MantleApp {
             );
             ui.end_row();
 
-            egui::ComboBox::from_label("Device")
+            egui::ComboBox::from_label(t!("settings.device_label").to_string())
                 .selected_text(
                     self.shortcut_manager
                         .new_shortcut
@@ -228,13 +229,13 @@ impl MantleApp {
                     }
                 })
                 .response
-                .on_hover_text("Choose the target device or group");
+                .on_hover_text(t!("settings.device_hover").to_string());
 
-            ui.label("Shortcut:");
+            ui.label(t!("settings.shortcut_label").to_string());
             ui.add(ShortcutEdit::new(
                 &mut self.shortcut_manager.new_shortcut.shortcut,
             ))
-            .on_hover_text("Click to start recording a key combination");
+            .on_hover_text(t!("settings.shortcut_hover").to_string());
             ui.end_row();
         });
     }
@@ -243,11 +244,11 @@ impl MantleApp {
         egui::Grid::new("shortcuts_grid")
             .striped(true)
             .show(ui, |ui| {
-                ui.label(egui::RichText::new("Name").strong());
-                ui.label(egui::RichText::new("Device").strong());
-                ui.label(egui::RichText::new("Action").strong());
-                ui.label(egui::RichText::new("Shortcut").strong());
-                ui.label(egui::RichText::new("Remove").strong());
+                ui.label(egui::RichText::new(t!("shortcuts.header_name").to_string()).strong());
+                ui.label(egui::RichText::new(t!("shortcuts.header_device").to_string()).strong());
+                ui.label(egui::RichText::new(t!("shortcuts.header_action").to_string()).strong());
+                ui.label(egui::RichText::new(t!("shortcuts.header_shortcut").to_string()).strong());
+                ui.label(egui::RichText::new(t!("shortcuts.header_remove").to_string()).strong());
                 ui.end_row();
 
                 let mut to_remove = Vec::new();
@@ -266,8 +267,8 @@ impl MantleApp {
                     ui.label(shortcut.action.to_string());
                     ui.label(&shortcut.shortcut.name);
                     if ui
-                        .button("Remove")
-                        .on_hover_text("Remove this shortcut")
+                        .button(t!("shortcuts.remove").to_string())
+                        .on_hover_text(t!("shortcuts.remove_hover").to_string())
                         .clicked()
                     {
                         to_remove.push(shortcut.clone());
@@ -276,7 +277,7 @@ impl MantleApp {
                     ui.end_row();
                 }
                 if show_toast {
-                    self.info_toast("Shortcut removed");
+                    self.info_toast(&t!("shortcuts.removed"));
                 }
                 for shortcut in to_remove {
                     self.shortcut_manager.remove_shortcut(shortcut.clone());
@@ -287,56 +288,56 @@ impl MantleApp {
 
     fn render_update_rate(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Update Rate:");
+            ui.label(t!("settings.update_rate").to_string());
             ui.add(
                 egui::Slider::new(
                     &mut self.settings.update_interval_ms,
                     UPDATE_INTERVAL_MS_RANGE,
                 )
-                .text("ms"),
+                .text(t!("settings.ms").to_string()),
             )
-            .on_hover_text("Interval between screen/audio color updates");
+            .on_hover_text(t!("settings.update_rate_hover").to_string());
         });
     }
 
     fn render_transition_duration(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Transition Duration:");
+            ui.label(t!("settings.transition_duration").to_string());
             ui.add(
                 egui::Slider::new(
                     &mut self.settings.transition_duration_ms,
                     TRANSITION_MS_RANGE,
                 )
-                .text("ms"),
+                .text(t!("settings.ms").to_string()),
             )
-            .on_hover_text("How long color changes take to fade (0 = instant)");
+            .on_hover_text(t!("settings.transition_hover").to_string());
         });
     }
 
     fn render_audio_buffer_size(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Audio Buffer Size:");
+            ui.label(t!("settings.audio_buffer").to_string());
             ui.add(
                 egui::Slider::new(&mut self.settings.audio_buffer_size, AUDIO_BUFFER_RANGE)
-                    .text("samples"),
+                    .text(t!("settings.samples").to_string()),
             )
-            .on_hover_text("Number of audio samples per capture buffer");
+            .on_hover_text(t!("settings.audio_buffer_hover").to_string());
         });
     }
 
     fn render_refresh_rate(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Refresh Rate:");
+            ui.label(t!("settings.refresh_rate").to_string());
             ui.add(
                 egui::Slider::new(&mut self.settings.refresh_rate_ms, REFRESH_RATE_RANGE)
-                    .text("ms"),
+                    .text(t!("settings.ms").to_string()),
             )
-            .on_hover_text("How often to poll LIFX devices for status updates");
+            .on_hover_text(t!("settings.refresh_rate_hover").to_string());
         });
     }
 
     fn render_scene_schedule_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scene Schedule");
+        ui.heading(t!("schedule.title").to_string());
         ui.add_space(5.0);
 
         let scene_names: Vec<String> = self
@@ -362,19 +363,19 @@ impl MantleApp {
                             }
                         }
                     });
-                ui.label("at");
+                ui.label(t!("schedule.at").to_string());
                 ui.add(
                     egui::DragValue::new(&mut sched.hour)
                         .range(0..=23)
-                        .suffix("h"),
+                        .suffix(t!("schedule.hour_suffix").to_string()),
                 );
-                ui.label(":");
+                ui.label(t!("schedule.colon").to_string());
                 ui.add(
                     egui::DragValue::new(&mut sched.minute)
                         .range(0..=59)
-                        .suffix("m"),
+                        .suffix(t!("schedule.minute_suffix").to_string()),
                 );
-                if ui.small_button("Remove").clicked() {
+                if ui.small_button(t!("schedule.remove").to_string()).clicked() {
                     to_remove.push(i);
                 }
             });
@@ -383,7 +384,7 @@ impl MantleApp {
             self.settings.scheduled_scenes.remove(i);
         }
 
-        if ui.small_button("Add Schedule").clicked() {
+        if ui.small_button(t!("schedule.add").to_string()).clicked() {
             self.settings
                 .scheduled_scenes
                 .push(ScheduledScene::default());
@@ -391,13 +392,13 @@ impl MantleApp {
     }
 
     fn render_scenes_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scenes");
+        ui.heading(t!("scenes.title").to_string());
         ui.add_space(5.0);
 
         ui.horizontal(|ui| {
             if ui
-                .button("Export Scenes")
-                .on_hover_text("Save all scenes to a JSON file")
+                .button(t!("scenes.export").to_string())
+                .on_hover_text(t!("scenes.export_hover").to_string())
                 .clicked()
             {
                 if let Some(path) = rfd::FileDialog::new()
@@ -407,16 +408,20 @@ impl MantleApp {
                 {
                     match serde_json::to_string_pretty(&self.settings.scenes) {
                         Ok(json) => match std::fs::write(&path, json) {
-                            Ok(_) => self.success_toast("Scenes exported successfully"),
-                            Err(e) => self.error_toast(&format!("Failed to write file: {}", e)),
+                            Ok(_) => self.success_toast(&t!("scenes.exported")),
+                            Err(e) => {
+                                self.error_toast(&t!("error.write_file", error = e.to_string()))
+                            }
                         },
-                        Err(e) => self.error_toast(&format!("Failed to serialize scenes: {}", e)),
+                        Err(e) => {
+                            self.error_toast(&t!("error.serialize_scenes", error = e.to_string()))
+                        }
                     }
                 }
             }
             if ui
-                .button("Import Scenes")
-                .on_hover_text("Load scenes from a JSON file")
+                .button(t!("scenes.import").to_string())
+                .on_hover_text(t!("scenes.import_hover").to_string())
                 .clicked()
             {
                 if let Some(path) = rfd::FileDialog::new()
@@ -432,11 +437,14 @@ impl MantleApp {
                                         self.settings.scenes.push(scene);
                                     }
                                 }
-                                self.success_toast(&format!("Imported {} scene(s)", count));
+                                self.success_toast(&t!("scenes.imported", count = count));
                             }
-                            Err(e) => self.error_toast(&format!("Invalid scene file: {}", e)),
+                            Err(e) => self.error_toast(&t!(
+                                "error.invalid_scene_file",
+                                error = e.to_string()
+                            )),
                         },
-                        Err(e) => self.error_toast(&format!("Failed to read file: {}", e)),
+                        Err(e) => self.error_toast(&t!("error.read_file", error = e.to_string())),
                     }
                 }
             }
@@ -448,7 +456,7 @@ impl MantleApp {
         ui.add_space(15.0);
         ui.separator();
         ui.add_space(10.0);
-        ui.heading("Create New Scene");
+        ui.heading(t!("scenes.create_title").to_string());
         ui.add_space(5.0);
 
         self.render_new_scene_ui(ui);
@@ -469,10 +477,16 @@ impl MantleApp {
             )
             .show_header(ui, |ui| {
                 ui.label(egui::RichText::new(&scene.name).strong());
-                ui.label(format!("{} devices", scene.device_color_pairs.len()));
+                ui.label(
+                    t!(
+                        "scenes.devices_count",
+                        count = scene.device_color_pairs.len()
+                    )
+                    .to_string(),
+                );
                 if ui
-                    .button("Apply")
-                    .on_hover_text("Apply this scene to your lights")
+                    .button(t!("scenes.apply").to_string())
+                    .on_hover_text(t!("scenes.apply_hover").to_string())
                     .clicked()
                 {
                     match scene.apply(&mut self.lighting_manager) {
@@ -485,8 +499,8 @@ impl MantleApp {
                     }
                 }
                 if ui
-                    .button("Remove")
-                    .on_hover_text("Delete this scene")
+                    .button(t!("scenes.remove").to_string())
+                    .on_hover_text(t!("scenes.remove_hover").to_string())
                     .clicked()
                 {
                     to_remove.push(scene.name.clone());
@@ -510,10 +524,12 @@ impl MantleApp {
                         );
 
                         let prefix = match device {
-                            DeviceInfo::Bulb(_) => "Bulb",
-                            DeviceInfo::Group(_) => "Group",
+                            DeviceInfo::Bulb(_) => t!("scenes.prefix_bulb").to_string(),
+                            DeviceInfo::Group(_) => t!("scenes.prefix_group").to_string(),
                         };
-                        let name = device.name().unwrap_or_else(|| "Unknown".to_string());
+                        let name = device
+                            .name()
+                            .unwrap_or_else(|| t!("devices.unknown").to_string());
                         ui.label(format!("{prefix}: {name}"));
                     });
                 }
@@ -521,30 +537,30 @@ impl MantleApp {
         }
 
         if applied {
-            self.success_toast("Scene applied successfully");
+            self.success_toast(&t!("scenes.applied"));
         } else if !application_errors.is_empty() {
-            self.error_toast(&format!(
-                "Failed to apply scene: {}",
-                application_errors.join(", ")
+            self.error_toast(&t!(
+                "error.apply_scene",
+                errors = application_errors.join(", ")
             ));
         }
         for name in to_remove {
             self.settings.scenes.retain(|s| s.name != name);
         }
         if removed {
-            self.info_toast("Scene removed");
+            self.info_toast(&t!("scenes.removed"));
         }
     }
 
     fn render_new_scene_ui(&mut self, ui: &mut egui::Ui) {
         // Provide UI to create a new scene
         ui.horizontal(|ui| {
-            ui.label("Scene Name:");
+            ui.label(t!("scenes.scene_name_label").to_string());
             ui.text_edit_singleline(&mut self.new_scene.name)
-                .on_hover_text("Enter a name for the new scene");
+                .on_hover_text(t!("scenes.scene_name_hover").to_string());
         });
         ui.add_space(5.0);
-        ui.label("Select Devices:");
+        ui.label(t!("scenes.select_devices").to_string());
         // Display list of devices with checkboxes
         egui::ScrollArea::vertical()
             .max_height(150.0)
@@ -563,9 +579,9 @@ impl MantleApp {
                                 .as_ref()
                                 .unwrap_or(&CString::default())
                                 .to_str()
-                                .unwrap_or("Unknown Device"),
+                                .unwrap_or(&t!("scenes.unknown_device")),
                         )
-                        .on_hover_text("Select device for the scene")
+                        .on_hover_text(t!("scenes.device_hover").to_string())
                         .changed()
                     {
                         if selected {
@@ -588,7 +604,7 @@ impl MantleApp {
                         .any(|d| *d == DeviceInfo::Group(group.clone()));
                     if ui
                         .checkbox(&mut selected, group.label.cstr().to_str().unwrap())
-                        .on_hover_text("Select group for the scene")
+                        .on_hover_text(t!("scenes.group_hover").to_string())
                         .changed()
                     {
                         if selected {
@@ -629,8 +645,8 @@ impl MantleApp {
             });
         ui.add_space(5.0);
         if ui
-            .button("Save Scene")
-            .on_hover_text("Save the current device colors as a scene")
+            .button(t!("scenes.save").to_string())
+            .on_hover_text(t!("scenes.save_hover").to_string())
             .clicked()
         {
             // Save the new scene
@@ -654,7 +670,7 @@ impl MantleApp {
             // Clear the new scene input
             self.new_scene.name.clear();
             self.new_scene.devices().clear();
-            self.success_toast("Scene saved successfully");
+            self.success_toast(&t!("scenes.saved"));
         }
     }
 }

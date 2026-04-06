@@ -2,6 +2,7 @@ use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 
 use crate::{color::default_hsbk, device_info::DeviceInfo, LifxManager, HSBK32};
+use rust_i18n::t;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScheduledScene {
@@ -50,16 +51,20 @@ impl Scene {
             match device {
                 DeviceInfo::Bulb(bulb) => {
                     if let Err(err) = lifx_manager.set_color(&&**bulb, color, None) {
-                        errors.push(format!("Failed to set color for bulb: {:?}", err));
+                        errors
+                            .push(t!("error.bulb_color", error = format!("{:?}", err)).to_string());
                     }
                 }
                 DeviceInfo::Group(group) => {
                     if let Ok(bulbs) = lifx_manager.bulbs.lock() {
                         if let Err(err) = lifx_manager.set_group_color(group, color, &bulbs, None) {
-                            errors.push(format!("Failed to set group color: {:?}", err));
+                            errors.push(
+                                t!("error.group_color_apply", error = format!("{:?}", err))
+                                    .to_string(),
+                            );
                         }
                     } else {
-                        errors.push("Failed to lock bulbs for group".to_string());
+                        errors.push(t!("error.lock_bulbs").to_string());
                     }
                 }
             }
@@ -95,7 +100,7 @@ impl From<Vec<DeviceInfo>> for Scene {
             })
             .collect();
 
-        Self::new(device_color_pairs, "Unnamed Scene".to_string())
+        Self::new(device_color_pairs, t!("scenes.unnamed").to_string())
     }
 }
 
@@ -103,7 +108,7 @@ impl Default for Scene {
     fn default() -> Self {
         Self {
             device_color_pairs: Vec::new(),
-            name: "Unnamed Scene".to_string(),
+            name: t!("scenes.unnamed").to_string(),
         }
     }
 }

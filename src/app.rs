@@ -32,6 +32,7 @@ use eframe::egui::{self, Color32, Direction, Modifiers, RichText, Stroke, Ui, Ve
 use egui::Align2;
 use egui_toast::{Toast, ToastKind, ToastOptions, Toasts};
 use lifx_core::{ApplicationRequest, HSBK};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::TrayIcon;
@@ -170,7 +171,7 @@ impl Default for MantleApp {
             waveform_map: HashMap::new(),
             waveform_channel: HashMap::new(),
             monitor_preview_textures: HashMap::new(),
-            new_scene: Scene::new(vec![], "Unnamed Scene".to_string()),
+            new_scene: Scene::new(vec![], t!("scenes.unnamed").to_string()),
             toasts: Toasts::new()
                 .anchor(Align2::CENTER_TOP, (0.0, 10.0))
                 .direction(Direction::TopDown),
@@ -186,9 +187,9 @@ impl Default for MantleApp {
 impl MantleApp {
     fn setup_tray_icon(&mut self, ctx: &egui::Context) {
         let menu = Menu::new();
-        let show_item = MenuItem::new("Show/Hide", true, None);
-        let toggle_item = MenuItem::new("Toggle All Power", true, None);
-        let quit_item = MenuItem::new("Quit", true, None);
+        let show_item = MenuItem::new(&*t!("app.tray.show_hide"), true, None);
+        let toggle_item = MenuItem::new(&*t!("app.tray.toggle_power"), true, None);
+        let quit_item = MenuItem::new(&*t!("app.tray.quit"), true, None);
         let _ = menu.append(&show_item);
         let _ = menu.append(&toggle_item);
         let _ = menu.append(&quit_item);
@@ -205,7 +206,7 @@ impl MantleApp {
         if let Some(icon) = icon_data {
             match tray_icon::TrayIconBuilder::new()
                 .with_menu(Box::new(menu))
-                .with_tooltip("Mantle - LIFX Controller")
+                .with_tooltip(&*t!("app.tray.tooltip"))
                 .with_icon(icon)
                 .build()
             {
@@ -302,10 +303,10 @@ impl MantleApp {
                 .unwrap();
 
             if !failures.is_empty() {
-                app.error_toast(&format!(
-                    "Failed to add {} custom shortcuts: {:?}",
-                    failures.len(),
-                    failures
+                app.error_toast(&t!(
+                    "error.shortcut_add_failed",
+                    count = failures.len(),
+                    details = format!("{:?}", failures)
                 ));
             }
             app.setup_tray_icon(&cc.egui_ctx);
@@ -388,9 +389,15 @@ impl MantleApp {
                             ui.allocate_painter(Vec2::new(8.0, 14.0), egui::Sense::hover());
                         painter.circle_filled(dot_resp.rect.center(), 3.5, dot_color);
                         let tooltip = if is_online {
-                            format!("Online (seen {:.0}s ago)", elapsed.as_secs_f32())
+                            t!(
+                                "devices.online",
+                                seconds = format!("{:.0}", elapsed.as_secs_f32())
+                            )
                         } else {
-                            format!("Offline (last seen {:.0}s ago)", elapsed.as_secs_f32())
+                            t!(
+                                "devices.offline",
+                                seconds = format!("{:.0}", elapsed.as_secs_f32())
+                            )
                         };
                         dot_resp.on_hover_text(tooltip);
 
@@ -425,7 +432,7 @@ impl MantleApp {
                                 self.renaming_device = Some(device_id);
                                 self.rename_buffer = s.to_string();
                             }
-                            name_resp.on_hover_text("Double-click to rename");
+                            name_resp.on_hover_text(t!("devices.rename_hint").to_string());
                         }
                     });
                     if let Some(product_name) = get_product_name(bulb.model.data.as_ref()) {
@@ -471,7 +478,7 @@ impl MantleApp {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Power")
+                    RichText::new(t!("controls.power").to_string())
                         .size(12.0)
                         .color(Color32::from_rgb(160, 160, 180)),
                 );
@@ -482,7 +489,7 @@ impl MantleApp {
                     Vec2::new(1.0, 1.0),
                     bulbs,
                 )
-                .on_hover_text("Toggle power");
+                .on_hover_text(t!("controls.toggle_power").to_string());
             });
 
             let is_multizone = matches!(device, DeviceInfo::Bulb(b) if b.is_multizone());
@@ -522,19 +529,19 @@ impl MantleApp {
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    RichText::new("Zones")
+                                    RichText::new(t!("controls.zones").to_string())
                                         .size(12.0)
                                         .color(Color32::from_rgb(160, 160, 180)),
                                 );
                                 if ui
                                     .small_button(
                                         if selected.len() == zones.len() && !zones.is_empty() {
-                                            "Deselect All"
+                                            t!("controls.deselect_all").to_string()
                                         } else {
-                                            "Select All"
+                                            t!("controls.select_all").to_string()
                                         },
                                     )
-                                    .on_hover_text("Select or deselect all zones")
+                                    .on_hover_text(t!("controls.select_zones_hover").to_string())
                                     .clicked()
                                 {
                                     let new_sel =
@@ -556,10 +563,8 @@ impl MantleApp {
 
                             ui.add_space(2.0);
                             if ui
-                                .small_button("Apply Gradient")
-                                .on_hover_text(
-                                    "Fill all zones with a gradient from the current slider color",
-                                )
+                                .small_button(t!("controls.apply_gradient").to_string())
+                                .on_hover_text(t!("controls.apply_gradient_hover").to_string())
                                 .clicked()
                             {
                                 let zone_count = zones.len();
@@ -589,7 +594,7 @@ impl MantleApp {
                                             break;
                                         }
                                     }
-                                    self.success_toast("Gradient applied");
+                                    self.success_toast(&t!("controls.gradient_applied"));
                                 }
                             }
                         }
@@ -623,9 +628,9 @@ impl MantleApp {
                                         apply,
                                     ) {
                                         log::error!("Error setting zone color: {}", e);
-                                        self.error_toast(&format!(
-                                            "Error setting zone color: {}",
-                                            e
+                                        self.error_toast(&t!(
+                                            "error.zone_color",
+                                            error = e.to_string()
                                         ));
                                         break;
                                     }
@@ -637,7 +642,7 @@ impl MantleApp {
                                     after_color.duration,
                                 ) {
                                     log::error!("Error setting color: {}", e);
-                                    self.error_toast(&format!("Error setting color: {}", e));
+                                    self.error_toast(&t!("error.set_color", error = e.to_string()));
                                 }
                             }
                         }
@@ -649,13 +654,15 @@ impl MantleApp {
                                 after_color.duration,
                             ) {
                                 log::error!("Error setting group color: {}", e);
-                                self.error_toast(&format!("Error setting group color: {}", e));
+                                self.error_toast(&t!("error.group_color", error = e.to_string()));
                             }
                         }
                     }
                 }
             } else {
-                ui.label(format!("No color data: {:?}", color_opt));
+                ui.label(
+                    t!("devices.no_color_data", data = format!("{:?}", color_opt)).to_string(),
+                );
             }
         });
     }
@@ -858,45 +865,45 @@ impl MantleApp {
         if ui.input_mut(|i| i.consume_shortcut(&refresh_shortcut)) {
             if let Err(e) = self.lighting_manager.refresh() {
                 log::error!("Error refreshing manager: {}", e);
-                self.error_toast(&format!("Error refreshing manager: {}", e));
+                self.error_toast(&t!("error.refresh", error = e.to_string()));
             }
         }
 
-        ui.menu_button("File", |ui| {
+        ui.menu_button(t!("menu.file").to_string(), |ui| {
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             if ui
                 .add(
-                    egui::Button::new("Refresh")
+                    egui::Button::new(t!("menu.refresh").to_string())
                         .shortcut_text(ui.ctx().format_shortcut(&refresh_shortcut)),
                 )
-                .on_hover_text("Rediscover LIFX devices")
+                .on_hover_text(t!("menu.refresh_hover").to_string())
                 .clicked()
             {
                 if let Err(e) = self.lighting_manager.refresh() {
                     log::error!("Error refreshing manager: {}", e);
-                    self.error_toast(&format!("Error refreshing manager: {}", e));
+                    self.error_toast(&t!("error.refresh", error = e.to_string()));
                 }
                 ui.close_menu();
             }
             if ui
-                .add(egui::Button::new("Settings"))
-                .on_hover_text("Open settings window")
+                .add(egui::Button::new(t!("menu.settings").to_string()))
+                .on_hover_text(t!("menu.settings_hover").to_string())
                 .clicked()
             {
                 self.show_settings = true;
                 ui.close_menu();
             }
             if ui
-                .add(egui::Button::new("Audio Debug"))
-                .on_hover_text("Toggle audio debug window")
+                .add(egui::Button::new(t!("menu.audio_debug").to_string()))
+                .on_hover_text(t!("menu.audio_debug_hover").to_string())
                 .clicked()
             {
                 self.show_audio_debug = !self.show_audio_debug;
                 ui.close_menu();
             }
             if ui
-                .add(egui::Button::new("Hide to Tray"))
-                .on_hover_text("Hide window to system tray")
+                .add(egui::Button::new(t!("menu.hide_to_tray").to_string()))
+                .on_hover_text(t!("menu.hide_to_tray_hover").to_string())
                 .clicked()
             {
                 self.window_visible.store(false, Ordering::SeqCst);
@@ -906,10 +913,10 @@ impl MantleApp {
             }
             if ui
                 .add(
-                    egui::Button::new("Quit")
+                    egui::Button::new(t!("menu.quit").to_string())
                         .shortcut_text(ui.ctx().format_shortcut(&close_shortcut)),
                 )
-                .on_hover_text("Exit the application")
+                .on_hover_text(t!("menu.quit_hover").to_string())
                 .clicked()
             {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -919,11 +926,11 @@ impl MantleApp {
     }
 
     fn help_menu_button(&mut self, ui: &mut Ui) {
-        ui.menu_button("Help", |ui| {
+        ui.menu_button(t!("menu.help").to_string(), |ui| {
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             if ui
-                .add(egui::Button::new("About"))
-                .on_hover_text("About Mantle")
+                .add(egui::Button::new(t!("menu.about").to_string()))
+                .on_hover_text(t!("menu.about_hover").to_string())
                 .clicked()
             {
                 self.show_about = true;
@@ -941,7 +948,7 @@ impl MantleApp {
                 let search_field = ui.add(
                     egui::TextEdit::singleline(&mut self.search_query)
                         .desired_width(120.0)
-                        .hint_text("Search lights..."),
+                        .hint_text(t!("devices.search_placeholder").to_string()),
                 );
                 if ui.input_mut(|i| {
                     i.consume_shortcut(&egui::KeyboardShortcut::new(Modifiers::CTRL, egui::Key::F))
@@ -954,11 +961,11 @@ impl MantleApp {
             if !self.search_query.is_empty() {
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(format!("Filtering: \"{}\"", self.search_query))
+                        RichText::new(t!("devices.filtering", query = &self.search_query).to_string())
                             .size(11.0)
                             .color(Color32::from_rgb(180, 120, 30)),
                     );
-                    if ui.small_button("Clear").clicked() {
+                    if ui.small_button(t!("devices.clear").to_string()).clicked() {
                         self.search_query.clear();
                     }
                 });
@@ -975,26 +982,23 @@ impl MantleApp {
                                 ui.add(egui::Spinner::new().size(32.0));
                                 ui.add_space(12.0);
                                 ui.label(
-                                    RichText::new("Searching for LIFX devices...")
+                                    RichText::new(t!("devices.searching").to_string())
                                         .size(16.0)
                                         .color(Color32::from_rgb(160, 160, 180)),
                                 );
                                 ui.add_space(8.0);
                                 ui.label(
                                     RichText::new(
-                                        "Make sure your lights are powered on and connected to the same network.",
+                                        t!("devices.searching_hint").to_string(),
                                     )
                                     .size(12.0)
                                     .color(Color32::from_rgb(120, 120, 140)),
                                 );
                                 ui.add_space(12.0);
-                                if ui.button("Refresh").clicked() {
+                                if ui.button(t!("devices.refresh").to_string()).clicked() {
                                     if let Err(e) = self.lighting_manager.discover() {
                                         log::error!("Failed to discover bulbs: {}", e);
-                                        self.error_toast(&format!(
-                                            "Failed to discover bulbs: {}",
-                                            e
-                                        ));
+                                        self.error_toast(&t!("error.discover", error = e.to_string()));
                                     }
                                 }
                             });
@@ -1087,7 +1091,7 @@ impl MantleApp {
 
     fn show_about_window(&mut self, ctx: &egui::Context) {
         if self.show_about {
-            egui::Window::new("About")
+            egui::Window::new(t!("about.title").to_string())
                 .default_width(ABOUT_WINDOW_SIZE[0])
                 .default_height(ABOUT_WINDOW_SIZE[1])
                 .open(&mut self.show_about)
@@ -1096,22 +1100,22 @@ impl MantleApp {
                     ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
                     ui.add_space(8.0);
                     ui.label(env!("CARGO_PKG_DESCRIPTION"));
-                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
-                    ui.label(format!("Author: {}", env!("CARGO_PKG_AUTHORS")));
-                    ui.hyperlink_to("Github", env!("CARGO_PKG_REPOSITORY"));
+                    ui.label(t!("about.version", version = env!("CARGO_PKG_VERSION")).to_string());
+                    ui.label(t!("about.author", author = env!("CARGO_PKG_AUTHORS")).to_string());
+                    ui.hyperlink_to(t!("about.github").to_string(), env!("CARGO_PKG_REPOSITORY"));
                 });
         }
     }
 
     fn show_audio_debug_window(&mut self, ctx: &egui::Context) {
         if self.show_audio_debug {
-            egui::Window::new("Audio Debug")
+            egui::Window::new(t!("audio_debug.title").to_string())
                 .default_width(ABOUT_WINDOW_SIZE[0])
                 .default_height(ABOUT_WINDOW_SIZE[1])
                 .open(&mut self.show_audio_debug)
                 .resizable([true, false])
                 .show(ctx, |ui| {
-                    ui.heading("Audio Debug");
+                    ui.heading(t!("audio_debug.title").to_string());
                     ui.add_space(8.0);
                     self.audio_manager.ui(ui);
                 });
@@ -1207,7 +1211,7 @@ impl eframe::App for MantleApp {
         }
         if let Err(e) = self.lighting_manager.refresh() {
             log::error!("Error refreshing manager: {}", e);
-            self.error_toast(&format!("Error refreshing manager: {}", e));
+            self.error_toast(&t!("error.refresh", error = e.to_string()));
         }
         self.check_scheduled_scenes();
         self.update_ui(ctx);

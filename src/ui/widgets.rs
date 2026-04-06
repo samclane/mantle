@@ -20,6 +20,7 @@ use eframe::{
     epaint::CubicBezierShape,
 };
 use lifx_core::HSBK;
+use rust_i18n::t;
 
 const SLIDER_RESOLUTION: u32 = 36;
 
@@ -153,7 +154,7 @@ pub fn display_color_circle(
         }
     }
 
-    response.on_hover_text("Current brightness level");
+    response.on_hover_text(t!("slider.brightness_level_hover").to_string());
 }
 
 pub fn toggle_button(
@@ -202,8 +203,14 @@ pub fn toggle_button(
         }
         response.mark_changed();
     }
-    response
-        .widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), on, "Toggle"));
+    response.widget_info(|| {
+        WidgetInfo::selected(
+            WidgetType::Checkbox,
+            ui.is_enabled(),
+            on,
+            t!("slider.toggle").to_string(),
+        )
+    });
     if ui.is_rect_visible(rect) {
         let how_on = ui.ctx().animate_bool_responsive(response.id, on);
         let visuals = ui.style().interact_selectable(&response, on);
@@ -356,7 +363,7 @@ pub fn color_slider(
 }
 
 pub fn hue_slider(ui: &mut Ui, hue: &mut u16) -> egui::Response {
-    color_slider(ui, hue, LIFX_RANGE, "Hue", |v| {
+    color_slider(ui, hue, LIFX_RANGE, &t!("slider.hue"), |v| {
         HSBK32 {
             hue: v as u32,
             saturation: u32::MAX,
@@ -368,14 +375,14 @@ pub fn hue_slider(ui: &mut Ui, hue: &mut u16) -> egui::Response {
 }
 
 pub fn saturation_slider(ui: &mut Ui, saturation: &mut u16) -> egui::Response {
-    color_slider(ui, saturation, LIFX_RANGE, "Saturation", |v| {
+    color_slider(ui, saturation, LIFX_RANGE, &t!("slider.saturation"), |v| {
         let color_value = (u16::MAX - v) / u8::MAX as u16;
         Color32::from_gray(color_value as u8)
     })
 }
 
 pub fn brightness_slider(ui: &mut Ui, brightness: &mut u16) -> egui::Response {
-    color_slider(ui, brightness, LIFX_RANGE, "Brightness", |v| {
+    color_slider(ui, brightness, LIFX_RANGE, &t!("slider.brightness"), |v| {
         let color_value = v / u8::MAX as u16;
         Color32::from_gray(color_value as u8)
     })
@@ -390,7 +397,7 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
                         ui,
                         kelvin,
                         RangeInclusive::new(range.min as u16, range.max as u16),
-                        "Kelvin",
+                        &t!("slider.kelvin"),
                         |v| {
                             let temp: u16 = remap_clamp(
                                 v as f32,
@@ -404,14 +411,14 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
                     ui.label(format!("{}K", range.min))
                 }
             } else {
-                ui.label("Kelvin")
+                ui.label(t!("slider.kelvin").to_string())
             }
         }
         DeviceInfo::Group(_) => color_slider(
             ui,
             kelvin,
             RangeInclusive::new(KELVIN_RANGE.min as u16, KELVIN_RANGE.max as u16),
-            "Kelvin",
+            &t!("slider.kelvin"),
             |v| {
                 let temp: u16 =
                     remap_clamp(v as f32, 0.0..=u16::MAX as f32, KELVIN_RANGE.to_range_f32())
@@ -440,21 +447,22 @@ pub fn hsbk_sliders(
 ) -> egui::Response {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
-            slider_label(ui, "Hue");
-            hue_slider(ui, hue).on_hover_text("Adjust the color hue (0\u{2013}65535)")
+            slider_label(ui, &t!("slider.hue"));
+            hue_slider(ui, hue).on_hover_text(t!("slider.hue_hover").to_string())
         });
         ui.horizontal(|ui| {
-            slider_label(ui, "Saturation");
-            saturation_slider(ui, saturation).on_hover_text("Adjust color saturation")
+            slider_label(ui, &t!("slider.saturation"));
+            saturation_slider(ui, saturation)
+                .on_hover_text(t!("slider.saturation_hover").to_string())
         });
         ui.horizontal(|ui| {
-            slider_label(ui, "Brightness");
-            brightness_slider(ui, brightness).on_hover_text("Adjust light brightness")
+            slider_label(ui, &t!("slider.brightness"));
+            brightness_slider(ui, brightness)
+                .on_hover_text(t!("slider.brightness_hover").to_string())
         });
         ui.horizontal(|ui| {
-            slider_label(ui, "Kelvin");
-            kelvin_slider(ui, kelvin, device)
-                .on_hover_text("Adjust color temperature (warm to cool)")
+            slider_label(ui, &t!("slider.kelvin"));
+            kelvin_slider(ui, kelvin, device).on_hover_text(t!("slider.kelvin_hover").to_string())
         });
     })
     .response
@@ -566,7 +574,7 @@ pub fn zone_strip(
         }
     }
 
-    response.on_hover_text("Click to select a zone, Ctrl+click to toggle, drag to select range");
+    response.on_hover_text(t!("zone.hover").to_string());
 
     new_selected
 }

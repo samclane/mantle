@@ -9,6 +9,7 @@ use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::{Arc, Mutex};
 
 use crate::color::DEFAULT_KELVIN;
+use rust_i18n::t;
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
 
@@ -276,7 +277,9 @@ impl AudioManager {
             let color = Self::power(data);
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // show current color
-                ui.label(format!("Current color: {:?}", color));
+                ui.label(
+                    t!("audio_debug.current_color", color = format!("{:?}", color)).to_string(),
+                );
                 egui_plot::Plot::new("Audio Samples")
                     .allow_zoom(false)
                     .allow_drag(false)
@@ -297,7 +300,7 @@ impl AudioManager {
                     });
             });
         } else {
-            ui.label("No audio data available");
+            ui.label(t!("audio_debug.no_data").to_string());
         }
     }
 }

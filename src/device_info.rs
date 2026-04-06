@@ -6,6 +6,7 @@ use crate::serializers::{
 };
 use crate::HSBK32;
 use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -451,7 +452,7 @@ impl Display for DeviceInfo {
                     .data
                     .as_ref()
                     .map(|s| s.to_string_lossy())
-                    .unwrap_or_else(|| "Unknown".into())
+                    .unwrap_or_else(|| t!("devices.unknown").to_string().into())
             ),
             DeviceInfo::Group(g) => write!(f, "{}", g.label),
         }

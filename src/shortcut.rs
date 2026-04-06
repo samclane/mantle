@@ -10,6 +10,7 @@ use crate::listener::input_action::InputAction;
 use crate::listener::input_listener::InputListener;
 use crate::listener::key_mapping::from_egui;
 use crate::LifxManager;
+use rust_i18n::t;
 
 pub type ShortcutCallback = Arc<dyn Fn(InputAction) + Send + Sync + 'static>;
 
@@ -270,7 +271,7 @@ impl Widget for ShortcutEdit<'_> {
             ui.visuals().text_color(),
         );
 
-        response.on_hover_text("Click to record a key combination")
+        response.on_hover_text(t!("settings.shortcut_record_hover").to_string())
     }
 }
 

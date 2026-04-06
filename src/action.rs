@@ -11,6 +11,7 @@ use crate::{
     ui::{brightness_slider, hsbk_sliders, hue_slider, kelvin_slider, saturation_slider},
     LifxManager,
 };
+use rust_i18n::t;
 
 /// An action that can be performed in the UI
 /// Primarily used for storing shortcut data
@@ -263,12 +264,12 @@ impl UserAction {
                 if let Some(device) = device {
                     hsbk_sliders(ui, hue, saturation, brightness, kelvin, &device)
                 } else {
-                    ui.label("No device selected")
+                    ui.label(t!("action.no_device").to_string())
                 }
             }
             UserAction::SetPower { power } => ui
-                .checkbox(power, "Power")
-                .on_hover_text("Set power on or off"),
+                .checkbox(power, t!("action.power_label").to_string())
+                .on_hover_text(t!("action.power_hover").to_string()),
             UserAction::SetHue { hue } => hue_slider(ui, hue),
             UserAction::SetBrightness { brightness } => brightness_slider(ui, brightness),
             UserAction::SetSaturation { saturation } => saturation_slider(ui, saturation),
@@ -276,14 +277,14 @@ impl UserAction {
                 if let Some(ref device) = device {
                     kelvin_slider(ui, kelvin, device)
                 } else {
-                    ui.label("No device selected")
+                    ui.label(t!("action.no_device").to_string())
                 }
             }
             UserAction::SetScene {
                 scene: current_scene,
             } => {
                 let current_name = current_scene.name.clone();
-                egui::ComboBox::from_label("Scene")
+                egui::ComboBox::from_label(t!("action.scene_label").to_string())
                     .selected_text(&current_name)
                     .show_ui(ui, |ui| {
                         for s in scenes {
@@ -294,7 +295,7 @@ impl UserAction {
                         }
                     })
                     .response
-                    .on_hover_text("Select a saved scene to apply")
+                    .on_hover_text(t!("action.scene_hover").to_string())
             }
         }
     }
@@ -303,8 +304,8 @@ impl UserAction {
 impl Display for UserAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UserAction::Refresh => write!(f, "Refresh"),
-            UserAction::TogglePower => write!(f, "Toggle Power"),
+            UserAction::Refresh => write!(f, "{}", t!("action.refresh")),
+            UserAction::TogglePower => write!(f, "{}", t!("action.toggle_power")),
             UserAction::SetColor {
                 hue,
                 saturation,
@@ -312,19 +313,39 @@ impl Display for UserAction {
                 kelvin,
             } => write!(
                 f,
-                "Set Color: H: {}, S: {}, B: {}, K: {}",
-                hue, saturation, brightness, kelvin
+                "{}",
+                t!(
+                    "action.set_color",
+                    hue = hue,
+                    saturation = saturation,
+                    brightness = brightness,
+                    kelvin = kelvin
+                )
             ),
-            UserAction::SetPower { power } => write!(f, "Set Power: {}", power),
-            UserAction::SetHue { hue } => write!(f, "Set Hue: {}", hue),
+            UserAction::SetPower { power } => {
+                write!(f, "{}", t!("action.set_power", power = power))
+            }
+            UserAction::SetHue { hue } => write!(f, "{}", t!("action.set_hue", hue = hue)),
             UserAction::SetSaturation { saturation } => {
-                write!(f, "Set Saturation: {}", saturation)
+                write!(
+                    f,
+                    "{}",
+                    t!("action.set_saturation", saturation = saturation)
+                )
             }
             UserAction::SetBrightness { brightness } => {
-                write!(f, "Set Brightness: {}", brightness)
+                write!(
+                    f,
+                    "{}",
+                    t!("action.set_brightness", brightness = brightness)
+                )
             }
-            UserAction::SetKelvin { kelvin } => write!(f, "Set Kelvin: {}", kelvin),
-            UserAction::SetScene { scene } => write!(f, "Set Scene: {}", scene.name),
+            UserAction::SetKelvin { kelvin } => {
+                write!(f, "{}", t!("action.set_kelvin", kelvin = kelvin))
+            }
+            UserAction::SetScene { scene } => {
+                write!(f, "{}", t!("action.set_scene", name = &scene.name))
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ use xcap::{
 };
 
 use crate::RGB8;
+use rust_i18n::t;
 
 /// A subregion of a screen that can be captured.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -237,7 +238,7 @@ impl ScreencapManager {
         }
 
         if count == 0 {
-            return Err(XCapError::new("No pixels to average"));
+            return Err(XCapError::new(&*t!("error.no_pixels")));
         }
 
         Ok(RGB8 {

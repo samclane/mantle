@@ -26,6 +26,7 @@ use std::collections::HashMap;
 
 use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Ui};
 use lifx_core::HSBK;
+use rust_i18n::t;
 
 const DEBOUNCE_DELAY_MS: u64 = 100;
 
@@ -37,7 +38,7 @@ pub fn handle_eyedropper(
     let mut color: Option<HSBK> = None;
     let show_eyedropper = app.show_eyedropper.entry(device.id()).or_insert(false);
     if create_highlighted_button(ui, "eyedropper", EYEDROPPER_ICON, *show_eyedropper)
-        .on_hover_text("Pick a color from the screen")
+        .on_hover_text(t!("capture.eyedropper_hover").to_string())
         .clicked()
     {
         *show_eyedropper = !*show_eyedropper;
@@ -100,7 +101,7 @@ pub fn handle_screencap(
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Screencap);
     if create_highlighted_button(ui, "monitor", MONITOR_ICON, is_active)
-        .on_hover_text("Toggle screen color capture")
+        .on_hover_text(t!("capture.monitor_hover").to_string())
         .clicked()
     {
         initialize_waveform_tracker(
@@ -130,7 +131,7 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
             .lock()
             .expect("Failed to get subregion");
 
-        let mut options = vec![("All".to_string(), RegionCaptureTarget::All)];
+        let mut options = vec![(t!("capture.all").to_string(), RegionCaptureTarget::All)];
 
         let mut monitor_options: Vec<(String, RegionCaptureTarget)> = app
             .screen_manager
@@ -161,23 +162,23 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
         options.extend(window_options);
 
         let selected_text = match &waveform.region {
-            RegionCaptureTarget::All => "All".to_string(),
+            RegionCaptureTarget::All => t!("capture.all").to_string(),
             RegionCaptureTarget::Monitor(monitors) => monitors
                 .first()
                 .map(|m| m.name().to_string())
-                .unwrap_or("Monitor".to_string()),
+                .unwrap_or(t!("capture.monitor").to_string()),
             RegionCaptureTarget::Window(windows) => windows
                 .first()
                 .map(|w| w.title().to_string())
-                .unwrap_or("Window".to_string()),
-            RegionCaptureTarget::Subregion(_) => "Subregion".to_string(),
+                .unwrap_or(t!("capture.window").to_string()),
+            RegionCaptureTarget::Subregion(_) => t!("capture.subregion").to_string(),
         };
         let is_subregion = matches!(&waveform.region, RegionCaptureTarget::Subregion(_));
         ui.push_id(device.id(), |ui| {
             ui.horizontal(|ui| {
-                ui.label("Capture Target");
+                ui.label(t!("capture.target_label").to_string());
                 if create_highlighted_button(ui, "screenshot", SCREENSHOT_ICON, is_subregion)
-                    .on_hover_text("Capture a screen subregion")
+                    .on_hover_text(t!("capture.subregion_hover").to_string())
                     .clicked()
                 {
                     waveform.region = RegionCaptureTarget::Subregion(vec![subregion.clone()]);
@@ -192,36 +193,36 @@ pub fn render_capture_target(app: &mut MantleApp, ui: &mut Ui, device: &DeviceIn
                         }
                     })
                     .response
-                    .on_hover_text("Choose which screen area to capture colors from");
+                    .on_hover_text(t!("capture.combo_hover").to_string());
             });
         });
 
         if let RegionCaptureTarget::Subregion(_) = waveform.region {
             let wide = ui.available_width() > 300.0;
             ui.horizontal(|ui| {
-                ui.label("X:");
+                ui.label(t!("capture.x_label").to_string());
                 ui.add(egui::DragValue::new(&mut subregion.x))
-                    .on_hover_text("Horizontal offset of the capture region");
-                ui.label("Y:");
+                    .on_hover_text(t!("capture.x_hover").to_string());
+                ui.label(t!("capture.y_label").to_string());
                 ui.add(egui::DragValue::new(&mut subregion.y))
-                    .on_hover_text("Vertical offset of the capture region");
+                    .on_hover_text(t!("capture.y_hover").to_string());
                 if wide {
-                    ui.label("Width:");
+                    ui.label(t!("capture.width_label").to_string());
                     ui.add(egui::DragValue::new(&mut subregion.width))
-                        .on_hover_text("Width of the capture region in pixels");
-                    ui.label("Height:");
+                        .on_hover_text(t!("capture.width_hover").to_string());
+                    ui.label(t!("capture.height_label").to_string());
                     ui.add(egui::DragValue::new(&mut subregion.height))
-                        .on_hover_text("Height of the capture region in pixels");
+                        .on_hover_text(t!("capture.height_hover").to_string());
                 }
             });
             if !wide {
                 ui.horizontal(|ui| {
-                    ui.label("Width:");
+                    ui.label(t!("capture.width_label").to_string());
                     ui.add(egui::DragValue::new(&mut subregion.width))
-                        .on_hover_text("Width of the capture region in pixels");
-                    ui.label("Height:");
+                        .on_hover_text(t!("capture.width_hover").to_string());
+                    ui.label(t!("capture.height_label").to_string());
                     ui.add(egui::DragValue::new(&mut subregion.height))
-                        .on_hover_text("Height of the capture region in pixels");
+                        .on_hover_text(t!("capture.height_hover").to_string());
                 });
             }
             render_subregion_preview(
@@ -257,7 +258,7 @@ pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64)
     let mut subregion = subregion_lock.lock().expect("Failed to get subregion");
 
     if create_highlighted_button(ui, "subregion", SUBREGION_ICON, *show_subregion)
-        .on_hover_text("Select screen subregion bounds")
+        .on_hover_text(t!("capture.select_subregion_hover").to_string())
         .clicked()
     {
         *show_subregion = !*show_subregion;
@@ -344,8 +345,8 @@ fn render_subregion_preview(
     ui.horizontal(|ui| {
         ui.add_space(4.0);
         if ui
-            .small_button("Refresh Preview")
-            .on_hover_text("Refresh monitor preview screenshots")
+            .small_button(t!("capture.refresh_preview").to_string())
+            .on_hover_text(t!("capture.refresh_preview_hover").to_string())
             .clicked()
         {
             textures.clear();
@@ -507,5 +508,5 @@ fn render_subregion_preview(
         });
     }
 
-    response.on_hover_text("Click and drag to define the capture subregion");
+    response.on_hover_text(t!("capture.drag_hint").to_string());
 }

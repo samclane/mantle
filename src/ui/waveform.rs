@@ -16,6 +16,7 @@ use super::widgets::create_highlighted_button;
 
 use eframe::egui::{self, Ui};
 use lifx_core::HSBK;
+use rust_i18n::t;
 
 pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Option<DeltaColor> {
     let mut color: Option<HSBK> = None;
@@ -48,7 +49,7 @@ pub fn handle_audio(app: &mut MantleApp, ui: &mut Ui, device: &DeviceInfo) -> Op
         .get(&device.id())
         .is_some_and(|w| w.active && w.mode == WaveformMode::Audio);
     if create_highlighted_button(ui, "audio", AUDIO_ICON, is_active)
-        .on_hover_text("Toggle audio-reactive color")
+        .on_hover_text(t!("waveform.audio_hover").to_string())
         .clicked()
     {
         initialize_waveform_tracker(
