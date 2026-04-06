@@ -1,6 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{mpsc, Arc, Mutex, MutexGuard},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex, MutexGuard,
+    },
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -32,6 +35,31 @@ use lifx_core::{ApplicationRequest, HSBK};
 use serde::{Deserialize, Serialize};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::TrayIcon;
+
+#[cfg(windows)]
+extern "system" {
+    fn ShowWindow(hWnd: isize, nCmdShow: i32) -> i32;
+    fn SetForegroundWindow(hWnd: isize) -> i32;
+    fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> isize;
+}
+
+#[cfg(windows)]
+fn win32_show_mantle_window() {
+    let title: Vec<u16> = "Mantle".encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+        if hwnd != 0 {
+            ShowWindow(hwnd, 5); // SW_SHOW
+            SetForegroundWindow(hwnd);
+        }
+    }
+}
+
+enum TrayAction {
+    Show,
+    Hide,
+    Quit,
+}
 
 // UI and window size constants
 pub const MAIN_WINDOW_SIZE: [f32; 2] = [420.0, 800.0];
@@ -100,13 +128,11 @@ pub struct MantleApp {
     #[serde(skip)]
     pub toasts: Toasts,
     #[serde(skip)]
+    window_visible: Arc<AtomicBool>,
+    #[serde(skip)]
     pub tray_icon: Option<TrayIcon>,
     #[serde(skip)]
-    pub tray_menu_show: Option<MenuItem>,
-    #[serde(skip)]
-    pub tray_menu_toggle_power: Option<MenuItem>,
-    #[serde(skip)]
-    pub tray_menu_quit: Option<MenuItem>,
+    tray_event_rx: Option<mpsc::Receiver<TrayAction>>,
     #[serde(skip)]
     pub monitor_preview_textures: HashMap<u32, egui::TextureHandle>,
     #[serde(skip)]
@@ -148,10 +174,9 @@ impl Default for MantleApp {
             toasts: Toasts::new()
                 .anchor(Align2::CENTER_TOP, (0.0, 10.0))
                 .direction(Direction::TopDown),
+            window_visible: Arc::new(AtomicBool::new(true)),
             tray_icon: None,
-            tray_menu_show: None,
-            tray_menu_toggle_power: None,
-            tray_menu_quit: None,
+            tray_event_rx: None,
             audio_manager: AudioManager::default(),
             show_audio_debug: false,
         }
@@ -159,7 +184,7 @@ impl Default for MantleApp {
 }
 
 impl MantleApp {
-    fn setup_tray_icon(&mut self) {
+    fn setup_tray_icon(&mut self, ctx: &egui::Context) {
         let menu = Menu::new();
         let show_item = MenuItem::new("Show/Hide", true, None);
         let toggle_item = MenuItem::new("Toggle All Power", true, None);
@@ -186,9 +211,43 @@ impl MantleApp {
             {
                 Ok(tray) => {
                     self.tray_icon = Some(tray);
-                    self.tray_menu_show = Some(show_item);
-                    self.tray_menu_toggle_power = Some(toggle_item);
-                    self.tray_menu_quit = Some(quit_item);
+
+                    let (tx, rx) = mpsc::channel();
+                    self.tray_event_rx = Some(rx);
+
+                    let show_id = show_item.id().clone();
+                    let toggle_id = toggle_item.id().clone();
+                    let quit_id = quit_item.id().clone();
+                    let ctx = ctx.clone();
+                    let visible = self.window_visible.clone();
+                    let lifx = self.lighting_manager.clone();
+
+                    std::thread::spawn(move || {
+                        while let Ok(event) = MenuEvent::receiver().recv() {
+                            if event.id == show_id {
+                                if visible.load(Ordering::SeqCst) {
+                                    let _ = tx.send(TrayAction::Hide);
+                                    ctx.request_repaint();
+                                } else {
+                                    #[cfg(windows)]
+                                    win32_show_mantle_window();
+                                    let _ = tx.send(TrayAction::Show);
+                                    ctx.request_repaint();
+                                }
+                            } else if event.id == toggle_id {
+                                if let Err(e) = lifx.toggle_power() {
+                                    log::error!("Failed to toggle power: {}", e);
+                                }
+                            } else if event.id == quit_id {
+                                #[cfg(windows)]
+                                if !visible.load(Ordering::SeqCst) {
+                                    win32_show_mantle_window();
+                                }
+                                let _ = tx.send(TrayAction::Quit);
+                                ctx.request_repaint();
+                            }
+                        }
+                    });
                 }
                 Err(e) => log::error!("Failed to create tray icon: {}", e),
             }
@@ -196,23 +255,21 @@ impl MantleApp {
     }
 
     fn handle_tray_events(&mut self, ctx: &egui::Context) {
-        if let Ok(event) = MenuEvent::receiver().try_recv() {
-            if let Some(ref show) = self.tray_menu_show {
-                if event.id == show.id() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                }
-            }
-            if let Some(ref toggle) = self.tray_menu_toggle_power {
-                if event.id == toggle.id() {
-                    if let Err(e) = self.lighting_manager.toggle_power() {
-                        log::error!("Failed to toggle power: {}", e);
+        if let Some(ref rx) = self.tray_event_rx {
+            while let Ok(action) = rx.try_recv() {
+                match action {
+                    TrayAction::Show => {
+                        self.window_visible.store(true, Ordering::SeqCst);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                     }
-                }
-            }
-            if let Some(ref quit) = self.tray_menu_quit {
-                if event.id == quit.id() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    TrayAction::Hide => {
+                        self.window_visible.store(false, Ordering::SeqCst);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                    }
+                    TrayAction::Quit => {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
                 }
             }
         }
@@ -251,11 +308,11 @@ impl MantleApp {
                     failures
                 ));
             }
-            app.setup_tray_icon();
+            app.setup_tray_icon(&cc.egui_ctx);
             return app;
         }
         let mut app = Self::default();
-        app.setup_tray_icon();
+        app.setup_tray_icon(&cc.egui_ctx);
         app
     }
 
