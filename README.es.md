@@ -4,7 +4,8 @@
 
 ![Logotipo de Mantle](./res/logo128.png)
 
-🌐 [English](README.md) | [Español](README.es.md) | [简体中文](README.zh-CN.md)
+🌐 [English](README.md) | [Español](README.es.md) | [简体中文](README.zh-CN.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
+
 
 Mantle es una aplicación de escritorio para controlar luces LIFX, nacida de las cenizas de [`lifx_control_panel`](https://github.com/samclane/LIFX-Control-Panel).
 
@@ -56,3 +57,4 @@ Simplemente ejecuta `cargo build --release` para compilar el proyecto. Asegúrat
 | Español | Sí         | Sí           |
 | Chino (simplificado) | Sí | Sí |
 | Francés | Sí | Sí |
+| Alemán | Sí | Sí |
