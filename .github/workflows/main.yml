@@ -140,14 +140,14 @@ jobs:
           path: artifacts/
       - name: Rename binaries for release
         run: |
-          mv artifacts/mantle-linux-x86_64/mantle   artifacts/mantle-linux-x86_64
-          mv artifacts/mantle-macos-aarch64/mantle   artifacts/mantle-macos-aarch64
-          mv artifacts/mantle-windows-x86_64/mantle.exe artifacts/mantle-windows-x86_64.exe
+          mv artifacts/mantle-linux-x86_64/mantle   mantle-linux-x86_64
+          mv artifacts/mantle-macos-aarch64/mantle   mantle-macos-aarch64
+          mv artifacts/mantle-windows-x86_64/mantle.exe mantle-windows-x86_64.exe
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/mantle-linux-x86_64
-            artifacts/mantle-macos-aarch64
-            artifacts/mantle-windows-x86_64.exe
+            mantle-linux-x86_64
+            mantle-macos-aarch64
+            mantle-windows-x86_64.exe
           generate_release_notes: true
