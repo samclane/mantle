@@ -111,6 +111,7 @@ capture.select_subregion_hover: "Select screen subregion bounds"
 waveform.audio_hover: "Toggle audio-reactive color"
 
 # Settings window
+settings.language: "Language:"
 settings.title: "Settings"
 settings.keyboard_shortcuts: "Keyboard Shortcuts"
 settings.add_new_shortcut: "Add New Shortcut"

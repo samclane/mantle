@@ -4,6 +4,8 @@
 
 ![Mantle Logo](./res/logo128.png)
 
+🌐 [English](README.md) | [Español](README.es.md)
+
 Mantle is a desktop application for controlling LIFX lights, born from the ashes of [`lifx_control_panel`](https://github.com/samclane/LIFX-Control-Panel).
 
 ## Releases
@@ -45,3 +47,10 @@ Join the Discord server [here](https://discord.gg/TwqSeTTYqX) to provide feedbac
 - [`lifxlan (Python)`](https://github.com/mclarkk/lifxlan)
 - [`eframe_template`](https://github.com/emilk/eframe_template)
 - [`tabler icons`](https://tabler.io/icons)
+
+## Translations
+
+| Language | Is Complete | Is Machine |
+|----------|-------------|------------|
+| English  | Yes         | No         |
+| Spanish  | Yes         | Yes        |

@@ -282,6 +282,7 @@ impl MantleApp {
         if let Some(storage) = cc.storage {
             let mut app =
                 eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
+            rust_i18n::set_locale(&app.settings.locale);
             let failures: Vec<KeyboardShortcutAction> = app
                 .settings
                 .custom_shortcuts

@@ -27,6 +27,7 @@ const AUDIO_BUFFER_RANGE: std::ops::RangeInclusive<usize> = 1024..=AUDIO_BUFFER_
 #[derive(Deserialize, Serialize)]
 pub struct Settings {
     pub custom_shortcuts: Vec<KeyboardShortcutAction>,
+    pub locale: String,
     pub refresh_rate_ms: u64,
     pub transition_duration_ms: u64,
     pub update_interval_ms: u64,
@@ -39,6 +40,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             custom_shortcuts: Vec::new(),
+            locale: "en".to_string(),
             refresh_rate_ms: DEFAULT_REFRESH_RATE_MS,
             transition_duration_ms: DEFAULT_TRANSITION_MS,
             update_interval_ms: DEFAULT_UPDATE_INTERVAL_MS,
@@ -46,6 +48,14 @@ impl Default for Settings {
             scheduled_scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
         }
+    }
+}
+
+fn locale_display_name(code: &str) -> &str {
+    match code {
+        "en" => "English",
+        "es" => "Español",
+        _ => code,
     }
 }
 
@@ -62,6 +72,8 @@ impl MantleApp {
                     ui.heading(t!("settings.title").to_string());
                     ui.separator();
                     ui.add_space(10.0);
+
+                    self.render_locale_selector(ui);
 
                     self.render_refresh_rate(ui);
 
@@ -322,6 +334,26 @@ impl MantleApp {
                     .text(t!("settings.samples").to_string()),
             )
             .on_hover_text(t!("settings.audio_buffer_hover").to_string());
+        });
+    }
+
+    fn render_locale_selector(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(t!("settings.language").to_string());
+            let current = self.settings.locale.clone();
+            egui::ComboBox::from_id_salt("locale_selector")
+                .selected_text(locale_display_name(&current))
+                .show_ui(ui, |ui| {
+                    for locale in rust_i18n::available_locales!() {
+                        if ui
+                            .selectable_label(current == locale, locale_display_name(locale))
+                            .clicked()
+                        {
+                            self.settings.locale = locale.to_string();
+                            rust_i18n::set_locale(locale);
+                        }
+                    }
+                });
         });
     }
 
