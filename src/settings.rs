@@ -58,6 +58,7 @@ fn locale_display_name(code: &str) -> &str {
         "zh-CN" => "简体中文",
         "fr" => "Français",
         "de" => "Deutsch",
+        "pt-BR" => "Português (Brasil)",
         _ => code,
     }
 }
