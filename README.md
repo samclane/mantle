@@ -12,7 +12,7 @@ Mantle is a desktop application for controlling LIFX lights, born from the ashes
 
 You can download the latest release [here](https://github.com/samclane/mantle/releases).
 
-**Note:** Right now I'm only building for Windows, but it should build on Linux and MacOS as well. Still getting GitHub Actions set up for that.
+Builds are available for **Windows** (x86_64), **Linux** (x86_64), and **macOS** (Apple Silicon / aarch64).
 
 ## Screenshots
 

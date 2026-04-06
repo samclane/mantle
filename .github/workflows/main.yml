@@ -28,12 +28,12 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-cargo-build-stable-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-test-stable-${{ hashFiles('**/Cargo.toml') }}
     - name: Install stable toolchain
       uses: dtolnay/rust-toolchain@stable
     - name: Install Dependencies
       run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev libgtk-3-dev libxdo-dev --assume-yes
-      if: runner.os == 'linux'
+      if: runner.os == 'Linux'
     - name: Run tests
       run: cargo test --verbose -- --nocapture
 
@@ -42,10 +42,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout sources
@@ -66,7 +63,6 @@ jobs:
           components: clippy
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev libgtk-3-dev libxdo-dev --assume-yes
-        if: runner.os == 'linux'
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
@@ -75,10 +71,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout sources
@@ -94,12 +87,20 @@ jobs:
     name: build on ${{ matrix.os }}
     permissions:
       contents: read
-      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-    timeout-minutes: 30
+        include:
+          - os: ubuntu-latest
+            artifact-name: mantle-linux-x86_64
+            binary-path: target/release/mantle
+          - os: windows-latest
+            artifact-name: mantle-windows-x86_64
+            binary-path: target/release/mantle.exe
+          - os: macos-latest
+            artifact-name: mantle-macos-aarch64
+            binary-path: target/release/mantle
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@v4
     - uses: actions/cache@v4
@@ -110,11 +111,43 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-cargo-build-stable-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.toml') }}
     - name: Install stable toolchain
       uses: dtolnay/rust-toolchain@stable
     - name: Install Dependencies
       run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxtst-dev libevdev-dev libgtk-3-dev libxdo-dev --assume-yes
-      if: runner.os == 'linux'
-    - name: Run builds
-      run: cargo build --verbose
+      if: runner.os == 'Linux'
+    - name: Build release
+      run: cargo build --release --verbose
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact-name }}
+        path: ${{ matrix.binary-path }}
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - name: Rename binaries for release
+        run: |
+          mv artifacts/mantle-linux-x86_64/mantle   artifacts/mantle-linux-x86_64
+          mv artifacts/mantle-macos-aarch64/mantle   artifacts/mantle-macos-aarch64
+          mv artifacts/mantle-windows-x86_64/mantle.exe artifacts/mantle-windows-x86_64.exe
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/mantle-linux-x86_64
+            artifacts/mantle-macos-aarch64
+            artifacts/mantle-windows-x86_64.exe
+          generate_release_notes: true
