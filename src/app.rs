@@ -895,6 +895,16 @@ impl MantleApp {
                 ui.close_menu();
             }
             if ui
+                .add(egui::Button::new("Hide to Tray"))
+                .on_hover_text("Hide window to system tray")
+                .clicked()
+            {
+                self.window_visible.store(false, Ordering::SeqCst);
+                ui.ctx()
+                    .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                ui.close_menu();
+            }
+            if ui
                 .add(
                     egui::Button::new("Quit")
                         .shortcut_text(ui.ctx().format_shortcut(&close_shortcut)),
