@@ -748,6 +748,7 @@ mod tests {
     fn settings_serde_round_trip() {
         let settings = Settings {
             custom_shortcuts: Vec::new(),
+            locale: "en".to_string(),
             refresh_rate_ms: 1000,
             transition_duration_ms: 0,
             update_interval_ms: 2000,
