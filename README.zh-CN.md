@@ -4,7 +4,7 @@
 
 ![Mantle Logo](./res/logo128.png)
 
-🌐 [English](README.md) | [Español](README.es.md) | [简体中文](README.zh-CN.md)
+🌐 [English](README.md) | [Español](README.es.md) | [简体中文](README.zh-CN.md) | [Français](README.fr.md)
 
 Mantle 是一款用于控制 LIFX 灯具的桌面应用程序，它脱胎于 [`lifx_control_panel`](https://github.com/samclane/LIFX-Control-Panel) 项目。
 
@@ -55,3 +55,4 @@ Mantle 是一款用于控制 LIFX 灯具的桌面应用程序，它脱胎于 [`l
 | 英语 | 是 | 否 |
 | 西班牙语 | 是 | 是 |
 | 中文（简体） | 是 | 是 |
+| 法语 | 是 | 是 |

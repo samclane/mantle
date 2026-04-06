@@ -55,3 +55,4 @@ Simplemente ejecuta `cargo build --release` para compilar el proyecto. Asegúrat
 | Inglés  | Sí         | No           |
 | Español | Sí         | Sí           |
 | Chino (simplificado) | Sí | Sí |
+| Francés | Sí | Sí |
