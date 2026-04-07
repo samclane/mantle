@@ -68,6 +68,11 @@ preset.yellow: "Jaune"
 preset.green: "Vert"
 preset.blue: "Bleu"
 preset.purple: "Violet"
+preset.add_custom: "Enregistrer la couleur actuelle comme préréglage"
+preset.remove_custom: "Supprimer"
+preset.custom_added: "Couleur personnalisée enregistrée"
+preset.custom_removed: "Couleur personnalisée supprimée"
+preset.custom_prefix: "Personnalisé"
 
 # Curseurs / Widgets
 slider.hue: "Teinte"

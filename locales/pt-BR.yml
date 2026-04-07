@@ -68,6 +68,11 @@ preset.yellow: "Amarelo"
 preset.green: "Verde"
 preset.blue: "Azul"
 preset.purple: "Roxo"
+preset.add_custom: "Salvar cor atual como predefinição"
+preset.remove_custom: "Remover"
+preset.custom_added: "Cor personalizada salva"
+preset.custom_removed: "Cor personalizada removida"
+preset.custom_prefix: "Personalizada"
 
 # Controles deslizantes / widgets
 slider.hue: "Matiz"

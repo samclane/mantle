@@ -757,7 +757,12 @@ impl MantleApp {
         ui.data_mut(|d| d.insert_temp(card_id, is_hovered));
     }
 
-    fn display_color_controls(&self, ui: &mut Ui, device: &DeviceInfo, color: HSBK) -> DeltaColor {
+    fn display_color_controls(
+        &mut self,
+        ui: &mut Ui,
+        device: &DeviceInfo,
+        color: HSBK,
+    ) -> DeltaColor {
         let HSBK {
             mut hue,
             mut saturation,
@@ -858,6 +863,7 @@ impl MantleApp {
         ];
 
         ui.add_space(2.0);
+        let mut remove_custom_idx: Option<usize> = None;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
             color_wheel(ui, &mut hue, &mut saturation, 28.0);
@@ -879,7 +885,74 @@ impl MantleApp {
                 }
                 resp.on_hover_text(*label);
             }
+
+            for (idx, (label, custom)) in self.settings.custom_colors.iter().enumerate() {
+                let preset_hsbk = HSBK::from(*custom);
+                let swatch_color = Color32::from(crate::HSBK32::from(preset_hsbk));
+                let size = egui::vec2(18.0, 18.0);
+                let (resp, painter) = ui.allocate_painter(size, egui::Sense::click());
+                let rounding = egui::Rounding::same(3.0);
+                painter.rect_filled(resp.rect, rounding, swatch_color);
+                painter.rect_stroke(
+                    resp.rect.shrink(1.0),
+                    egui::Rounding::same(2.0),
+                    Stroke::new(0.5, Color32::from_white_alpha(60)),
+                );
+                if resp.hovered() {
+                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5, Color32::WHITE));
+                }
+                if resp.clicked() {
+                    hue = preset_hsbk.hue;
+                    saturation = preset_hsbk.saturation;
+                    brightness = preset_hsbk.brightness;
+                    kelvin = preset_hsbk.kelvin;
+                }
+                resp.context_menu(|ui| {
+                    if ui.button(t!("preset.remove_custom")).clicked() {
+                        remove_custom_idx = Some(idx);
+                        ui.close_menu();
+                    }
+                });
+                resp.on_hover_text(label.as_str());
+            }
+
+            let size = egui::vec2(18.0, 18.0);
+            let (resp, painter) = ui.allocate_painter(size, egui::Sense::click());
+            let rounding = egui::Rounding::same(3.0);
+            let plus_fill = if resp.hovered() {
+                Color32::from_rgb(55, 55, 75)
+            } else {
+                Color32::from_rgb(40, 40, 55)
+            };
+            painter.rect_filled(resp.rect, rounding, plus_fill);
+            painter.text(
+                resp.rect.center(),
+                Align2::CENTER_CENTER,
+                "+",
+                egui::FontId::proportional(14.0),
+                Color32::from_white_alpha(180),
+            );
+            if resp.clicked() {
+                let color = crate::HSBK32 {
+                    hue: hue as u32,
+                    saturation: saturation as u32,
+                    brightness: brightness as u32,
+                    kelvin: kelvin as u32,
+                };
+                let name = format!(
+                    "{} #{}",
+                    t!("preset.custom_prefix"),
+                    self.settings.custom_colors.len() + 1,
+                );
+                self.settings.custom_colors.push((name, color));
+                self.info_toast(&t!("preset.custom_added"));
+            }
+            resp.on_hover_text(t!("preset.add_custom"));
         });
+        if let Some(idx) = remove_custom_idx {
+            self.settings.custom_colors.remove(idx);
+            self.info_toast(&t!("preset.custom_removed"));
+        }
 
         let duration = if self.settings.transition_duration_ms > 0 {
             Some(self.settings.transition_duration_ms as u32)

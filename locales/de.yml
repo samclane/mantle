@@ -68,6 +68,11 @@ preset.yellow: "Gelb"
 preset.green: "Grün"
 preset.blue: "Blau"
 preset.purple: "Lila"
+preset.add_custom: "Aktuelle Farbe als Voreinstellung speichern"
+preset.remove_custom: "Entfernen"
+preset.custom_added: "Benutzerdefinierte Farbe gespeichert"
+preset.custom_removed: "Benutzerdefinierte Farbe entfernt"
+preset.custom_prefix: "Benutzerdefiniert"
 
 # Regler / Widgets
 slider.hue: "Farbton"

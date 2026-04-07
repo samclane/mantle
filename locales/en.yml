@@ -68,6 +68,11 @@ preset.yellow: "Yellow"
 preset.green: "Green"
 preset.blue: "Blue"
 preset.purple: "Purple"
+preset.add_custom: "Save current color as preset"
+preset.remove_custom: "Remove"
+preset.custom_added: "Custom color saved"
+preset.custom_removed: "Custom color removed"
+preset.custom_prefix: "Custom"
 
 # Sliders / widgets
 slider.hue: "Hue"

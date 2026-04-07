@@ -34,6 +34,8 @@ pub struct Settings {
     pub scenes: Vec<Scene>,
     pub scheduled_scenes: Vec<ScheduledScene>,
     pub audio_buffer_size: usize,
+    #[serde(default)]
+    pub custom_colors: Vec<(String, HSBK32)>,
 }
 
 impl Default for Settings {
@@ -47,6 +49,7 @@ impl Default for Settings {
             scenes: Vec::new(),
             scheduled_scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
+            custom_colors: Vec::new(),
         }
     }
 }

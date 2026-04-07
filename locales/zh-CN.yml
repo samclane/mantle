@@ -68,6 +68,11 @@ preset.yellow: "黄色"
 preset.green: "绿色"
 preset.blue: "蓝色"
 preset.purple: "紫色"
+preset.add_custom: "将当前颜色保存为预设"
+preset.remove_custom: "移除"
+preset.custom_added: "自定义颜色已保存"
+preset.custom_removed: "自定义颜色已移除"
+preset.custom_prefix: "自定义"
 
 # 滑块 / 控件
 slider.hue: "色相"

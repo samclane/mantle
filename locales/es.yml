@@ -68,6 +68,11 @@ preset.yellow: "Amarillo"
 preset.green: "Verde"
 preset.blue: "Azul"
 preset.purple: "Púrpura"
+preset.add_custom: "Guardar color actual como preajuste"
+preset.remove_custom: "Eliminar"
+preset.custom_added: "Color personalizado guardado"
+preset.custom_removed: "Color personalizado eliminado"
+preset.custom_prefix: "Personalizado"
 
 # Deslizadores / widgets
 slider.hue: "Tono"
