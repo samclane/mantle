@@ -74,6 +74,11 @@ preset.custom_added: "Benutzerdefinierte Farbe gespeichert"
 preset.custom_removed: "Benutzerdefinierte Farbe entfernt"
 preset.custom_prefix: "Benutzerdefiniert"
 
+# RGB-Eingabe
+rgb.r: "R"
+rgb.g: "G"
+rgb.b: "B"
+
 # Regler / Widgets
 slider.hue: "Farbton"
 slider.saturation: "Sättigung"

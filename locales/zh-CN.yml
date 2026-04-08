@@ -74,6 +74,11 @@ preset.custom_added: "自定义颜色已保存"
 preset.custom_removed: "自定义颜色已移除"
 preset.custom_prefix: "自定义"
 
+# RGB 输入
+rgb.r: "R"
+rgb.g: "G"
+rgb.b: "B"
+
 # 滑块 / 控件
 slider.hue: "色相"
 slider.saturation: "饱和度"

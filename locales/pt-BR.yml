@@ -74,6 +74,11 @@ preset.custom_added: "Cor personalizada salva"
 preset.custom_removed: "Cor personalizada removida"
 preset.custom_prefix: "Personalizada"
 
+# Entrada RGB
+rgb.r: "R"
+rgb.g: "V"
+rgb.b: "A"
+
 # Controles deslizantes / widgets
 slider.hue: "Matiz"
 slider.saturation: "Saturação"

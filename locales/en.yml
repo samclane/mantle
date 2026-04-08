@@ -74,6 +74,11 @@ preset.custom_added: "Custom color saved"
 preset.custom_removed: "Custom color removed"
 preset.custom_prefix: "Custom"
 
+# RGB input
+rgb.r: "R"
+rgb.g: "G"
+rgb.b: "B"
+
 # Sliders / widgets
 slider.hue: "Hue"
 slider.saturation: "Saturation"

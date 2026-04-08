@@ -74,6 +74,11 @@ preset.custom_added: "Color personalizado guardado"
 preset.custom_removed: "Color personalizado eliminado"
 preset.custom_prefix: "Personalizado"
 
+# Entrada RGB
+rgb.r: "R"
+rgb.g: "V"
+rgb.b: "A"
+
 # Deslizadores / widgets
 slider.hue: "Tono"
 slider.saturation: "Saturación"

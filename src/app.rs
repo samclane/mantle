@@ -23,7 +23,7 @@ use crate::{
     toggle_button,
     ui::{
         color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders,
-        render_capture_target, zone_strip,
+        render_capture_target, rgb_input, zone_strip,
     },
     BulbInfo, LifxManager, ScreencapManager,
 };
@@ -953,6 +953,9 @@ impl MantleApp {
             self.settings.custom_colors.remove(idx);
             self.info_toast(&t!("preset.custom_removed"));
         }
+
+        ui.add_space(4.0);
+        rgb_input(ui, &mut hue, &mut saturation, &mut brightness, &mut kelvin);
 
         let duration = if self.settings.transition_duration_ms > 0 {
             Some(self.settings.transition_duration_ms as u32)

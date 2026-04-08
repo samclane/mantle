@@ -653,3 +653,106 @@ pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32
 
     changed
 }
+
+fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some((r, g, b))
+}
+
+/// RGB color input with hex field, R/G/B drag-value fields, and a preview swatch.
+/// Converts user input to HSBK via the existing `RGB8 -> HSBK` path. Returns
+/// `true` if the color was changed.
+pub fn rgb_input(
+    ui: &mut Ui,
+    hue: &mut u16,
+    saturation: &mut u16,
+    brightness: &mut u16,
+    kelvin: &mut u16,
+) -> bool {
+    let current_hsbk = HSBK {
+        hue: *hue,
+        saturation: *saturation,
+        brightness: *brightness,
+        kelvin: *kelvin,
+    };
+    let rgb = RGB8::from(current_hsbk);
+    let mut r = rgb.red;
+    let mut g = rgb.green;
+    let mut b = rgb.blue;
+    let mut changed = false;
+
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+
+        let swatch_size = egui::vec2(18.0, 18.0);
+        let (swatch_resp, painter) = ui.allocate_painter(swatch_size, Sense::hover());
+        let rounding = egui::Rounding::same(3.0);
+        painter.rect_filled(swatch_resp.rect, rounding, Color32::from_rgb(r, g, b));
+        painter.rect_stroke(
+            swatch_resp.rect,
+            rounding,
+            Stroke::new(1.0, Color32::from_rgb(60, 60, 80)),
+        );
+
+        let hex = &mut format!("#{:02X}{:02X}{:02X}", r, g, b);
+        let hex_resp = ui.add(
+            egui::TextEdit::singleline(hex)
+                .desired_width(58.0)
+                .font(egui::FontId::monospace(12.0)),
+        );
+        if hex_resp.changed() {
+            if let Some((nr, ng, nb)) = parse_hex_color(hex) {
+                r = nr;
+                g = ng;
+                b = nb;
+                changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        slider_label(ui, &t!("rgb.r"));
+        if ui
+            .add(egui::DragValue::new(&mut r).range(0..=255u8).speed(1.0))
+            .changed()
+        {
+            changed = true;
+        }
+
+        slider_label(ui, &t!("rgb.g"));
+        if ui
+            .add(egui::DragValue::new(&mut g).range(0..=255u8).speed(1.0))
+            .changed()
+        {
+            changed = true;
+        }
+
+        slider_label(ui, &t!("rgb.b"));
+        if ui
+            .add(egui::DragValue::new(&mut b).range(0..=255u8).speed(1.0))
+            .changed()
+        {
+            changed = true;
+        }
+    });
+
+    if changed {
+        let new_hsbk: HSBK = RGB8 {
+            red: r,
+            green: g,
+            blue: b,
+            temperature: Some(*kelvin),
+        }
+        .into();
+        *hue = new_hsbk.hue;
+        *saturation = new_hsbk.saturation;
+        *brightness = new_hsbk.brightness;
+    }
+
+    changed
+}
