@@ -632,12 +632,6 @@ pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32
         Stroke::new(1.5, Color32::from_rgb(60, 60, 80)),
     );
 
-    let current_angle = *hue as f32 / 65535.0 * std::f32::consts::TAU;
-    let current_r = *saturation as f32 / 65535.0 * radius;
-    let indicator_pos = center + Vec2::new(current_angle.cos(), current_angle.sin()) * current_r;
-    painter.circle_filled(indicator_pos, 5.0, Color32::WHITE);
-    painter.circle_stroke(indicator_pos, 5.0, Stroke::new(1.5, Color32::BLACK));
-
     if response.clicked() || response.dragged() {
         if let Some(pos) = response.interact_pointer_pos() {
             let delta = pos - center;
@@ -650,6 +644,12 @@ pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32
             changed = true;
         }
     }
+
+    let current_angle = *hue as f32 / 65535.0 * std::f32::consts::TAU;
+    let current_r = *saturation as f32 / 65535.0 * radius;
+    let indicator_pos = center + Vec2::new(current_angle.cos(), current_angle.sin()) * current_r;
+    painter.circle_filled(indicator_pos, 5.0, Color32::WHITE);
+    painter.circle_stroke(indicator_pos, 5.0, Stroke::new(1.5, Color32::BLACK));
 
     changed
 }
