@@ -335,7 +335,12 @@ pub fn color_slider(
                 .ctx()
                 .animate_bool_responsive(response.id.with("handle_grow"), dragging);
             let radius = egui::lerp(handle_radius..=(handle_radius * 1.8), anim_t);
-            let picked_color = get_color_at_value(*value);
+            let normalized = remap_clamp(
+                *value as f32,
+                RangeInclusive::new(*range.start() as f32, *range.end() as f32),
+                0.0..=u16::MAX as f32,
+            ) as u16;
+            let picked_color = get_color_at_value(normalized);
             ui.painter().circle(
                 pos2(x, rect.center().y),
                 radius + 1.0,
