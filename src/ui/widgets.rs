@@ -687,23 +687,34 @@ pub fn rgb_input(
     let pending_id = ui.id().with("rgb_pending");
     let device_rgb = RGB8::from(device_color);
 
-    // If a slider, wheel, or preset already changed the HSBK this frame,
-    // drop any stored RGB override so their change takes effect.
+    // Detect whether a slider, wheel, or preset already changed the HSBK
+    // this frame so we can clear any stored RGB override and yield to it.
     let other_control_changed = *hue != device_color.hue
         || *saturation != device_color.saturation
         || *brightness != device_color.brightness
         || *kelvin != device_color.kelvin;
     if other_control_changed {
         ui.data_mut(|d| d.insert_temp(pending_id, None::<[u8; 3]>));
-        return false;
     }
 
-    let stored: Option<[u8; 3]> = ui
-        .data(|d| d.get_temp::<Option<[u8; 3]>>(pending_id))
-        .flatten();
-    let mut r = stored.map_or(device_rgb.red, |p| p[0]);
-    let mut g = stored.map_or(device_rgb.green, |p| p[1]);
-    let mut b = stored.map_or(device_rgb.blue, |p| p[2]);
+    let stored: Option<[u8; 3]> = if other_control_changed {
+        None
+    } else {
+        ui.data(|d| d.get_temp::<Option<[u8; 3]>>(pending_id))
+            .flatten()
+    };
+
+    // Derive display RGB from the current HSBK (which already includes any
+    // slider / wheel / preset changes applied earlier this frame).
+    let current_rgb = RGB8::from(HSBK {
+        hue: *hue,
+        saturation: *saturation,
+        brightness: *brightness,
+        kelvin: *kelvin,
+    });
+    let mut r = stored.map_or(current_rgb.red, |p| p[0]);
+    let mut g = stored.map_or(current_rgb.green, |p| p[1]);
+    let mut b = stored.map_or(current_rgb.blue, |p| p[2]);
     let mut drag_changed = false;
 
     let mut any_focused = false;
@@ -759,6 +770,11 @@ pub fn rgb_input(
             drag_changed = true;
         }
     });
+
+    // Another control is driving the color — nothing to commit from here.
+    if other_control_changed {
+        return false;
+    }
 
     let commit = |hue: &mut u16, sat: &mut u16, bri: &mut u16, kelvin: &u16, r, g, b| {
         let new_hsbk: HSBK = RGB8 {
