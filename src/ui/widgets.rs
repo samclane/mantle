@@ -666,26 +666,47 @@ fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
 }
 
 /// RGB color input with hex field, R/G/B drag-value fields, and a preview swatch.
-/// Converts user input to HSBK via the existing `RGB8 -> HSBK` path. Returns
-/// `true` if the color was changed.
+/// Converts user input to HSBK via the existing `RGB8 -> HSBK` path.
+///
+/// Keyboard edits are deferred until the field loses focus so intermediate
+/// keystrokes don't flicker the bulb. Drag-based edits commit immediately.
+/// After a commit the stored RGB override persists until the device reports
+/// a matching color, keeping the fields stable across the feedback delay.
+///
+/// `device_color` is the raw device-reported HSBK *before* any slider / wheel /
+/// preset modifications this frame; it lets us detect when another control
+/// changed the color so we can yield to it.
 pub fn rgb_input(
     ui: &mut Ui,
     hue: &mut u16,
     saturation: &mut u16,
     brightness: &mut u16,
     kelvin: &mut u16,
+    device_color: HSBK,
 ) -> bool {
-    let current_hsbk = HSBK {
-        hue: *hue,
-        saturation: *saturation,
-        brightness: *brightness,
-        kelvin: *kelvin,
-    };
-    let rgb = RGB8::from(current_hsbk);
-    let mut r = rgb.red;
-    let mut g = rgb.green;
-    let mut b = rgb.blue;
-    let mut changed = false;
+    let pending_id = ui.id().with("rgb_pending");
+    let device_rgb = RGB8::from(device_color);
+
+    // If a slider, wheel, or preset already changed the HSBK this frame,
+    // drop any stored RGB override so their change takes effect.
+    let other_control_changed = *hue != device_color.hue
+        || *saturation != device_color.saturation
+        || *brightness != device_color.brightness
+        || *kelvin != device_color.kelvin;
+    if other_control_changed {
+        ui.data_mut(|d| d.insert_temp(pending_id, None::<[u8; 3]>));
+        return false;
+    }
+
+    let stored: Option<[u8; 3]> = ui
+        .data(|d| d.get_temp::<Option<[u8; 3]>>(pending_id))
+        .flatten();
+    let mut r = stored.map_or(device_rgb.red, |p| p[0]);
+    let mut g = stored.map_or(device_rgb.green, |p| p[1]);
+    let mut b = stored.map_or(device_rgb.blue, |p| p[2]);
+    let mut drag_changed = false;
+
+    let mut any_focused = false;
 
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
@@ -706,42 +727,40 @@ pub fn rgb_input(
                 .desired_width(58.0)
                 .font(egui::FontId::monospace(12.0)),
         );
+        any_focused |= hex_resp.has_focus();
         if hex_resp.changed() {
             if let Some((nr, ng, nb)) = parse_hex_color(hex) {
                 r = nr;
                 g = ng;
                 b = nb;
-                changed = true;
             }
         }
 
         ui.add_space(2.0);
+
         slider_label(ui, &t!("rgb.r"));
-        if ui
-            .add(egui::DragValue::new(&mut r).range(0..=255u8).speed(1.0))
-            .changed()
-        {
-            changed = true;
+        let r_resp = ui.add(egui::DragValue::new(&mut r).range(0..=255u8).speed(1.0));
+        any_focused |= r_resp.has_focus();
+        if r_resp.changed() && !r_resp.has_focus() {
+            drag_changed = true;
         }
 
         slider_label(ui, &t!("rgb.g"));
-        if ui
-            .add(egui::DragValue::new(&mut g).range(0..=255u8).speed(1.0))
-            .changed()
-        {
-            changed = true;
+        let g_resp = ui.add(egui::DragValue::new(&mut g).range(0..=255u8).speed(1.0));
+        any_focused |= g_resp.has_focus();
+        if g_resp.changed() && !g_resp.has_focus() {
+            drag_changed = true;
         }
 
         slider_label(ui, &t!("rgb.b"));
-        if ui
-            .add(egui::DragValue::new(&mut b).range(0..=255u8).speed(1.0))
-            .changed()
-        {
-            changed = true;
+        let b_resp = ui.add(egui::DragValue::new(&mut b).range(0..=255u8).speed(1.0));
+        any_focused |= b_resp.has_focus();
+        if b_resp.changed() && !b_resp.has_focus() {
+            drag_changed = true;
         }
     });
 
-    if changed {
+    let commit = |hue: &mut u16, sat: &mut u16, bri: &mut u16, kelvin: &u16, r, g, b| {
         let new_hsbk: HSBK = RGB8 {
             red: r,
             green: g,
@@ -750,9 +769,28 @@ pub fn rgb_input(
         }
         .into();
         *hue = new_hsbk.hue;
-        *saturation = new_hsbk.saturation;
-        *brightness = new_hsbk.brightness;
-    }
+        *sat = new_hsbk.saturation;
+        *bri = new_hsbk.brightness;
+    };
 
-    changed
+    if drag_changed {
+        commit(hue, saturation, brightness, kelvin, r, g, b);
+        ui.data_mut(|d| d.insert_temp(pending_id, Some([r, g, b])));
+        true
+    } else if any_focused {
+        ui.data_mut(|d| d.insert_temp(pending_id, Some([r, g, b])));
+        false
+    } else if stored.is_some() {
+        commit(hue, saturation, brightness, kelvin, r, g, b);
+        // Clear once the device reports a color close to what we committed.
+        // Re-insert every frame to prevent egui's temp-data GC from evicting.
+        let caught_up = (r as i16 - device_rgb.red as i16).abs() <= 2
+            && (g as i16 - device_rgb.green as i16).abs() <= 2
+            && (b as i16 - device_rgb.blue as i16).abs() <= 2;
+        let keep = if caught_up { None } else { Some([r, g, b]) };
+        ui.data_mut(|d| d.insert_temp(pending_id, keep));
+        !caught_up
+    } else {
+        false
+    }
 }

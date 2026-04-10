@@ -955,7 +955,14 @@ impl MantleApp {
         }
 
         ui.add_space(4.0);
-        rgb_input(ui, &mut hue, &mut saturation, &mut brightness, &mut kelvin);
+        rgb_input(
+            ui,
+            &mut hue,
+            &mut saturation,
+            &mut brightness,
+            &mut kelvin,
+            color,
+        );
 
         let duration = if self.settings.transition_duration_ms > 0 {
             Some(self.settings.transition_duration_ms as u32)
