@@ -759,6 +759,7 @@ mod tests {
             scenes: Vec::new(),
             scheduled_scenes: Vec::new(),
             audio_buffer_size: 4096,
+            custom_colors: Vec::new(),
         };
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
@@ -767,6 +768,7 @@ mod tests {
         assert_eq!(deserialized.audio_buffer_size, 4096);
         assert!(deserialized.custom_shortcuts.is_empty());
         assert!(deserialized.scenes.is_empty());
+        assert!(deserialized.custom_colors.is_empty());
     }
 
     #[test]
