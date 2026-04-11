@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+echo "Running Rust pre-commit checks (fmt, clippy, test)..."
+cargo fmt --all -- --check
+cargo clippy --all-targets
+cargo test
+echo "Rust pre-commit checks passed."

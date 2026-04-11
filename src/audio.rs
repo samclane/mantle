@@ -367,10 +367,7 @@ mod tests {
         // We expect saturation to be u16::MAX and kelvin equal to DEFAULT_KELVIN.
         assert_eq!(hsbk.saturation, u16::MAX);
         assert_eq!(hsbk.kelvin, DEFAULT_KELVIN);
-        // Brightness is computed from power; ensure it is less than or equal to u16::MAX.
-        assert!(hsbk.brightness <= u16::MAX);
-        // hue is computed via FFT-based dominant frequency; for nonzero input, it should be in range.
-        assert!(hsbk.hue <= u16::MAX);
+        // Brightness and hue are u16 fields on HSBK, so they are always valid for the LIFX wire format.
     }
 
     #[test]
@@ -419,8 +416,10 @@ mod tests {
     fn test_build_input_stream_no_config() {
         // Construct a manager with a dummy device (if available) but no configuration.
         // We simulate this by creating a manager via default and then overriding configuration to None.
-        let mut manager = AudioManager::default();
-        manager.configuration = None;
+        let mut manager = AudioManager {
+            configuration: None,
+            ..Default::default()
+        };
         let max_buffer_size = AUDIO_BUFFER_DEFAULT;
         let result = manager.build_input_stream(&max_buffer_size);
         match result {
