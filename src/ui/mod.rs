@@ -19,6 +19,7 @@ pub fn setup_eframe_options() -> eframe::NativeOptions {
             .with_inner_size(MAIN_WINDOW_SIZE)
             .with_min_inner_size(MIN_WINDOW_SIZE)
             .with_icon(icon),
+        vsync: true,
         ..Default::default()
     }
 }

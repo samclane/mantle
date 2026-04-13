@@ -142,6 +142,10 @@ pub struct MantleApp {
     pub waveform_channel: ColorChannel,
     #[serde(skip)]
     pub waveform_map: HashMap<u64, WaveformTracker>,
+    #[serde(skip)]
+    pub last_refresh: Instant,
+    #[serde(skip)]
+    pub last_schedule_check: Instant,
 }
 
 impl Default for MantleApp {
@@ -180,6 +184,8 @@ impl Default for MantleApp {
             tray_event_rx: None,
             audio_manager: AudioManager::default(),
             show_audio_debug: false,
+            last_refresh: Instant::now(),
+            last_schedule_check: Instant::now(),
         }
     }
 }
@@ -1085,9 +1091,11 @@ impl MantleApp {
             if !self.search_query.is_empty() {
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(t!("devices.filtering", query = &self.search_query).to_string())
-                            .size(11.0)
-                            .color(Color32::from_rgb(180, 120, 30)),
+                        RichText::new(
+                            t!("devices.filtering", query = &self.search_query).to_string(),
+                        )
+                        .size(11.0)
+                        .color(Color32::from_rgb(180, 120, 30)),
                     );
                     if ui.small_button(t!("devices.clear").to_string()).clicked() {
                         self.search_query.clear();
@@ -1112,99 +1120,105 @@ impl MantleApp {
                                 );
                                 ui.add_space(8.0);
                                 ui.label(
-                                    RichText::new(
-                                        t!("devices.searching_hint").to_string(),
-                                    )
-                                    .size(12.0)
-                                    .color(Color32::from_rgb(120, 120, 140)),
+                                    RichText::new(t!("devices.searching_hint").to_string())
+                                        .size(12.0)
+                                        .color(Color32::from_rgb(120, 120, 140)),
                                 );
                                 ui.add_space(12.0);
                                 if ui.button(t!("devices.refresh").to_string()).clicked() {
                                     if let Err(e) = self.lighting_manager.discover() {
                                         log::error!("Failed to discover bulbs: {}", e);
-                                        self.error_toast(&t!("error.discover", error = e.to_string()));
+                                        self.error_toast(&t!(
+                                            "error.discover",
+                                            error = e.to_string()
+                                        ));
                                     }
                                 }
                             });
                         } else {
                             self.display_device(
                                 ui,
-                                &DeviceInfo::Group(
-                                    self.lighting_manager.all_bulbs_group.clone(),
-                                ),
+                                &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
                                 &mut bulbs,
                             );
-                            let sorted_bulbs: Vec<BulbInfo> = self
-                                .sort_bulbs(bulbs.values().collect())
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            let query_lower = self.search_query.to_lowercase();
-                            let filtered_bulbs: Vec<&BulbInfo> = sorted_bulbs
-                                .iter()
-                                .filter(|bulb| {
-                                    self.search_query.is_empty()
-                                        || bulb
-                                            .name_label()
-                                            .map(|n| n.to_lowercase().contains(&query_lower))
-                                            .unwrap_or(false)
-                                        || bulb
-                                            .group_label()
-                                            .map(|g| g.to_lowercase().contains(&query_lower))
-                                            .unwrap_or(false)
-                                })
-                                .collect();
-
-                            let mut grouped: Vec<(Option<crate::device_info::GroupInfo>, Vec<&BulbInfo>)> = Vec::new();
-                            let mut ungrouped: Vec<&BulbInfo> = Vec::new();
-
-                            for bulb in &filtered_bulbs {
-                                if let Some(group) = bulb.group.data.as_ref() {
-                                    let group_name = group.label.cstr().to_str().unwrap_or_default();
-                                    if let Some(entry) = grouped.iter_mut().find(|(g, _)| {
-                                        g.as_ref().map(|gi| gi.label.cstr().to_str().unwrap_or_default()) == Some(group_name)
-                                    }) {
-                                        entry.1.push(bulb);
-                                    } else {
-                                        grouped.push((Some(group.clone()), vec![bulb]));
-                                    }
-                                } else {
-                                    ungrouped.push(bulb);
-                                }
-                            }
-
-                            for (group_opt, group_bulbs) in &grouped {
-                                if let Some(group) = group_opt {
-                                    let group_id = ui.make_persistent_id(("group_collapse", group.id()));
-                                    egui::collapsing_header::CollapsingState::load_with_default_open(
-                                        ui.ctx(),
-                                        group_id,
-                                        true,
-                                    )
-                                    .show_header(ui, |ui| {
-                                        self.display_device(
-                                            ui,
-                                            &DeviceInfo::Group(group.clone()),
-                                            &mut bulbs,
-                                        );
+                            let (grouped, ungrouped) = {
+                                let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
+                                let query_lower = self.search_query.to_lowercase();
+                                let filtered_bulbs: Vec<&BulbInfo> = sorted_bulbs
+                                    .into_iter()
+                                    .filter(|bulb| {
+                                        self.search_query.is_empty()
+                                            || bulb
+                                                .name_label()
+                                                .map(|n| n.to_lowercase().contains(&query_lower))
+                                                .unwrap_or(false)
+                                            || bulb
+                                                .group_label()
+                                                .map(|g| g.to_lowercase().contains(&query_lower))
+                                                .unwrap_or(false)
                                     })
-                                    .body(|ui| {
-                                        for bulb in group_bulbs {
+                                    .collect();
+
+                                let mut grouped: Vec<(crate::device_info::GroupInfo, Vec<u64>)> =
+                                    Vec::new();
+                                let mut ungrouped: Vec<u64> = Vec::new();
+
+                                for bulb in &filtered_bulbs {
+                                    if let Some(group) = bulb.group.data.as_ref() {
+                                        let group_name =
+                                            group.label.cstr().to_str().unwrap_or_default();
+                                        if let Some(entry) = grouped.iter_mut().find(|(g, _)| {
+                                            g.label.cstr().to_str().unwrap_or_default()
+                                                == group_name
+                                        }) {
+                                            entry.1.push(bulb.target);
+                                        } else {
+                                            grouped.push((group.clone(), vec![bulb.target]));
+                                        }
+                                    } else {
+                                        ungrouped.push(bulb.target);
+                                    }
+                                }
+                                (grouped, ungrouped)
+                            };
+
+                            for (group, target_ids) in &grouped {
+                                let group_id =
+                                    ui.make_persistent_id(("group_collapse", group.id()));
+                                egui::collapsing_header::CollapsingState::load_with_default_open(
+                                    ui.ctx(),
+                                    group_id,
+                                    true,
+                                )
+                                .show_header(ui, |ui| {
+                                    self.display_device(
+                                        ui,
+                                        &DeviceInfo::Group(group.clone()),
+                                        &mut bulbs,
+                                    );
+                                })
+                                .body(|ui| {
+                                    for target in target_ids {
+                                        if let Some(bulb) = bulbs.get(target) {
+                                            let bulb = bulb.clone();
                                             self.display_device(
                                                 ui,
-                                                &DeviceInfo::Bulb(Box::new((*bulb).clone())),
+                                                &DeviceInfo::Bulb(Box::new(bulb)),
                                                 &mut bulbs,
                                             );
                                         }
-                                    });
-                                }
+                                    }
+                                });
                             }
-                            for bulb in &ungrouped {
-                                self.display_device(
-                                    ui,
-                                    &DeviceInfo::Bulb(Box::new((*bulb).clone())),
-                                    &mut bulbs,
-                                );
+                            for target in &ungrouped {
+                                if let Some(bulb) = bulbs.get(target) {
+                                    let bulb = bulb.clone();
+                                    self.display_device(
+                                        ui,
+                                        &DeviceInfo::Bulb(Box::new(bulb)),
+                                        &mut bulbs,
+                                    );
+                                }
                             }
                         }
                     }
@@ -1255,25 +1269,35 @@ impl MantleApp {
         let secs_today = now % 86400;
         let today_date = (now / 86400) as u32;
 
-        let scenes = self.settings.scenes.clone();
-        for sched in self.settings.scheduled_scenes.iter_mut() {
-            if !sched.enabled {
-                continue;
-            }
-            let target_secs = sched.hour as u64 * 3600 + sched.minute as u64 * 60;
-            let already_fired = sched
-                .last_fired_date
-                .map(|(d, _, _)| d == today_date)
-                .unwrap_or(false);
-            if secs_today >= target_secs && secs_today < target_secs + 60 && !already_fired {
-                if let Some(scene) = scenes.iter().find(|s| s.name == sched.scene_name) {
-                    if let Err(e) = scene.apply(&mut self.lighting_manager) {
-                        log::error!("Scheduled scene '{}' failed: {:?}", sched.scene_name, e);
-                    } else {
-                        log::info!("Scheduled scene '{}' applied", sched.scene_name);
-                    }
-                    sched.last_fired_date = Some((today_date, 0, 0));
+        let to_fire: Vec<usize> = self
+            .settings
+            .scheduled_scenes
+            .iter()
+            .enumerate()
+            .filter(|(_, sched)| {
+                if !sched.enabled {
+                    return false;
                 }
+                let target_secs = sched.hour as u64 * 3600 + sched.minute as u64 * 60;
+                let already_fired = sched
+                    .last_fired_date
+                    .map(|(d, _, _)| d == today_date)
+                    .unwrap_or(false);
+                secs_today >= target_secs && secs_today < target_secs + 60 && !already_fired
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        for i in to_fire {
+            let scene_name = self.settings.scheduled_scenes[i].scene_name.clone();
+            if let Some(scene) = self.settings.scenes.iter().find(|s| s.name == scene_name) {
+                let scene = scene.clone();
+                if let Err(e) = scene.apply(&mut self.lighting_manager) {
+                    log::error!("Scheduled scene '{}' failed: {:?}", scene_name, e);
+                } else {
+                    log::info!("Scheduled scene '{}' applied", scene_name);
+                }
+                self.settings.scheduled_scenes[i].last_fired_date = Some((today_date, 0, 0));
             }
         }
     }
@@ -1324,7 +1348,7 @@ impl eframe::App for MantleApp {
         puffin::GlobalProfiler::lock().new_frame();
 
         self.handle_tray_events(ctx);
-        ctx.request_repaint_after(Duration::from_millis(self.settings.refresh_rate_ms));
+        ctx.request_repaint();
 
         if Instant::now() - self.lighting_manager.last_discovery
             > Duration::from_millis(self.settings.refresh_rate_ms)
@@ -1333,11 +1357,18 @@ impl eframe::App for MantleApp {
                 log::error!("Failed to discover bulbs: {}", e);
             }
         }
-        if let Err(e) = self.lighting_manager.refresh() {
-            log::error!("Error refreshing manager: {}", e);
-            self.error_toast(&t!("error.refresh", error = e.to_string()));
+        let poll_interval = Duration::from_millis(self.settings.refresh_rate_ms);
+        if self.last_refresh.elapsed() >= poll_interval {
+            if let Err(e) = self.lighting_manager.refresh() {
+                log::error!("Error refreshing manager: {}", e);
+                self.error_toast(&t!("error.refresh", error = e.to_string()));
+            }
+            self.last_refresh = Instant::now();
         }
-        self.check_scheduled_scenes();
+        if self.last_schedule_check.elapsed() >= Duration::from_secs(1) {
+            self.check_scheduled_scenes();
+            self.last_schedule_check = Instant::now();
+        }
         self.update_ui(ctx);
         self.show_about_window(ctx);
         self.show_audio_debug_window(ctx);
