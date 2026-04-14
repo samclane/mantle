@@ -54,8 +54,11 @@ controls.zones: "Zones"
 controls.deselect_all: "Deselect All"
 controls.select_all: "Select All"
 controls.select_zones_hover: "Select or deselect all zones"
+controls.matrix: "Matrix"
+controls.select_cells_hover: "Select or deselect all matrix cells"
 controls.apply_gradient: "Apply Gradient"
 controls.apply_gradient_hover: "Fill all zones with a gradient from the current slider color"
+controls.apply_matrix_gradient_hover: "Fill all matrix cells with a gradient from the current slider color"
 controls.gradient_applied: "Gradient applied"
 
 # Color presets
@@ -93,6 +96,9 @@ slider.toggle: "Toggle"
 
 # Zone strip
 zone.hover: "Click to select a zone, Ctrl+click to toggle, drag to select range"
+
+# Matrix grid
+matrix.hover: "Click to select a cell, Ctrl+click to toggle, drag to select rectangle"
 
 # Screen capture
 capture.eyedropper_hover: "Pick a color from the screen"
@@ -224,6 +230,7 @@ action.scene_hover: "Select a saved scene to apply"
 error.shortcut_add_failed: "Failed to add %{count} custom shortcuts: %{details}"
 error.refresh: "Error refreshing manager: %{error}"
 error.zone_color: "Error setting zone color: %{error}"
+error.matrix_color: "Error setting matrix color: %{error}"
 error.set_color: "Error setting color: %{error}"
 error.group_color: "Error setting group color: %{error}"
 error.discover: "Failed to discover bulbs: %{error}"

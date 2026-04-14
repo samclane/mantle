@@ -54,8 +54,11 @@ controls.zones: "Zonas"
 controls.deselect_all: "Desmarcar Tudo"
 controls.select_all: "Selecionar Tudo"
 controls.select_zones_hover: "Selecionar ou desmarcar todas as zonas"
+controls.matrix: "Matriz"
+controls.select_cells_hover: "Selecionar ou desmarcar todas as células da matriz"
 controls.apply_gradient: "Aplicar Gradiente"
 controls.apply_gradient_hover: "Preencher todas as zonas com um gradiente a partir da cor atual do controle deslizante"
+controls.apply_matrix_gradient_hover: "Preencher todas as células da matriz com um gradiente a partir da cor atual do controle deslizante"
 controls.gradient_applied: "Gradiente aplicado"
 
 # Predefinições de cor
@@ -93,6 +96,9 @@ slider.toggle: "Alternar"
 
 # Faixa de zonas
 zone.hover: "Clique para selecionar uma zona, Ctrl+clique para alternar, arraste para selecionar um intervalo"
+
+# Grade da matriz
+matrix.hover: "Clique para selecionar uma célula, Ctrl+clique para alternar, arraste para selecionar um retângulo"
 
 # Captura de tela
 capture.eyedropper_hover: "Escolha uma cor da tela"
@@ -224,6 +230,7 @@ action.scene_hover: "Selecione uma cena salva para aplicar"
 error.shortcut_add_failed: "Falha ao adicionar %{count} atalhos personalizados: %{details}"
 error.refresh: "Erro ao atualizar o gerenciador: %{error}"
 error.zone_color: "Erro ao definir a cor da zona: %{error}"
+error.matrix_color: "Erro ao definir a cor da matriz: %{error}"
 error.set_color: "Erro ao definir a cor: %{error}"
 error.group_color: "Erro ao definir a cor do grupo: %{error}"
 error.discover: "Falha ao descobrir lâmpadas: %{error}"

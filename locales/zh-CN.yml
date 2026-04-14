@@ -54,8 +54,11 @@ controls.zones: "区域"
 controls.deselect_all: "取消全选"
 controls.select_all: "全选"
 controls.select_zones_hover: "全选或取消全选所有区域"
+controls.matrix: "矩阵"
+controls.select_cells_hover: "全选或取消全选所有矩阵单元格"
 controls.apply_gradient: "应用渐变"
 controls.apply_gradient_hover: "使用当前滑块颜色生成渐变，填充所有区域"
+controls.apply_matrix_gradient_hover: "使用当前滑块颜色生成渐变，填充所有矩阵单元格"
 controls.gradient_applied: "已应用渐变"
 
 # 颜色预设
@@ -93,6 +96,9 @@ slider.toggle: "切换"
 
 # 区域条
 zone.hover: "点击选择区域, Ctrl+点击切换选中状态，拖动选择区域范围"
+
+# 矩阵网格
+matrix.hover: "点击选择单元格，Ctrl+点击切换选中状态，拖动选择矩形区域"
 
 # 屏幕取色
 capture.eyedropper_hover: "从屏幕上选取颜色"
@@ -224,6 +230,7 @@ action.scene_hover: "选择并应用已保存的场景"
 error.shortcut_add_failed: "添加 %{count} 个自定义快捷方式失败：%{details}"
 error.refresh: "刷新管理器时出错：%{error}"
 error.zone_color: "设置区域颜色时出错：%{error}"
+error.matrix_color: "设置矩阵颜色时出错：%{error}"
 error.set_color: "设置颜色时出错：%{error}"
 error.group_color: "设置组颜色时出错：%{error}"
 error.discover: "发现灯泡失败：%{error}"

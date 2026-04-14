@@ -1,5 +1,6 @@
 use crate::color::{default_hsbk, HSBKField, HSBK32};
 use crate::device_info::{BulbInfo, GroupInfo};
+use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
 use crate::DeviceColor;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
@@ -73,21 +74,37 @@ impl LifxManager {
                 vendor, product, ..
             } => {
                 bulb.model.update((vendor, product));
-                if let Some(info) = get_product_info(vendor, product) {
-                    if info.multizone {
-                        bulb.color = DeviceColor::Multi(RefreshableData::empty(
-                            Duration::from_secs(15),
-                            Message::GetColorZones {
-                                start_index: 0,
-                                end_index: 255,
-                            },
-                        ))
+
+                let (is_matrix, is_chain, is_multizone) =
+                    if let Some(info) = get_product_info(vendor, product) {
+                        (info.matrix, info.chain, info.multizone)
                     } else {
-                        bulb.color = DeviceColor::Single(RefreshableData::empty(
-                            Duration::from_secs(15),
-                            Message::LightGet,
-                        ))
-                    }
+                        let f = Features::get_features(Some(&(vendor, product)));
+                        (
+                            f.matrix == Some(true),
+                            f.chain == Some(true),
+                            f.multizone == Some(true),
+                        )
+                    };
+
+                if is_matrix && !is_chain {
+                    bulb.color = DeviceColor::Matrix(RefreshableData::empty(
+                        Duration::from_secs(15),
+                        Message::GetExtendedColorZone,
+                    ));
+                } else if is_multizone {
+                    bulb.color = DeviceColor::Multi(RefreshableData::empty(
+                        Duration::from_secs(15),
+                        Message::GetColorZones {
+                            start_index: 0,
+                            end_index: 255,
+                        },
+                    ));
+                } else {
+                    bulb.color = DeviceColor::Single(RefreshableData::empty(
+                        Duration::from_secs(15),
+                        Message::LightGet,
+                    ));
                 }
             }
             Message::StatePower { level } => bulb.power_level.update(level),
@@ -156,6 +173,30 @@ impl LifxManager {
                     ];
                     for (i, &color) in colors.iter().enumerate() {
                         v[index as usize + i] = Some(color);
+                    }
+                }
+            }
+            Message::StateExtendedColorZones {
+                zones_count,
+                zone_index,
+                colors_count,
+                colors,
+            } => {
+                if let DeviceColor::Matrix(ref mut d) = bulb.color {
+                    let v = d.data.get_or_insert_with(|| {
+                        let mut v = Vec::with_capacity(zones_count as usize);
+                        v.resize(zones_count as usize, None);
+                        v
+                    });
+                    if v.len() < zones_count as usize {
+                        v.resize(zones_count as usize, None);
+                    }
+                    let count = (colors_count as usize).min(colors.len());
+                    for i in 0..count {
+                        let idx = zone_index as usize + i;
+                        if idx < v.len() {
+                            v[idx] = Some(colors[i]);
+                        }
                     }
                 }
             }
@@ -317,6 +358,42 @@ impl LifxManager {
                 color,
                 duration,
                 apply,
+            },
+        )
+    }
+
+    /// Set colors on a matrix device using the extended multizone protocol.
+    /// `colors` maps flat zone indices to their new HSBK values; zones not
+    /// present in the map keep their current color (taken from `current`).
+    pub fn set_extended_color_zones(
+        &self,
+        bulb: &&BulbInfo,
+        current: &[Option<HSBK>],
+        updates: &HashMap<usize, HSBK>,
+        duration: u32,
+    ) -> Result<usize, std::io::Error> {
+        let total = current.len().min(82);
+        let mut colors = [HSBK {
+            hue: 0,
+            saturation: 0,
+            brightness: 0,
+            kelvin: 3500,
+        }; 82];
+        for (i, slot) in current.iter().enumerate().take(total) {
+            if let Some(updates_color) = updates.get(&i) {
+                colors[i] = *updates_color;
+            } else if let Some(c) = slot {
+                colors[i] = *c;
+            }
+        }
+        self.send_message(
+            bulb,
+            Message::SetExtendedColorZones {
+                duration,
+                apply: ApplicationRequest::Apply,
+                zone_index: 0,
+                colors_count: total as u8,
+                colors: Box::new(colors),
             },
         )
     }

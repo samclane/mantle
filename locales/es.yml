@@ -54,8 +54,11 @@ controls.zones: "Zonas"
 controls.deselect_all: "Deseleccionar todo"
 controls.select_all: "Seleccionar todo"
 controls.select_zones_hover: "Seleccionar o deseleccionar todas las zonas"
+controls.matrix: "Matriz"
+controls.select_cells_hover: "Seleccionar o deseleccionar todas las celdas de la matriz"
 controls.apply_gradient: "Aplicar degradado"
 controls.apply_gradient_hover: "Rellenar todas las zonas con un degradado a partir del color actual del deslizador"
+controls.apply_matrix_gradient_hover: "Rellenar todas las celdas de la matriz con un degradado a partir del color actual del deslizador"
 controls.gradient_applied: "Degradado aplicado"
 
 # Preajustes de color
@@ -93,6 +96,9 @@ slider.toggle: "Alternar"
 
 # Franja de zonas
 zone.hover: "Haz clic para seleccionar una zona, Ctrl+clic para alternar, arrastra para seleccionar un rango"
+
+# Cuadrícula de matriz
+matrix.hover: "Haz clic para seleccionar una celda, Ctrl+clic para alternar, arrastra para seleccionar un rectángulo"
 
 # Captura de pantalla
 capture.eyedropper_hover: "Seleccionar un color de la pantalla"
@@ -224,6 +230,7 @@ action.scene_hover: "Seleccionar una escena guardada para aplicar"
 error.shortcut_add_failed: "No se pudieron añadir %{count} atajos personalizados: %{details}"
 error.refresh: "Error al actualizar el gestor: %{error}"
 error.zone_color: "Error al establecer el color de la zona: %{error}"
+error.matrix_color: "Error al establecer el color de la matriz: %{error}"
 error.set_color: "Error al establecer el color: %{error}"
 error.group_color: "Error al establecer el color del grupo: %{error}"
 error.discover: "No se pudieron detectar las bombillas: %{error}"

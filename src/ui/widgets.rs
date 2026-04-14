@@ -584,6 +584,141 @@ pub fn zone_strip(
     new_selected
 }
 
+/// Renders a 2D grid of colored cells for matrix devices (e.g. Candle, Ceiling).
+/// Returns the updated set of selected cell indices (flat: row * width + col).
+///
+/// Supports click to select a single cell, Ctrl+click to toggle individual
+/// cells, and click-and-drag to select a rectangular region.
+pub fn matrix_grid(
+    ui: &mut Ui,
+    zones: &[Option<HSBK>],
+    width: usize,
+    selected: &HashSet<usize>,
+) -> HashSet<usize> {
+    let mut new_selected = selected.clone();
+    let zone_count = zones.len();
+    if zone_count == 0 || width == 0 {
+        return new_selected;
+    }
+
+    let height = zone_count.div_ceil(width);
+    let available_width = ui.available_width();
+    let cell_size = (available_width / width as f32).clamp(8.0, 32.0);
+    let total_width = cell_size * width as f32;
+    let total_height = cell_size * height as f32;
+
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(total_width, total_height + 4.0),
+        Sense::click_and_drag(),
+    );
+
+    let pos_to_cell = |pos: Pos2| -> (usize, usize) {
+        let col = ((pos.x - rect.left()) / cell_size).clamp(0.0, (width - 1) as f32) as usize;
+        let row = ((pos.y - rect.top() - 2.0) / cell_size).clamp(0.0, (height - 1) as f32) as usize;
+        (row, col)
+    };
+
+    let cell_to_index = |row: usize, col: usize| -> usize { row * width + col };
+
+    let drag_anchor_id = response.id.with("matrix_drag_anchor");
+
+    if response.drag_started() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let anchor = pos_to_cell(pos);
+            ui.data_mut(|d| d.insert_temp(drag_anchor_id, anchor));
+        }
+    }
+
+    if response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let current = pos_to_cell(pos);
+            let anchor: Option<(usize, usize)> = ui.data(|d| d.get_temp(drag_anchor_id));
+            if let Some(anchor) = anchor {
+                let row_lo = anchor.0.min(current.0);
+                let row_hi = anchor.0.max(current.0);
+                let col_lo = anchor.1.min(current.1);
+                let col_hi = anchor.1.max(current.1);
+                new_selected.clear();
+                for r in row_lo..=row_hi {
+                    for c in col_lo..=col_hi {
+                        let idx = cell_to_index(r, c);
+                        if idx < zone_count {
+                            new_selected.insert(idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let (row, col) = pos_to_cell(pos);
+            let clicked_idx = cell_to_index(row, col);
+            if clicked_idx < zone_count {
+                let modifiers = ui.input(|i| i.modifiers);
+                if modifiers.ctrl || modifiers.command {
+                    if new_selected.contains(&clicked_idx) {
+                        new_selected.remove(&clicked_idx);
+                    } else {
+                        new_selected.insert(clicked_idx);
+                    }
+                } else if new_selected.len() == 1 && new_selected.contains(&clicked_idx) {
+                    new_selected.clear();
+                } else {
+                    new_selected.clear();
+                    new_selected.insert(clicked_idx);
+                }
+            }
+        }
+    }
+
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        let rounding = egui::Rounding::same(3.0);
+        painter.rect_filled(rect, rounding, Color32::from_rgb(20, 20, 28));
+
+        for row in 0..height {
+            for col in 0..width {
+                let idx = cell_to_index(row, col);
+                if idx >= zone_count {
+                    continue;
+                }
+
+                let x = rect.left() + col as f32 * cell_size;
+                let y = rect.top() + 2.0 + row as f32 * cell_size;
+                let cell_rect =
+                    egui::Rect::from_min_size(pos2(x, y), vec2(cell_size - 1.0, cell_size - 1.0));
+
+                let fill = zones[idx]
+                    .map(|hsbk| Color32::from(RGB8::from(hsbk)))
+                    .unwrap_or(Color32::from_gray(40));
+                painter.rect_filled(cell_rect, 2.0, fill);
+
+                let sel_id = response.id.with(("matrix_sel", idx));
+                let sel_t = ui
+                    .ctx()
+                    .animate_bool_responsive(sel_id, new_selected.contains(&idx));
+                if sel_t > 0.01 {
+                    let alpha = (255.0 * sel_t) as u8;
+                    painter.rect_stroke(
+                        cell_rect.expand(sel_t),
+                        2.0,
+                        Stroke::new(
+                            2.0 * sel_t,
+                            Color32::from_rgba_unmultiplied(255, 200, 60, alpha),
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    response.on_hover_text(t!("matrix.hover").to_string());
+
+    new_selected
+}
+
 /// Interactive HSB color wheel. Returns true if the color was changed.
 pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32) -> bool {
     let desired_size = Vec2::splat(radius * 2.0 + 8.0);

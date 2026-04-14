@@ -90,6 +90,9 @@ pub enum DeviceColor {
     Unknown,
     Single(RefreshableData<HSBK>),
     Multi(RefreshableData<Vec<Option<HSBK>>>),
+    /// 2D matrix of individually-addressable LEDs (e.g. Candle, Tile, Ceiling).
+    /// Uses the extended multizone protocol (messages 510–512).
+    Matrix(RefreshableData<Vec<Option<HSBK>>>),
 }
 
 impl Serialize for DeviceColor {
@@ -102,7 +105,7 @@ impl Serialize for DeviceColor {
             DeviceColor::Single(data) => {
                 serializer.serialize_some(&HSBK32::from(data.data.unwrap()))
             }
-            DeviceColor::Multi(data) => {
+            DeviceColor::Multi(data) | DeviceColor::Matrix(data) => {
                 let serialized_data: Option<Vec<Option<HSBK32>>> = data
                     .data
                     .as_ref()
@@ -247,7 +250,7 @@ impl BulbInfo {
         match &self.color {
             DeviceColor::Unknown => (), // We'll need to wait to get info about this bulb's model.
             DeviceColor::Single(d) => self.refresh_if_needed(sock, d)?,
-            DeviceColor::Multi(d) => self.refresh_if_needed(sock, d)?,
+            DeviceColor::Multi(d) | DeviceColor::Matrix(d) => self.refresh_if_needed(sock, d)?,
         }
         self.features = Features::get_features(self.model.as_ref());
         Ok(())
@@ -256,14 +259,16 @@ impl BulbInfo {
     pub fn get_color(&self) -> Option<&HSBK> {
         match self.color {
             DeviceColor::Single(ref data) => data.as_ref(),
-            DeviceColor::Multi(ref data) => extract_primary_color(data.as_ref()),
+            DeviceColor::Multi(ref data) | DeviceColor::Matrix(ref data) => {
+                extract_primary_color(data.as_ref())
+            }
             _ => None,
         }
     }
 
     pub fn get_zone_color(&self, index: usize) -> Option<&HSBK> {
         match &self.color {
-            DeviceColor::Multi(ref data) => data
+            DeviceColor::Multi(ref data) | DeviceColor::Matrix(ref data) => data
                 .as_ref()
                 .and_then(|vec| vec.get(index))
                 .and_then(|opt| opt.as_ref()),
@@ -274,7 +279,9 @@ impl BulbInfo {
 
     pub fn get_zone_count(&self) -> usize {
         match &self.color {
-            DeviceColor::Multi(ref data) => data.as_ref().map(|vec| vec.len()).unwrap_or(0),
+            DeviceColor::Multi(ref data) | DeviceColor::Matrix(ref data) => {
+                data.as_ref().map(|vec| vec.len()).unwrap_or(0)
+            }
             _ => 0,
         }
     }
@@ -283,11 +290,29 @@ impl BulbInfo {
         matches!(self.color, DeviceColor::Multi(_))
     }
 
+    pub fn is_matrix(&self) -> bool {
+        matches!(self.color, DeviceColor::Matrix(_))
+    }
+
     pub fn get_zone_colors(&self) -> Option<&Vec<Option<HSBK>>> {
         match &self.color {
-            DeviceColor::Multi(ref data) => data.as_ref(),
+            DeviceColor::Multi(ref data) | DeviceColor::Matrix(ref data) => data.as_ref(),
             _ => None,
         }
+    }
+
+    /// Returns the width of the matrix grid for display purposes.
+    /// Uses the feature-specified width, or auto-calculates from zone count.
+    pub fn get_matrix_width(&self) -> usize {
+        if let Some(w) = self.features.matrix_width {
+            return w as usize;
+        }
+        let count = self.get_zone_count();
+        if count == 0 {
+            return 1;
+        }
+        let sqrt = (count as f64).sqrt().ceil() as usize;
+        sqrt.max(1)
     }
 
     pub fn group_label(&self) -> Option<String> {
@@ -398,9 +423,14 @@ impl std::fmt::Debug for BulbInfo {
                                 .unwrap_or_else(|| "??".to_owned()),
                         )?;
                     }
-                    DeviceColor::Multi(ref color) => {
+                    DeviceColor::Multi(ref color) | DeviceColor::Matrix(ref color) => {
                         if let Some(vec) = color.as_ref() {
-                            write!(f, "Zones: ")?;
+                            let label = if matches!(self.color, DeviceColor::Matrix(_)) {
+                                "Matrix"
+                            } else {
+                                "Zones"
+                            };
+                            write!(f, "{}: ", label)?;
                             for zone in vec {
                                 if let Some(color) = zone {
                                     write!(f, "{} ", color.describe(true))?;

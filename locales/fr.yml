@@ -54,8 +54,11 @@ controls.zones: "Zones"
 controls.deselect_all: "Tout désélectionner"
 controls.select_all: "Tout sélectionner"
 controls.select_zones_hover: "Sélectionner ou désélectionner toutes les zones"
+controls.matrix: "Matrice"
+controls.select_cells_hover: "Sélectionner ou désélectionner toutes les cellules de la matrice"
 controls.apply_gradient: "Appliquer un dégradé"
 controls.apply_gradient_hover: "Remplir toutes les zones avec un dégradé basé sur la couleur actuelle du curseur"
+controls.apply_matrix_gradient_hover: "Remplir toutes les cellules de la matrice avec un dégradé basé sur la couleur actuelle du curseur"
 controls.gradient_applied: "Dégradé appliqué"
 
 # Préréglages de couleur
@@ -93,6 +96,9 @@ slider.toggle: "Basculer"
 
 # Bande de zones
 zone.hover: "Cliquez pour sélectionner une zone, Ctrl+clic pour basculer, faites glisser pour sélectionner une plage"
+
+# Grille matricielle
+matrix.hover: "Cliquez pour sélectionner une cellule, Ctrl+clic pour basculer, faites glisser pour sélectionner un rectangle"
 
 # Capture d'écran 
 capture.eyedropper_hover: "Sélectionner une couleur de l'écran"
@@ -224,6 +230,7 @@ action.scene_hover: "Sélectionner une scène enregistrée à appliquer"
 error.shortcut_add_failed: "Échec de l'ajout de %{count} raccourcis personnalisés : %{details}"
 error.refresh: "Erreur lors de l'actualisation du gestionnaire : %{error}"
 error.zone_color: "Erreur lors de la définition de la couleur de la zone : %{error}"
+error.matrix_color: "Erreur lors de la définition de la couleur de la matrice : %{error}"
 error.set_color: "Erreur lors de la définition de la couleur : %{error}"
 error.group_color: "Erreur lors de la définition de la couleur du groupe : %{error}"
 error.discover: "Échec de la détection des ampoules : %{error}"

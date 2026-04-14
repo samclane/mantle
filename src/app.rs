@@ -22,7 +22,7 @@ use crate::{
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
     ui::{
-        color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders,
+        color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, matrix_grid,
         render_capture_target, rgb_input, zone_strip,
     },
     BulbInfo, LifxManager, ScreencapManager,
@@ -540,6 +540,8 @@ impl MantleApp {
             });
 
             let is_multizone = matches!(device, DeviceInfo::Bulb(b) if b.is_multizone());
+            let is_matrix = matches!(device, DeviceInfo::Bulb(b) if b.is_matrix());
+            let has_zones = is_multizone || is_matrix;
             let device_id = device.id();
 
             let selected = self
@@ -548,7 +550,7 @@ impl MantleApp {
                 .cloned()
                 .unwrap_or_default();
 
-            let slider_color = if is_multizone && !selected.is_empty() {
+            let slider_color = if has_zones && !selected.is_empty() {
                 if let DeviceInfo::Bulb(bulb) = device {
                     let first_selected = *selected.iter().min().unwrap();
                     bulb.get_zone_color(first_selected).cloned()
@@ -648,6 +650,87 @@ impl MantleApp {
                     }
                 }
 
+                if is_matrix {
+                    if let DeviceInfo::Bulb(bulb) = device {
+                        if let Some(zones) = bulb.get_zone_colors() {
+                            let grid_width = bulb.get_matrix_width();
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(t!("controls.matrix").to_string())
+                                        .size(12.0)
+                                        .color(Color32::from_rgb(160, 160, 180)),
+                                );
+                                if ui
+                                    .small_button(
+                                        if selected.len() == zones.len() && !zones.is_empty() {
+                                            t!("controls.deselect_all").to_string()
+                                        } else {
+                                            t!("controls.select_all").to_string()
+                                        },
+                                    )
+                                    .on_hover_text(t!("controls.select_cells_hover").to_string())
+                                    .clicked()
+                                {
+                                    let new_sel =
+                                        if selected.len() == zones.len() && !zones.is_empty() {
+                                            HashSet::new()
+                                        } else {
+                                            (0..zones.len()).collect()
+                                        };
+                                    self.selected_zones.insert(device_id, new_sel);
+                                }
+                            });
+                            let current_selected = self
+                                .selected_zones
+                                .get(&device_id)
+                                .cloned()
+                                .unwrap_or_default();
+                            let new_selected =
+                                matrix_grid(ui, zones, grid_width, &current_selected);
+                            self.selected_zones.insert(device_id, new_selected);
+
+                            ui.add_space(2.0);
+                            if ui
+                                .small_button(t!("controls.apply_gradient").to_string())
+                                .on_hover_text(
+                                    t!("controls.apply_matrix_gradient_hover").to_string(),
+                                )
+                                .clicked()
+                            {
+                                let zone_count = zones.len();
+                                if zone_count > 0 {
+                                    let start_hue: f32 = 0.0;
+                                    let end_hue: f32 = 54613.0;
+                                    let duration = after_color.duration.unwrap_or(0);
+                                    let mut updates = HashMap::new();
+                                    for i in 0..zone_count {
+                                        let t = i as f32 / (zone_count - 1).max(1) as f32;
+                                        let zone_hue =
+                                            (start_hue + (end_hue - start_hue) * t) as u16;
+                                        updates.insert(
+                                            i,
+                                            HSBK {
+                                                hue: zone_hue,
+                                                saturation: after_color.next.saturation,
+                                                brightness: after_color.next.brightness,
+                                                kelvin: after_color.next.kelvin,
+                                            },
+                                        );
+                                    }
+                                    if let Err(e) = self.lighting_manager.set_extended_color_zones(
+                                        &&**bulb, zones, &updates, duration,
+                                    ) {
+                                        log::error!("Error setting matrix gradient: {}", e);
+                                    } else {
+                                        self.success_toast(&t!("controls.gradient_applied"));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if before_color != after_color.next {
                     match device {
                         DeviceInfo::Bulb(bulb) => {
@@ -657,7 +740,24 @@ impl MantleApp {
                                 .cloned()
                                 .unwrap_or_default();
 
-                            if bulb.is_multizone() && !selected.is_empty() {
+                            if bulb.is_matrix() && !selected.is_empty() {
+                                let duration = after_color.duration.unwrap_or(0);
+                                if let Some(zones) = bulb.get_zone_colors() {
+                                    let updates: HashMap<usize, HSBK> = selected
+                                        .iter()
+                                        .map(|&idx| (idx, after_color.next))
+                                        .collect();
+                                    if let Err(e) = self.lighting_manager.set_extended_color_zones(
+                                        &&**bulb, zones, &updates, duration,
+                                    ) {
+                                        log::error!("Error setting matrix color: {}", e);
+                                        self.error_toast(&t!(
+                                            "error.matrix_color",
+                                            error = e.to_string()
+                                        ));
+                                    }
+                                }
+                            } else if bulb.is_multizone() && !selected.is_empty() {
                                 let duration = after_color.duration.unwrap_or(0);
                                 let ranges = contiguous_ranges(&selected);
                                 for (i, (start, end)) in ranges.iter().enumerate() {

@@ -58,6 +58,9 @@ pub struct Features {
     pub hev: Option<bool>,
     pub relays: Option<bool>,
     pub buttons: Option<bool>,
+    /// Pixel width of the matrix grid (for 2D layout). Height is derived from
+    /// total zone count. If absent, the UI auto-calculates a square-ish layout.
+    pub matrix_width: Option<u32>,
 }
 
 impl Features {
