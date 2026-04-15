@@ -13,6 +13,9 @@ fn main() -> eframe::Result {
 
     init_log4rs();
 
+    #[cfg(target_os = "linux")]
+    gtk::init().expect("Failed to initialize GTK");
+
     let options = setup_eframe_options();
 
     eframe::run_native(
