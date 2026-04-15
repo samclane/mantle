@@ -1499,3 +1499,15 @@ fn contiguous_ranges(zones: &HashSet<usize>) -> Vec<(usize, usize)> {
     ranges.push((start, end));
     ranges
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn tray_menu_creation_requires_gtk_init() {
+        gtk::init().expect("Failed to initialize GTK");
+        let menu = tray_icon::menu::Menu::new();
+        let _item = tray_icon::menu::MenuItem::new("Test", true, None);
+        let _ = menu.append(&_item);
+    }
+}
