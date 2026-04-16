@@ -151,18 +151,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
-      - name: Rename binaries for release
+      - name: Package binaries for release
         run: |
-          mv artifacts/mantle-linux-x86_64/mantle     mantle-linux-x86_64
-          mv artifacts/mantle-macos-aarch64/mantle    mantle-macos-aarch64
-          mv artifacts/mantle-macos-x86_64/mantle     mantle-macos-x86_64
+          chmod +x artifacts/mantle-linux-x86_64/mantle
+          tar czf mantle-linux-x86_64.tar.gz -C artifacts/mantle-linux-x86_64 mantle
+
+          chmod +x artifacts/mantle-macos-aarch64/mantle
+          tar czf mantle-macos-aarch64.tar.gz -C artifacts/mantle-macos-aarch64 mantle
+
+          chmod +x artifacts/mantle-macos-x86_64/mantle
+          tar czf mantle-macos-x86_64.tar.gz -C artifacts/mantle-macos-x86_64 mantle
+
           mv artifacts/mantle-windows-x86_64/mantle.exe mantle-windows-x86_64.exe
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            mantle-linux-x86_64
-            mantle-macos-aarch64
-            mantle-macos-x86_64
+            mantle-linux-x86_64.tar.gz
+            mantle-macos-aarch64.tar.gz
+            mantle-macos-x86_64.tar.gz
             mantle-windows-x86_64.exe
           generate_release_notes: true
