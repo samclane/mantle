@@ -313,10 +313,12 @@ impl MantleApp {
                     details = format!("{:?}", failures)
                 ));
             }
+            app.sync_auto_launch_state();
             app.setup_tray_icon(&cc.egui_ctx);
             return app;
         }
         let mut app = Self::default();
+        app.sync_auto_launch_state();
         app.setup_tray_icon(&cc.egui_ctx);
         app
     }

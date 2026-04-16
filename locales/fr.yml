@@ -169,6 +169,10 @@ settings.refresh_rate: "Taux de rafraîchissement :"
 settings.refresh_rate_hover: "Fréquence d'interrogation des appareils LIFX pour les mises à jour de statut"
 settings.ms: "ms"
 settings.samples: "échantillons"
+settings.run_on_startup: "Lancer au démarrage"
+settings.run_on_startup_hover: "Lancer Mantle automatiquement à la connexion"
+settings.startup_enabled: "Mantle se lancera à la connexion"
+settings.startup_disabled: "Mantle ne se lancera plus à la connexion"
 
 # Planification des scènes
 schedule.title: "Planification des scènes"
@@ -239,6 +243,7 @@ error.serialize_scenes: "Échec de la sérialisation des scènes : %{error}"
 error.invalid_scene_file: "Fichier de scène invalide : %{error}"
 error.read_file: "Échec de la lecture du fichier : %{error}"
 error.apply_scene: "Échec de l'application de la scène : %{errors}"
+error.startup: "Échec de la mise à jour du paramètre de démarrage : %{error}"
 
 # Erreurs d'application de scène
 error.bulb_color: "Échec de la définition de la couleur de l'ampoule : %{error}"

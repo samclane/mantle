@@ -169,6 +169,10 @@ settings.refresh_rate: "Frecuencia de actualización:"
 settings.refresh_rate_hover: "Con qué frecuencia consultar los dispositivos LIFX para obtener actualizaciones de estado"
 settings.ms: "ms"
 settings.samples: "muestras"
+settings.run_on_startup: "Iniciar con el sistema"
+settings.run_on_startup_hover: "Iniciar Mantle automáticamente al iniciar sesión"
+settings.startup_enabled: "Mantle se iniciará con el sistema"
+settings.startup_disabled: "Mantle ya no se iniciará con el sistema"
 
 # Programación de escenas
 schedule.title: "Programación de escenas"
@@ -239,6 +243,7 @@ error.serialize_scenes: "No se pudieron serializar las escenas: %{error}"
 error.invalid_scene_file: "Archivo de escena no válido: %{error}"
 error.read_file: "No se pudo leer el archivo: %{error}"
 error.apply_scene: "No se pudo aplicar la escena: %{errors}"
+error.startup: "Error al actualizar la configuración de inicio: %{error}"
 
 # Aplicación de escena errores
 error.bulb_color: "No se pudo establecer el color de la bombilla: %{error}"

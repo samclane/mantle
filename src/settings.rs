@@ -36,6 +36,8 @@ pub struct Settings {
     pub audio_buffer_size: usize,
     #[serde(default)]
     pub custom_colors: Vec<(String, HSBK32)>,
+    #[serde(default)]
+    pub run_on_startup: bool,
 }
 
 impl Default for Settings {
@@ -50,6 +52,7 @@ impl Default for Settings {
             scheduled_scenes: Vec::new(),
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
             custom_colors: Vec::new(),
+            run_on_startup: false,
         }
     }
 }
@@ -81,6 +84,8 @@ impl MantleApp {
                     ui.add_space(10.0);
 
                     self.render_locale_selector(ui);
+
+                    self.render_run_on_startup(ui);
 
                     self.render_refresh_rate(ui);
 
@@ -362,6 +367,60 @@ impl MantleApp {
                     }
                 });
         });
+    }
+
+    fn render_run_on_startup(&mut self, ui: &mut egui::Ui) {
+        let mut run_on_startup = self.settings.run_on_startup;
+        if ui
+            .checkbox(
+                &mut run_on_startup,
+                t!("settings.run_on_startup").to_string(),
+            )
+            .on_hover_text(t!("settings.run_on_startup_hover").to_string())
+            .changed()
+        {
+            self.settings.run_on_startup = run_on_startup;
+            match Self::set_auto_launch(run_on_startup) {
+                Ok(_) => {
+                    if run_on_startup {
+                        self.success_toast(&t!("settings.startup_enabled"));
+                    } else {
+                        self.info_toast(&t!("settings.startup_disabled"));
+                    }
+                }
+                Err(e) => {
+                    self.settings.run_on_startup = !run_on_startup;
+                    self.error_toast(&t!("error.startup", error = e));
+                }
+            }
+        }
+    }
+
+    fn build_auto_launch() -> Result<auto_launch::AutoLaunch, String> {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_str = exe.to_str().ok_or("Invalid executable path")?;
+        auto_launch::AutoLaunchBuilder::new()
+            .set_app_name("Mantle")
+            .set_app_path(exe_str)
+            .set_macos_launch_mode(auto_launch::MacOSLaunchMode::LaunchAgent)
+            .build()
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_auto_launch(enable: bool) -> Result<(), String> {
+        let auto = Self::build_auto_launch()?;
+        if enable {
+            auto.enable().map_err(|e| e.to_string())
+        } else {
+            auto.disable().map_err(|e| e.to_string())
+        }
+    }
+
+    pub fn sync_auto_launch_state(&mut self) {
+        match Self::build_auto_launch().and_then(|a| a.is_enabled().map_err(|e| e.to_string())) {
+            Ok(enabled) => self.settings.run_on_startup = enabled,
+            Err(e) => log::warn!("Could not query auto-launch state: {}", e),
+        }
     }
 
     fn render_refresh_rate(&mut self, ui: &mut egui::Ui) {
@@ -760,6 +819,7 @@ mod tests {
             scheduled_scenes: Vec::new(),
             audio_buffer_size: 4096,
             custom_colors: Vec::new(),
+            run_on_startup: false,
         };
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
@@ -769,6 +829,7 @@ mod tests {
         assert!(deserialized.custom_shortcuts.is_empty());
         assert!(deserialized.scenes.is_empty());
         assert!(deserialized.custom_colors.is_empty());
+        assert!(!deserialized.run_on_startup);
     }
 
     #[test]

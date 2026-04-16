@@ -169,6 +169,10 @@ settings.refresh_rate: "Refresh Rate:"
 settings.refresh_rate_hover: "How often to poll LIFX devices for status updates"
 settings.ms: "ms"
 settings.samples: "samples"
+settings.run_on_startup: "Run on startup"
+settings.run_on_startup_hover: "Automatically start Mantle when you log in"
+settings.startup_enabled: "Mantle will now start on login"
+settings.startup_disabled: "Mantle will no longer start on login"
 
 # Scene schedule
 schedule.title: "Scene Schedule"
@@ -239,6 +243,7 @@ error.serialize_scenes: "Failed to serialize scenes: %{error}"
 error.invalid_scene_file: "Invalid scene file: %{error}"
 error.read_file: "Failed to read file: %{error}"
 error.apply_scene: "Failed to apply scene: %{errors}"
+error.startup: "Failed to update startup setting: %{error}"
 
 # Scene apply errors
 error.bulb_color: "Failed to set color for bulb: %{error}"

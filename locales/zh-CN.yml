@@ -169,6 +169,10 @@ settings.refresh_rate: "刷新频率："
 settings.refresh_rate_hover: "轮询 LIFX 设备以获取状态更新的频率"
 settings.ms: "毫秒"
 settings.samples: "采样"
+settings.run_on_startup: "开机自启动"
+settings.run_on_startup_hover: "登录时自动启动 Mantle"
+settings.startup_enabled: "Mantle 将在登录时自动启动"
+settings.startup_disabled: "Mantle 将不再在登录时自动启动"
 
 # 场景日程
 schedule.title: "场景日程"
@@ -239,6 +243,7 @@ error.serialize_scenes: "序列化场景失败：%{error}"
 error.invalid_scene_file: "无效的场景文件：%{error}"
 error.read_file: "读取文件失败：%{error}"
 error.apply_scene: "应用场景失败: %{errors}"
+error.startup: "更新启动设置失败：%{error}"
 
 # 场景应用错误
 error.bulb_color: "无法设置灯泡颜色：%{error}"

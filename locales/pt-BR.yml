@@ -169,6 +169,10 @@ settings.refresh_rate: "Taxa de Atualização de Status:"
 settings.refresh_rate_hover: "Com que frequência consultar os dispositivos LIFX para atualizações de status"
 settings.ms: "ms"
 settings.samples: "amostras"
+settings.run_on_startup: "Iniciar com o sistema"
+settings.run_on_startup_hover: "Iniciar o Mantle automaticamente ao fazer login"
+settings.startup_enabled: "O Mantle será iniciado no login"
+settings.startup_disabled: "O Mantle não será mais iniciado no login"
 
 # Agendamento de Cenas
 schedule.title: "Agendamento de Cenas"
@@ -239,6 +243,7 @@ error.serialize_scenes: "Falha ao serializar cenas: %{error}"
 error.invalid_scene_file: "Arquivo de cena inválido: %{error}"
 error.read_file: "Falha ao ler arquivo: %{error}"
 error.apply_scene: "Falha ao aplicar cena: %{errors}"
+error.startup: "Falha ao atualizar configuração de inicialização: %{error}"
 
 # Erros de aplicação de cena
 error.bulb_color: "Falha ao definir a cor da lâmpada: %{error}"
