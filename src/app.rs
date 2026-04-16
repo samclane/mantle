@@ -105,8 +105,6 @@ pub struct MantleApp {
     pub input_listener: InputListener,
     #[serde(skip)]
     pub lighting_manager: LifxManager,
-    #[serde(skip)]
-    pub listener_handle: Option<JoinHandle<()>>,
     pub new_scene: Scene,
     #[serde(skip)]
     pub screen_manager: ScreencapManager,
@@ -151,7 +149,6 @@ pub struct MantleApp {
 impl Default for MantleApp {
     fn default() -> Self {
         let input_listener = InputListener::new();
-        let listener_handle = Some(input_listener.start());
         let shortcut_manager = ShortcutManager::new(input_listener.clone());
         let lifx_manager = LifxManager::new().expect("Failed to create manager");
         let shortcut_handle = Some(shortcut_manager.start(lifx_manager.clone()));
@@ -161,7 +158,6 @@ impl Default for MantleApp {
             input_listener,
             shortcut_manager,
             shortcut_handle,
-            listener_handle,
             renaming_device: None,
             rename_buffer: String::new(),
             search_query: String::new(),
@@ -1448,7 +1444,7 @@ impl eframe::App for MantleApp {
         puffin::GlobalProfiler::lock().new_frame();
 
         self.handle_tray_events(ctx);
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(self.settings.refresh_rate_ms));
 
         if Instant::now() - self.lighting_manager.last_discovery
             > Duration::from_millis(self.settings.refresh_rate_ms)
@@ -1469,6 +1465,12 @@ impl eframe::App for MantleApp {
             self.check_scheduled_scenes();
             self.last_schedule_check = Instant::now();
         }
+
+        if !self.window_visible.load(Ordering::SeqCst) {
+            ctx.request_repaint_after(Duration::from_secs(2));
+            return;
+        }
+
         self.update_ui(ctx);
         self.show_about_window(ctx);
         self.show_audio_debug_window(ctx);
