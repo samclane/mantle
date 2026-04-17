@@ -132,7 +132,20 @@ jobs:
       if: runner.os == 'Linux'
     - name: Build release
       run: cargo build --release --target ${{ matrix.target }} --verbose
+    - name: Package macOS binary
+      if: runner.os == 'macOS'
+      run: |
+        chmod +x ${{ matrix.binary-path }}
+        tar czf ${{ matrix.artifact-name }}.tar.gz -C $(dirname ${{ matrix.binary-path }}) $(basename ${{ matrix.binary-path }})
+    - name: Upload artifact (macOS)
+      if: runner.os == 'macOS'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact-name }}
+        path: ${{ matrix.artifact-name }}.tar.gz
+        if-no-files-found: error
     - name: Upload artifact
+      if: runner.os != 'macOS'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
@@ -156,11 +169,8 @@ jobs:
           chmod +x artifacts/mantle-linux-x86_64/mantle
           tar czf mantle-linux-x86_64.tar.gz -C artifacts/mantle-linux-x86_64 mantle
 
-          chmod +x artifacts/mantle-macos-aarch64/mantle
-          tar czf mantle-macos-aarch64.tar.gz -C artifacts/mantle-macos-aarch64 mantle
-
-          chmod +x artifacts/mantle-macos-x86_64/mantle
-          tar czf mantle-macos-x86_64.tar.gz -C artifacts/mantle-macos-x86_64 mantle
+          cp artifacts/mantle-macos-aarch64/mantle-macos-aarch64.tar.gz mantle-macos-aarch64.tar.gz
+          cp artifacts/mantle-macos-x86_64/mantle-macos-x86_64.tar.gz mantle-macos-x86_64.tar.gz
 
           mv artifacts/mantle-windows-x86_64/mantle.exe mantle-windows-x86_64.exe
       - name: Create GitHub Release
