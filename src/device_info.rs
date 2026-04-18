@@ -56,6 +56,7 @@ pub struct BulbInfo {
     pub color: DeviceColor,
     pub features: Features,
     pub group: RefreshableData<GroupInfo>,
+    pub infrared: RefreshableData<u16>,
 }
 
 impl Clone for BulbInfo {
@@ -74,6 +75,7 @@ impl Clone for BulbInfo {
             color: self.color.clone(),
             features: self.features.clone(),
             group: self.group.clone(),
+            infrared: self.infrared.clone(),
         }
     }
 }
@@ -213,6 +215,7 @@ impl BulbInfo {
             color: DeviceColor::Unknown,
             features: Features::default(),
             group: RefreshableData::empty(Duration::from_secs(15), Message::GetGroup),
+            infrared: RefreshableData::empty(Duration::from_secs(15), Message::LightGetInfrared),
         }
     }
 
@@ -253,6 +256,9 @@ impl BulbInfo {
             DeviceColor::Multi(d) | DeviceColor::Matrix(d) => self.refresh_if_needed(sock, d)?,
         }
         self.features = Features::get_features(self.model.as_ref());
+        if self.features.infrared == Some(true) {
+            self.refresh_if_needed(sock, &self.infrared)?;
+        }
         Ok(())
     }
 

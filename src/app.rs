@@ -22,8 +22,8 @@ use crate::{
     shortcut::{KeyboardShortcutAction, ShortcutManager},
     toggle_button,
     ui::{
-        color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders, matrix_grid,
-        render_capture_target, rgb_input, zone_strip,
+        color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders,
+        infrared_slider, matrix_grid, render_capture_target, rgb_input, zone_strip,
     },
     BulbInfo, LifxManager, ScreencapManager,
 };
@@ -569,6 +569,74 @@ impl MantleApp {
                     after_color = handle_audio(self, ui, device).unwrap_or(after_color);
                 });
                 render_capture_target(self, ui, device);
+
+                let has_infrared = match device {
+                    DeviceInfo::Bulb(bulb) => bulb.features.infrared == Some(true),
+                    DeviceInfo::Group(group) => group
+                        .get_bulbs(bulbs)
+                        .iter()
+                        .any(|b| b.features.infrared == Some(true)),
+                };
+                if has_infrared {
+                    ui.add_space(4.0);
+                    let mut ir_brightness = match device {
+                        DeviceInfo::Bulb(bulb) => bulb.infrared.data.unwrap_or(0),
+                        DeviceInfo::Group(group) => {
+                            let ir_bulbs: Vec<&BulbInfo> = group
+                                .get_bulbs(bulbs)
+                                .into_iter()
+                                .filter(|b| b.features.infrared == Some(true))
+                                .collect();
+                            if ir_bulbs.is_empty() {
+                                0
+                            } else {
+                                let sum: u32 = ir_bulbs
+                                    .iter()
+                                    .map(|b| b.infrared.data.unwrap_or(0) as u32)
+                                    .sum();
+                                (sum / ir_bulbs.len() as u32) as u16
+                            }
+                        }
+                    };
+                    let before_ir = ir_brightness;
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(t!("controls.infrared").to_string())
+                                .size(12.0)
+                                .color(Color32::from_rgb(160, 160, 180)),
+                        );
+                        infrared_slider(ui, &mut ir_brightness)
+                            .on_hover_text(t!("slider.infrared_hover").to_string());
+                    });
+                    if ir_brightness != before_ir {
+                        match device {
+                            DeviceInfo::Bulb(bulb) => {
+                                if let Err(e) =
+                                    self.lighting_manager.set_infrared(&&**bulb, ir_brightness)
+                                {
+                                    log::error!("Error setting infrared: {}", e);
+                                    self.error_toast(&t!(
+                                        "error.set_infrared",
+                                        error = e.to_string()
+                                    ));
+                                }
+                            }
+                            DeviceInfo::Group(group) => {
+                                if let Err(e) = self.lighting_manager.set_group_infrared(
+                                    group,
+                                    bulbs,
+                                    ir_brightness,
+                                ) {
+                                    log::error!("Error setting group infrared: {}", e);
+                                    self.error_toast(&t!(
+                                        "error.set_infrared",
+                                        error = e.to_string()
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if is_multizone {
                     if let DeviceInfo::Bulb(bulb) = device {

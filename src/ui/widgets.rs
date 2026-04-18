@@ -434,6 +434,13 @@ pub fn kelvin_slider(ui: &mut Ui, kelvin: &mut u16, device: &DeviceInfo) -> egui
     }
 }
 
+pub fn infrared_slider(ui: &mut Ui, brightness: &mut u16) -> egui::Response {
+    color_slider(ui, brightness, LIFX_RANGE, &t!("slider.infrared"), |v| {
+        let intensity = v as f32 / u16::MAX as f32;
+        Color32::from_rgb((100.0 * intensity) as u8, 0, 0)
+    })
+}
+
 fn slider_label(ui: &mut Ui, text: &str) {
     ui.label(
         RichText::new(text)

@@ -208,6 +208,9 @@ impl LifxManager {
             Message::LightStatePower { level } => {
                 bulb.power_level.update(level);
             }
+            Message::LightStateInfrared { brightness } => {
+                bulb.infrared.update(brightness);
+            }
             Message::StateGroup {
                 group,
                 label,
@@ -562,6 +565,27 @@ impl LifxManager {
         label: lifx_core::LifxString,
     ) -> Result<usize, std::io::Error> {
         self.send_message(bulb, Message::SetLabel { label })
+    }
+
+    /// Set the infrared brightness of a specific bulb.
+    pub fn set_infrared(&self, bulb: &&BulbInfo, brightness: u16) -> Result<usize, std::io::Error> {
+        self.send_message(bulb, Message::LightSetInfrared { brightness })
+    }
+
+    /// Set the infrared brightness of all IR-capable bulbs in a group.
+    pub fn set_group_infrared(
+        &self,
+        group: &GroupInfo,
+        bulbs: &MutexGuard<HashMap<u64, BulbInfo>>,
+        brightness: u16,
+    ) -> Result<usize, std::io::Error> {
+        let mut total = 0;
+        for bulb in group.get_bulbs(bulbs) {
+            if bulb.features.infrared == Some(true) {
+                total += self.set_infrared(&bulb, brightness)?;
+            }
+        }
+        Ok(total)
     }
 
     /// Set a specific color field of all bulbs in a group.
