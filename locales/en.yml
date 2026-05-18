@@ -176,6 +176,11 @@ settings.run_on_startup: "Run on startup"
 settings.run_on_startup_hover: "Automatically start Mantle when you log in"
 settings.startup_enabled: "Mantle will now start on login"
 settings.startup_disabled: "Mantle will no longer start on login"
+settings.network_debug: "Capture network debug log"
+settings.network_debug_hover: "Append every LIFX network event to a structured NDJSON file. Useful when filing a bug report."
+settings.network_debug_enabled: "Network debug log enabled (writing to %{path})"
+settings.network_debug_disabled: "Network debug log disabled"
+settings.network_debug_path: "Logging to %{path}"
 
 # Scene schedule
 schedule.title: "Scene Schedule"

@@ -286,6 +286,7 @@ impl MantleApp {
             let mut app =
                 eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
             rust_i18n::set_locale(&app.settings.locale);
+            Self::apply_network_debug_setting(app.settings.network_debug);
             let failures: Vec<KeyboardShortcutAction> = app
                 .settings
                 .custom_shortcuts
@@ -318,6 +319,7 @@ impl MantleApp {
             return app;
         }
         let mut app = Self::default();
+        Self::apply_network_debug_setting(app.settings.network_debug);
         app.sync_auto_launch_state();
         app.setup_tray_icon(&cc.egui_ctx);
         app

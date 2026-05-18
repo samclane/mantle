@@ -38,6 +38,11 @@ pub struct Settings {
     pub custom_colors: Vec<(String, HSBK32)>,
     #[serde(default)]
     pub run_on_startup: bool,
+    /// Append every network event to a structured NDJSON file
+    /// (see [`crate::net_debug`]). Off by default; useful for filing or
+    /// diagnosing bug reports without rebuilding from source.
+    #[serde(default)]
+    pub network_debug: bool,
 }
 
 impl Default for Settings {
@@ -53,6 +58,7 @@ impl Default for Settings {
             audio_buffer_size: AUDIO_BUFFER_DEFAULT,
             custom_colors: Vec::new(),
             run_on_startup: false,
+            network_debug: false,
         }
     }
 }
@@ -86,6 +92,8 @@ impl MantleApp {
                     self.render_locale_selector(ui);
 
                     self.render_run_on_startup(ui);
+
+                    self.render_network_debug(ui);
 
                     self.render_refresh_rate(ui);
 
@@ -420,6 +428,53 @@ impl MantleApp {
         match Self::build_auto_launch().and_then(|a| a.is_enabled().map_err(|e| e.to_string())) {
             Ok(enabled) => self.settings.run_on_startup = enabled,
             Err(e) => log::warn!("Could not query auto-launch state: {}", e),
+        }
+    }
+
+    fn render_network_debug(&mut self, ui: &mut egui::Ui) {
+        let mut enabled = self.settings.network_debug;
+        let response = ui
+            .checkbox(&mut enabled, t!("settings.network_debug").to_string())
+            .on_hover_text(t!("settings.network_debug_hover").to_string());
+        if response.changed() {
+            self.settings.network_debug = enabled;
+            Self::apply_network_debug_setting(enabled);
+            if enabled {
+                let path = crate::net_debug::current_path()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| crate::net_debug::DEFAULT_PATH.to_string());
+                self.success_toast(&t!("settings.network_debug_enabled", path = path));
+            } else {
+                self.info_toast(&t!("settings.network_debug_disabled"));
+            }
+        }
+        if enabled {
+            if let Some(path) = crate::net_debug::current_path() {
+                ui.label(
+                    egui::RichText::new(t!(
+                        "settings.network_debug_path",
+                        path = path.display().to_string()
+                    ))
+                    .small()
+                    .weak(),
+                );
+            }
+        }
+    }
+
+    /// Synchronise the runtime sink configuration with the persisted setting.
+    /// Called on app start (after settings are loaded) and whenever the user
+    /// toggles the checkbox.
+    pub fn apply_network_debug_setting(enabled: bool) {
+        if enabled {
+            // Honour an existing env-var-configured path so the env var
+            // remains a useful override (e.g. for CI or one-off bug reports
+            // run with a specific destination).
+            let path = crate::net_debug::current_path()
+                .unwrap_or_else(|| std::path::PathBuf::from(crate::net_debug::DEFAULT_PATH));
+            crate::net_debug::set_path(Some(path));
+        } else {
+            crate::net_debug::set_path::<&str>(None);
         }
     }
 
@@ -820,6 +875,7 @@ mod tests {
             audio_buffer_size: 4096,
             custom_colors: Vec::new(),
             run_on_startup: false,
+            network_debug: false,
         };
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();

@@ -1,3 +1,7 @@
 /target
 /log
 /.cursor
+
+# MANTLE_NET_DEBUG sink output (see src/net_debug.rs)
+/debug-*.log
+/*.ndjson

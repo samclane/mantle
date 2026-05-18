@@ -235,30 +235,57 @@ impl LifxManager {
         source: u32,
         receiver_bulbs: Arc<Mutex<HashMap<u64, BulbInfo>>>,
     ) {
+        crate::net_log!("worker.start");
         let mut buf = [0; 1024];
         loop {
             match recv_sock.recv_from(&mut buf) {
-                Ok((0, addr)) => log::debug!("Received a zero-byte datagram from {:?}", addr),
-                Ok((nbytes, addr)) => match RawMessage::unpack(&buf[0..nbytes]) {
-                    Ok(raw) => {
-                        if raw.frame_addr.target == 0 {
-                            continue;
-                        }
-                        if let Ok(mut bulbs) = receiver_bulbs.lock() {
-                            let bulb = bulbs
-                                .entry(raw.frame_addr.target)
-                                .and_modify(|bulb| bulb.update(addr))
-                                .or_insert_with(|| {
-                                    BulbInfo::new(source, raw.frame_addr.target, addr)
-                                });
-                            if let Err(e) = Self::handle_message(raw, bulb) {
-                                log::error!("Error handling message from {}: {}", addr, e)
+                Ok((0, addr)) => {
+                    crate::net_log!("worker.recv.zero", "from" => addr.to_string());
+                    log::debug!("Received a zero-byte datagram from {:?}", addr);
+                }
+                Ok((nbytes, addr)) => {
+                    crate::net_log!(
+                        "worker.recv",
+                        "from" => addr.to_string(),
+                        "nbytes" => nbytes,
+                    );
+                    match RawMessage::unpack(&buf[0..nbytes]) {
+                        Ok(raw) => {
+                            if raw.frame_addr.target == 0 {
+                                continue;
+                            }
+                            if let Ok(mut bulbs) = receiver_bulbs.lock() {
+                                let is_new = !bulbs.contains_key(&raw.frame_addr.target);
+                                let bulb = bulbs
+                                    .entry(raw.frame_addr.target)
+                                    .and_modify(|bulb| bulb.update(addr))
+                                    .or_insert_with(|| {
+                                        BulbInfo::new(source, raw.frame_addr.target, addr)
+                                    });
+                                if is_new {
+                                    crate::net_log!(
+                                        "bulb.discovered",
+                                        "target" => format!("{:#x}", raw.frame_addr.target),
+                                        "addr" => addr.to_string(),
+                                    );
+                                }
+                                if let Err(e) = Self::handle_message(raw, bulb) {
+                                    log::error!("Error handling message from {}: {}", addr, e)
+                                }
                             }
                         }
+                        Err(e) => {
+                            crate::net_log!(
+                                "worker.unpack_err",
+                                "from" => addr.to_string(),
+                                "err" => e.to_string(),
+                            );
+                            log::error!("Error unpacking raw message from {}: {}", addr, e)
+                        }
                     }
-                    Err(e) => log::error!("Error unpacking raw message from {}: {}", addr, e),
-                },
+                }
                 Err(e) => {
+                    crate::net_log!("worker.recv_err", "err" => e.to_string());
                     log::error!("recv_from error: {:?}", e);
                     std::thread::sleep(Duration::from_millis(100));
                 }
@@ -269,6 +296,7 @@ impl LifxManager {
     /// Discover LIFX bulbs on the local network.
     pub fn discover(&mut self) -> Result<usize, anyhow::Error> {
         log::debug!("Doing discovery");
+        crate::net_log!("discover.start");
         let mut count = 0;
 
         let opts = BuildOptions {
@@ -289,12 +317,19 @@ impl LifxManager {
                 }
                 let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
                 log::debug!("Discovering bulbs on LAN {:?}", addr);
-                self.socket.send_to(&bytes, addr)?;
+                let send_res = self.socket.send_to(&bytes, addr);
+                crate::net_log!(
+                    "discover.send",
+                    "broadcast" => addr.to_string(),
+                    "result" => format!("{:?}", send_res),
+                );
+                send_res?;
                 count += 1;
             }
         }
 
         self.last_discovery = Instant::now();
+        crate::net_log!("discover.done", "broadcasts_sent" => count);
 
         Ok(count)
     }
@@ -324,7 +359,15 @@ impl LifxManager {
         };
         let raw = RawMessage::build(&opts, message).expect("Failed to build message");
         let bytes = raw.pack().expect("Failed to pack message");
-        self.socket.send_to(&bytes, target)
+        let res = self.socket.send_to(&bytes, target);
+        crate::net_log!(
+            "bulb.send",
+            "target" => format!("{:#x}", bulb.target),
+            "addr" => target.to_string(),
+            "bytes" => bytes.len(),
+            "result" => format!("{:?}", res),
+        );
+        res
     }
 
     /// Set the power level of a specific bulb.
