@@ -141,8 +141,10 @@ jobs:
       run: |
         set -euxo pipefail
         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk.sh
+        wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
         chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
+        # linuxdeploy locates plugins via PATH; ensure the gtk plugin here is found.
+        export PATH="$PWD:$PATH"
 
         mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
         cp "${{ matrix.binary-path }}" AppDir/usr/bin/mantle
