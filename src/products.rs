@@ -1,8 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
+use std::sync::OnceLock;
 
 static PRODUCTS: &str = include_str!("../data/products.json");
+
+/// Parsed product database, built once on first use. Parsing the ~67 KB
+/// embedded JSON is expensive relative to how often product lookups happen
+/// (per bulb, per frame in the render path), so the result is cached here.
+static PRODUCT_MAP: OnceLock<HashMap<u32, Product>> = OnceLock::new();
 
 pub const LIFX_RANGE: RangeInclusive<u16> = 0..=u16::MAX;
 pub const KELVIN_RANGE: TemperatureRange = TemperatureRange {
@@ -89,13 +95,16 @@ pub fn get_product_name(model: Option<&(u32, u32)>) -> Option<String> {
         .map(|info| info.name.clone())
 }
 
-pub fn get_products() -> HashMap<u32, Product> {
-    let products: Products = serde_json::from_str(PRODUCTS).expect("Failed to parse products json");
-    let mut product_map = HashMap::new();
-    for product in products.products {
-        product_map.insert(product.pid, product);
-    }
-    product_map
+pub fn get_products() -> &'static HashMap<u32, Product> {
+    PRODUCT_MAP.get_or_init(|| {
+        let products: Products =
+            serde_json::from_str(PRODUCTS).expect("Failed to parse products json");
+        let mut product_map = HashMap::new();
+        for product in products.products {
+            product_map.insert(product.pid, product);
+        }
+        product_map
+    })
 }
 
 #[cfg(test)]

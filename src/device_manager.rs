@@ -60,6 +60,15 @@ impl LifxManager {
         Ok(lifx_manager)
     }
 
+    /// Lock the shared bulb map, recovering the guard even if another thread
+    /// panicked while holding it. A poisoned lock only means an in-progress
+    /// state update was interrupted; the map is still structurally valid, so
+    /// recovering keeps a single bad packet (or any other panic) from
+    /// cascading into a crash at every other `lock()` call site.
+    pub fn lock_bulbs(&self) -> MutexGuard<'_, HashMap<u64, BulbInfo>> {
+        self.bulbs.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Handle a `RawMessage` and update the internal state of a device.
     fn handle_message(raw: RawMessage, bulb: &mut BulbInfo) -> Result<(), lifx_core::Error> {
         match Message::from_raw(&raw)? {
@@ -136,12 +145,16 @@ impl LifxManager {
                 color,
             } => {
                 if let DeviceColor::Multi(ref mut d) = bulb.color {
-                    d.data.get_or_insert_with(|| {
-                        let mut v = Vec::with_capacity(count as usize);
-                        v.resize(count as usize, None);
-                        assert!(index <= count);
-                        v
-                    })[index as usize] = Some(color);
+                    // `index`/`count` come straight off the wire, so treat them
+                    // as untrusted: size to `count`, but grow if `index` lands
+                    // past the end rather than indexing out of bounds (a panic
+                    // here would poison the shared lock and crash the UI).
+                    let v = d.data.get_or_insert_with(|| vec![None; count as usize]);
+                    let idx = index as usize;
+                    if idx >= v.len() {
+                        v.resize(idx + 1, None);
+                    }
+                    v[idx] = Some(color);
                 }
             }
             Message::StateMultiZone {
@@ -157,22 +170,20 @@ impl LifxManager {
                 color7,
             } => {
                 if let DeviceColor::Multi(ref mut d) = bulb.color {
-                    let v = d.data.get_or_insert_with(|| {
-                        let mut v = Vec::with_capacity(count as usize);
-                        v.resize(count as usize, None);
-                        assert!(index + 7 <= count);
-                        v
-                    });
-
-                    // sometimes len(v) < index + 8 so we need to resize it
-                    if v.len() < (index + 8) as usize {
-                        v.resize((index + 8) as usize, None);
-                    }
+                    let v = d.data.get_or_insert_with(|| vec![None; count as usize]);
+                    // Compute the write range in `usize` so an attacker-chosen
+                    // `index` near u8::MAX can't overflow, and grow the vec to
+                    // fit instead of indexing out of bounds.
+                    let base = index as usize;
                     let colors = [
                         color0, color1, color2, color3, color4, color5, color6, color7,
                     ];
+                    let needed = base + colors.len();
+                    if v.len() < needed {
+                        v.resize(needed, None);
+                    }
                     for (i, &color) in colors.iter().enumerate() {
-                        v[index as usize + i] = Some(color);
+                        v[base + i] = Some(color);
                     }
                 }
             }
@@ -254,24 +265,24 @@ impl LifxManager {
                             if raw.frame_addr.target == 0 {
                                 continue;
                             }
-                            if let Ok(mut bulbs) = receiver_bulbs.lock() {
-                                let is_new = !bulbs.contains_key(&raw.frame_addr.target);
-                                let bulb = bulbs
-                                    .entry(raw.frame_addr.target)
-                                    .and_modify(|bulb| bulb.update(addr))
-                                    .or_insert_with(|| {
-                                        BulbInfo::new(source, raw.frame_addr.target, addr)
-                                    });
-                                if is_new {
-                                    crate::net_log!(
-                                        "bulb.discovered",
-                                        "target" => format!("{:#x}", raw.frame_addr.target),
-                                        "addr" => addr.to_string(),
-                                    );
-                                }
-                                if let Err(e) = Self::handle_message(raw, bulb) {
-                                    log::error!("Error handling message from {}: {}", addr, e)
-                                }
+                            let mut bulbs =
+                                receiver_bulbs.lock().unwrap_or_else(|e| e.into_inner());
+                            let is_new = !bulbs.contains_key(&raw.frame_addr.target);
+                            let bulb = bulbs
+                                .entry(raw.frame_addr.target)
+                                .and_modify(|bulb| bulb.update(addr))
+                                .or_insert_with(|| {
+                                    BulbInfo::new(source, raw.frame_addr.target, addr)
+                                });
+                            if is_new {
+                                crate::net_log!(
+                                    "bulb.discovered",
+                                    "target" => format!("{:#x}", raw.frame_addr.target),
+                                    "addr" => addr.to_string(),
+                                );
+                            }
+                            if let Err(e) = Self::handle_message(raw, bulb) {
+                                log::error!("Error handling message from {}: {}", addr, e)
                             }
                         }
                         Err(e) => {
@@ -336,13 +347,19 @@ impl LifxManager {
 
     /// Refresh the state of all known bulbs.
     pub fn refresh(&self) -> Result<usize, anyhow::Error> {
-        let mut count = 0;
-        if let Ok(mut bulbs) = self.bulbs.lock() {
-            let bulbs = bulbs.values_mut();
-            for bulb in bulbs {
-                bulb.query_for_missing_info(&self.socket)?;
-                count += 1;
+        // Decide what to send while holding the lock, but perform the socket
+        // writes after releasing it so the worker thread isn't blocked on I/O
+        // while it waits to record incoming device state.
+        let mut messages = Vec::new();
+        let count = {
+            let mut bulbs = self.lock_bulbs();
+            for bulb in bulbs.values_mut() {
+                bulb.collect_refresh_messages(&mut messages)?;
             }
+            bulbs.len()
+        };
+        for (addr, bytes) in messages {
+            self.socket.send_to(&bytes, addr)?;
         }
         Ok(count)
     }
@@ -464,12 +481,11 @@ impl LifxManager {
     /// Get a list of all groups.
     pub fn get_groups(&self) -> Vec<GroupInfo> {
         let mut groups = Vec::new();
-        if let Ok(bulbs) = self.bulbs.lock() {
-            for bulb in bulbs.values() {
-                if let Some(group) = &bulb.group.data {
-                    if !groups.contains(group) {
-                        groups.push(group.clone());
-                    }
+        let bulbs = self.lock_bulbs();
+        for bulb in bulbs.values() {
+            if let Some(group) = &bulb.group.data {
+                if !groups.contains(group) {
+                    groups.push(group.clone());
                 }
             }
         }
@@ -530,17 +546,14 @@ impl LifxManager {
         device_id: u64,
         avg_color: HSBK,
     ) -> Result<usize, std::io::Error> {
-        if let Ok(bulbs) = self.bulbs.lock() {
-            if let Some(bulb) = bulbs.get(&device_id) {
-                return self.set_color(&bulb, avg_color, None);
-            }
+        let bulbs = self.lock_bulbs();
+        if let Some(bulb) = bulbs.get(&device_id) {
+            return self.set_color(&bulb, avg_color, None);
         }
-        if let Ok(bulbs) = self.bulbs.lock() {
-            for bulb in bulbs.values() {
-                if let Some(group) = &bulb.group.data {
-                    if group.id() == device_id {
-                        return self.set_group_color(group, avg_color, &bulbs, None);
-                    }
+        for bulb in bulbs.values() {
+            if let Some(group) = &bulb.group.data {
+                if group.id() == device_id {
+                    return self.set_group_color(group, avg_color, &bulbs, None);
                 }
             }
         }
@@ -550,16 +563,14 @@ impl LifxManager {
     /// Toggle the power state of all bulbs.
     pub fn toggle_power(&self) -> Result<usize, std::io::Error> {
         let mut total = 0;
-        if let Ok(bulbs) = self.bulbs.lock() {
-            let bulbs = bulbs.values();
-            for bulb in bulbs {
-                let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
-                    0
-                } else {
-                    u16::MAX
-                };
-                total += self.set_power(&bulb, pwr)?;
-            }
+        let bulbs = self.lock_bulbs();
+        for bulb in bulbs.values() {
+            let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
+                0
+            } else {
+                u16::MAX
+            };
+            total += self.set_power(&bulb, pwr)?;
         }
         Ok(total)
     }
@@ -589,15 +600,14 @@ impl LifxManager {
 
     /// Toggle the power state of all bulbs in a group.
     pub fn toggle_group_power(&self, group_info: GroupInfo) {
-        if let Ok(bulbs) = self.bulbs.lock() {
-            for bulb in group_info.get_bulbs(&bulbs) {
-                let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
-                    0
-                } else {
-                    u16::MAX
-                };
-                let _ = self.set_power(&bulb, pwr);
-            }
+        let bulbs = self.lock_bulbs();
+        for bulb in group_info.get_bulbs(&bulbs) {
+            let pwr = if bulb.power_level.data.unwrap_or(0) > 0 {
+                0
+            } else {
+                u16::MAX
+            };
+            let _ = self.set_power(&bulb, pwr);
         }
     }
 
@@ -645,5 +655,84 @@ impl LifxManager {
             total += self.set_color_field(&bulb, field, value)?;
         }
         Ok(total)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::refreshable_data::RefreshableData;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn multizone_bulb() -> BulbInfo {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 56700);
+        let mut bulb = BulbInfo::new(1, 1, addr);
+        bulb.color = DeviceColor::Multi(RefreshableData::empty(
+            Duration::from_secs(15),
+            Message::GetColorZones {
+                start_index: 0,
+                end_index: 255,
+            },
+        ));
+        bulb
+    }
+
+    fn raw(msg: Message) -> RawMessage {
+        RawMessage::build(&BuildOptions::default(), msg).expect("failed to build message")
+    }
+
+    /// A `StateZone` whose `index` lands past `count` must not panic: a panic
+    /// here runs while the shared bulb lock is held, poisoning it and taking
+    /// down the UI (see the hardening in `handle_message`).
+    #[test]
+    fn state_zone_index_past_end_grows_instead_of_panicking() {
+        let mut bulb = multizone_bulb();
+        let color = HSBK {
+            hue: 1,
+            saturation: 2,
+            brightness: 3,
+            kelvin: 3500,
+        };
+        LifxManager::handle_message(
+            raw(Message::StateZone {
+                count: 1,
+                index: 255,
+                color,
+            }),
+            &mut bulb,
+        )
+        .expect("handle_message should not error");
+        assert_eq!(bulb.get_zone_color(255).copied(), Some(color));
+    }
+
+    /// A `StateMultiZone` with `index` near `u8::MAX` previously overflowed the
+    /// `index + 8` byte arithmetic; it must now widen safely.
+    #[test]
+    fn state_multizone_high_index_does_not_overflow() {
+        let mut bulb = multizone_bulb();
+        let c = HSBK {
+            hue: 9,
+            saturation: 9,
+            brightness: 9,
+            kelvin: 3500,
+        };
+        LifxManager::handle_message(
+            raw(Message::StateMultiZone {
+                count: 8,
+                index: 250,
+                color0: c,
+                color1: c,
+                color2: c,
+                color3: c,
+                color4: c,
+                color5: c,
+                color6: c,
+                color7: c,
+            }),
+            &mut bulb,
+        )
+        .expect("handle_message should not error");
+        // base 250 + 8 colors => zones 250..=257 are written.
+        assert_eq!(bulb.get_zone_color(257).copied(), Some(c));
     }
 }

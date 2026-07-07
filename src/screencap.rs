@@ -10,6 +10,11 @@ use xcap::{
 use crate::RGB8;
 use rust_i18n::t;
 
+/// Upper bound on how many pixels the average-color pass inspects per image.
+/// Captures are sampled with a stride to stay under this regardless of the
+/// source resolution.
+const AVG_COLOR_SAMPLE_TARGET: usize = 65_536;
+
 /// A subregion of a screen that can be captured.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScreenSubregion {
@@ -187,7 +192,12 @@ impl ScreencapManager {
         let mut count: u64 = 0;
 
         let mut calculate_image_pixel_average = |image: &RgbaImage| {
-            for pixel in image.pixels() {
+            // Full-screen captures can be tens of millions of pixels; sample
+            // with a stride so the averaging cost stays bounded regardless of
+            // resolution. The result is visually identical to a full average.
+            let total = image.width() as usize * image.height() as usize;
+            let stride = (total / AVG_COLOR_SAMPLE_TARGET).max(1);
+            for pixel in image.pixels().step_by(stride) {
                 if pixel[3] == 0 {
                     continue;
                 }

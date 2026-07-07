@@ -48,15 +48,15 @@ pub fn handle_eyedropper(
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
-            let position = app
-                .input_listener
-                .get_last_mouse_position()
-                .expect("Failed to get mouse position");
-            match app.screen_manager.color_from_click(position.x, position.y) {
-                Ok(c) => color = Some(c),
-                Err(e) => eprintln!("Failed to get color: {}", e),
+            // The listener has no position until the first mouse event, so skip
+            // this click rather than panicking on an early `None`.
+            if let Some(position) = app.input_listener.get_last_mouse_position() {
+                match app.screen_manager.color_from_click(position.x, position.y) {
+                    Ok(c) => color = Some(c),
+                    Err(e) => eprintln!("Failed to get color: {}", e),
+                }
+                *show_eyedropper = false;
             }
-            *show_eyedropper = false;
         }
     }
     color.map(|color| DeltaColor {
@@ -271,10 +271,11 @@ pub fn update_subregion_bounds(app: &mut MantleApp, ui: &mut Ui, device_id: u64)
             out.cursor_icon = egui::CursorIcon::Crosshair;
         });
         if app.input_listener.is_button_pressed(rdev::Button::Left) {
-            let mouse_pos = app
-                .input_listener
-                .get_last_mouse_position()
-                .expect("Failed to get mouse position");
+            // No position is recorded until the first mouse event; bail out of
+            // this frame's handling instead of panicking on an early `None`.
+            let Some(mouse_pos) = app.input_listener.get_last_mouse_position() else {
+                return;
+            };
             if subregion.x == 0 && subregion.y == 0 {
                 let global_x = mouse_pos.x;
                 let global_y = mouse_pos.y;

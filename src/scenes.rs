@@ -56,15 +56,11 @@ impl Scene {
                     }
                 }
                 DeviceInfo::Group(group) => {
-                    if let Ok(bulbs) = lifx_manager.bulbs.lock() {
-                        if let Err(err) = lifx_manager.set_group_color(group, color, &bulbs, None) {
-                            errors.push(
-                                t!("error.group_color_apply", error = format!("{:?}", err))
-                                    .to_string(),
-                            );
-                        }
-                    } else {
-                        errors.push(t!("error.lock_bulbs").to_string());
+                    let bulbs = lifx_manager.lock_bulbs();
+                    if let Err(err) = lifx_manager.set_group_color(group, color, &bulbs, None) {
+                        errors.push(
+                            t!("error.group_color_apply", error = format!("{:?}", err)).to_string(),
+                        );
                     }
                 }
             }

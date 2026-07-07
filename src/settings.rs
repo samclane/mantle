@@ -233,12 +233,18 @@ impl MantleApp {
                         .to_string(),
                 )
                 .show_ui(ui, |ui| {
-                    for device in self.lighting_manager.bulbs.lock().unwrap().values() {
+                    for device in self.lighting_manager.lock_bulbs().values() {
+                        // A freshly discovered bulb may not have reported its
+                        // label yet, so fall back to a placeholder rather than
+                        // unwrapping a `None`/non-UTF-8 name and crashing.
+                        let device_name = device
+                            .name_label()
+                            .unwrap_or_else(|| t!("devices.unknown").to_string());
                         ui.selectable_label(
                             self.shortcut_manager.new_shortcut.device.clone().unwrap_or(
                                 DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
                             ) == DeviceInfo::Bulb(Box::new(device.clone())),
-                            device.name.data.as_ref().unwrap().to_str().unwrap(),
+                            device_name,
                         )
                         .clicked()
                         .then(|| {
@@ -251,7 +257,7 @@ impl MantleApp {
                             self.shortcut_manager.new_shortcut.device.clone().unwrap_or(
                                 DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
                             ) == DeviceInfo::Group(group.clone()),
-                            group.label.cstr().to_str().unwrap(),
+                            group.label.cstr().to_str().unwrap_or_default(),
                         )
                         .clicked()
                         .then(|| {
@@ -718,7 +724,7 @@ impl MantleApp {
         egui::ScrollArea::vertical()
             .max_height(150.0)
             .show(ui, |ui| {
-                for device in self.lighting_manager.bulbs.lock().unwrap().values() {
+                for device in self.lighting_manager.lock_bulbs().values() {
                     let mut selected = self
                         .new_scene
                         .devices_mut()
@@ -756,7 +762,10 @@ impl MantleApp {
                         .devices_mut()
                         .any(|d| *d == DeviceInfo::Group(group.clone()));
                     if ui
-                        .checkbox(&mut selected, group.label.cstr().to_str().unwrap())
+                        .checkbox(
+                            &mut selected,
+                            group.label.cstr().to_str().unwrap_or_default(),
+                        )
                         .on_hover_text(t!("scenes.group_hover").to_string())
                         .changed()
                     {
@@ -766,9 +775,8 @@ impl MantleApp {
                                 .push((DeviceInfo::Group(group.clone()), default_hsbk().into()));
 
                             // Also add individual devices from the group
-                            for device in group
-                                .get_bulbs(&self.lighting_manager.bulbs.lock().unwrap())
-                                .iter()
+                            for device in
+                                group.get_bulbs(&self.lighting_manager.lock_bulbs()).iter()
                             {
                                 // Avoid duplicating devices
                                 if !self.new_scene.devices_mut().any(|d| {

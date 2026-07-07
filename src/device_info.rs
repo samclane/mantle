@@ -224,9 +224,13 @@ impl BulbInfo {
         self.addr = addr;
     }
 
-    fn refresh_if_needed<T>(
+    /// If `data` is stale, append the packed refresh request (destination
+    /// address + bytes) to `out` instead of sending it. This lets callers
+    /// gather every pending request while holding the bulb map lock and then
+    /// send them after releasing it, keeping socket I/O off the lock.
+    fn push_refresh_if_needed<T>(
         &self,
-        sock: &UdpSocket,
+        out: &mut Vec<(SocketAddr, Vec<u8>)>,
         data: &RefreshableData<T>,
     ) -> Result<(), anyhow::Error> {
         if data.needs_refresh() {
@@ -237,27 +241,43 @@ impl BulbInfo {
                 ..Default::default()
             };
             let message = RawMessage::build(&options, data.refresh_msg.clone())?;
-            sock.send_to(&message.pack()?, self.addr)?;
+            out.push((self.addr, message.pack()?));
+        }
+        Ok(())
+    }
+
+    /// Collect (but do not send) the refresh requests this bulb currently
+    /// needs. See [`Self::push_refresh_if_needed`] for why sending is deferred.
+    pub fn collect_refresh_messages(
+        &mut self,
+        out: &mut Vec<(SocketAddr, Vec<u8>)>,
+    ) -> Result<(), anyhow::Error> {
+        self.push_refresh_if_needed(out, &self.name)?;
+        self.push_refresh_if_needed(out, &self.model)?;
+        self.push_refresh_if_needed(out, &self.location)?;
+        self.push_refresh_if_needed(out, &self.host_firmware)?;
+        self.push_refresh_if_needed(out, &self.wifi_firmware)?;
+        self.push_refresh_if_needed(out, &self.power_level)?;
+        self.push_refresh_if_needed(out, &self.group)?;
+        match &self.color {
+            DeviceColor::Unknown => (), // We'll need to wait to get info about this bulb's model.
+            DeviceColor::Single(d) => self.push_refresh_if_needed(out, d)?,
+            DeviceColor::Multi(d) | DeviceColor::Matrix(d) => {
+                self.push_refresh_if_needed(out, d)?
+            }
+        }
+        self.features = Features::get_features(self.model.as_ref());
+        if self.features.infrared == Some(true) {
+            self.push_refresh_if_needed(out, &self.infrared)?;
         }
         Ok(())
     }
 
     pub fn query_for_missing_info(&mut self, sock: &UdpSocket) -> Result<(), anyhow::Error> {
-        self.refresh_if_needed(sock, &self.name)?;
-        self.refresh_if_needed(sock, &self.model)?;
-        self.refresh_if_needed(sock, &self.location)?;
-        self.refresh_if_needed(sock, &self.host_firmware)?;
-        self.refresh_if_needed(sock, &self.wifi_firmware)?;
-        self.refresh_if_needed(sock, &self.power_level)?;
-        self.refresh_if_needed(sock, &self.group)?;
-        match &self.color {
-            DeviceColor::Unknown => (), // We'll need to wait to get info about this bulb's model.
-            DeviceColor::Single(d) => self.refresh_if_needed(sock, d)?,
-            DeviceColor::Multi(d) | DeviceColor::Matrix(d) => self.refresh_if_needed(sock, d)?,
-        }
-        self.features = Features::get_features(self.model.as_ref());
-        if self.features.infrared == Some(true) {
-            self.refresh_if_needed(sock, &self.infrared)?;
+        let mut messages = Vec::new();
+        self.collect_refresh_messages(&mut messages)?;
+        for (addr, bytes) in messages {
+            sock.send_to(&bytes, addr)?;
         }
         Ok(())
     }

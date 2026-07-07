@@ -6,12 +6,20 @@ use eframe::egui::{self};
 use egui_plot::{Legend, Line, PlotPoints};
 use lifx_core::HSBK;
 use rustfft::{num_complex::Complex, FftPlanner};
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use crate::color::DEFAULT_KELVIN;
 use rust_i18n::t;
 
 pub const AUDIO_BUFFER_DEFAULT: usize = 48000;
+
+thread_local! {
+    /// Reused across calls so repeated transforms of the same length don't
+    /// re-plan the FFT every time — planning is the expensive part, and the
+    /// planner caches plans internally by length.
+    static FFT_PLANNER: RefCell<FftPlanner<f32>> = RefCell::new(FftPlanner::new());
+}
 
 fn to_complex(buffer: &[f32]) -> Vec<Complex<f32>> {
     buffer.iter().copied().map(|v| v.into()).collect()
@@ -158,9 +166,11 @@ impl AudioManager {
     }
 
     fn fft(samples: &[f32]) -> Vec<Complex<f32>> {
+        if samples.is_empty() {
+            return Vec::new();
+        }
         let mut buffer = to_complex(samples);
-        let mut planner = FftPlanner::new();
-        let fft = planner.plan_fft_forward(buffer.len());
+        let fft = FFT_PLANNER.with(|planner| planner.borrow_mut().plan_fft_forward(buffer.len()));
         fft.process(&mut buffer);
         buffer
     }
@@ -177,38 +187,56 @@ impl AudioManager {
         buffer.iter().map(|value| value.norm_sqr()).collect()
     }
 
+    /// Average power (RMS magnitude) of an already-computed spectrum.
+    fn spectrum_power(spectrum: &[Complex<f32>]) -> u16 {
+        if spectrum.is_empty() {
+            return 0;
+        }
+        let avg_power = spectrum.iter().map(|c| c.norm_sqr()).sum::<f32>() / spectrum.len() as f32;
+        (avg_power.sqrt() * u16::MAX as f32) as u16
+    }
+
+    /// Hue derived from the dominant frequency bin of an already-computed spectrum.
+    fn dominant_hue(spectrum: &[Complex<f32>]) -> u16 {
+        let sample_rate = AUDIO_BUFFER_DEFAULT as f32;
+        let dominant_freq_hz = spectrum
+            .iter()
+            .enumerate()
+            // `unwrap_or(Equal)` guards against a NaN sample producing `None`
+            // from `partial_cmp`, which would otherwise panic.
+            .max_by(|(_, a), (_, b)| {
+                a.norm_sqr()
+                    .partial_cmp(&b.norm_sqr())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(index, _)| index as f32 * sample_rate / spectrum.len().max(1) as f32)
+            .unwrap_or_default();
+        let max_freq = sample_rate / 2.0;
+        ((dominant_freq_hz / max_freq) * u16::MAX as f32) as u16
+    }
+
     /// Compute the power of the given samples, which is the average of the power spectrum.
     pub fn power(samples: &[f32]) -> u16 {
-        let power_spectrum = Self::power_spectrum(samples);
-        let avg_power = power_spectrum.iter().sum::<f32>() / power_spectrum.len() as f32;
-        (avg_power.sqrt() * u16::MAX as f32) as u16
+        Self::spectrum_power(&Self::fft(samples))
     }
 
     /// Convert the given samples to an HSBK color, using the signal power as the brightness
     /// and the dominant frequency as the hue.
     pub fn samples_to_hsbk(samples: Vec<f32>) -> HSBK {
-        let value = Self::power(&samples);
-
+        // A single forward FFT feeds both the brightness (signal power) and the
+        // hue (dominant frequency), rather than transforming the buffer twice.
+        let spectrum = Self::fft(&samples);
         HSBK {
-            hue: Self::freq_to_hue(&samples),
+            hue: Self::dominant_hue(&spectrum),
             saturation: u16::MAX,
-            brightness: value,
+            brightness: Self::spectrum_power(&spectrum),
             kelvin: DEFAULT_KELVIN,
         }
     }
 
     /// Convert the given samples to an HSBK color, using the frequency centroid as the hue
     pub fn freq_to_hue(samples: &[f32]) -> u16 {
-        let spectrum = Self::fft(samples);
-        let sample_rate = AUDIO_BUFFER_DEFAULT as f32;
-        let dominant_freq_hz = spectrum
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.norm_sqr().partial_cmp(&b.norm_sqr()).unwrap())
-            .map(|(index, _)| index as f32 * sample_rate / spectrum.len() as f32)
-            .unwrap_or_default();
-        let max_freq = sample_rate / 2.0;
-        ((dominant_freq_hz / max_freq) * u16::MAX as f32) as u16
+        Self::dominant_hue(&Self::fft(samples))
     }
 
     /// Compute the frequency centroid of the given samples, returning an HSBK color

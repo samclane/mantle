@@ -1273,120 +1273,115 @@ impl MantleApp {
             }
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let bulbs = self.lighting_manager.bulbs.clone();
-                let bulbs = bulbs.lock();
+                // Recover the guard even if a worker thread panicked while
+                // holding it, so a poisoned lock can't crash the render loop.
+                let mut bulbs = bulbs.lock().unwrap_or_else(|e| e.into_inner());
                 ui.vertical(|ui| {
-                    if let Ok(mut bulbs) = bulbs {
-                        if bulbs.is_empty() {
-                            ui.add_space(40.0);
-                            ui.vertical_centered(|ui| {
-                                ui.add(egui::Spinner::new().size(32.0));
-                                ui.add_space(12.0);
-                                ui.label(
-                                    RichText::new(t!("devices.searching").to_string())
-                                        .size(16.0)
-                                        .color(Color32::from_rgb(160, 160, 180)),
+                    if bulbs.is_empty() {
+                        ui.add_space(40.0);
+                        ui.vertical_centered(|ui| {
+                            ui.add(egui::Spinner::new().size(32.0));
+                            ui.add_space(12.0);
+                            ui.label(
+                                RichText::new(t!("devices.searching").to_string())
+                                    .size(16.0)
+                                    .color(Color32::from_rgb(160, 160, 180)),
+                            );
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new(t!("devices.searching_hint").to_string())
+                                    .size(12.0)
+                                    .color(Color32::from_rgb(120, 120, 140)),
+                            );
+                            ui.add_space(12.0);
+                            if ui.button(t!("devices.refresh").to_string()).clicked() {
+                                if let Err(e) = self.lighting_manager.discover() {
+                                    log::error!("Failed to discover bulbs: {}", e);
+                                    self.error_toast(&t!("error.discover", error = e.to_string()));
+                                }
+                            }
+                        });
+                    } else {
+                        self.display_device(
+                            ui,
+                            &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
+                            &mut bulbs,
+                        );
+                        let (grouped, ungrouped) = {
+                            let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
+                            let query_lower = self.search_query.to_lowercase();
+                            let filtered_bulbs: Vec<&BulbInfo> = sorted_bulbs
+                                .into_iter()
+                                .filter(|bulb| {
+                                    self.search_query.is_empty()
+                                        || bulb
+                                            .name_label()
+                                            .map(|n| n.to_lowercase().contains(&query_lower))
+                                            .unwrap_or(false)
+                                        || bulb
+                                            .group_label()
+                                            .map(|g| g.to_lowercase().contains(&query_lower))
+                                            .unwrap_or(false)
+                                })
+                                .collect();
+
+                            let mut grouped: Vec<(crate::device_info::GroupInfo, Vec<u64>)> =
+                                Vec::new();
+                            let mut ungrouped: Vec<u64> = Vec::new();
+
+                            for bulb in &filtered_bulbs {
+                                if let Some(group) = bulb.group.data.as_ref() {
+                                    let group_name =
+                                        group.label.cstr().to_str().unwrap_or_default();
+                                    if let Some(entry) = grouped.iter_mut().find(|(g, _)| {
+                                        g.label.cstr().to_str().unwrap_or_default() == group_name
+                                    }) {
+                                        entry.1.push(bulb.target);
+                                    } else {
+                                        grouped.push((group.clone(), vec![bulb.target]));
+                                    }
+                                } else {
+                                    ungrouped.push(bulb.target);
+                                }
+                            }
+                            (grouped, ungrouped)
+                        };
+
+                        for (group, target_ids) in &grouped {
+                            let group_id = ui.make_persistent_id(("group_collapse", group.id()));
+                            egui::collapsing_header::CollapsingState::load_with_default_open(
+                                ui.ctx(),
+                                group_id,
+                                true,
+                            )
+                            .show_header(ui, |ui| {
+                                self.display_device(
+                                    ui,
+                                    &DeviceInfo::Group(group.clone()),
+                                    &mut bulbs,
                                 );
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new(t!("devices.searching_hint").to_string())
-                                        .size(12.0)
-                                        .color(Color32::from_rgb(120, 120, 140)),
-                                );
-                                ui.add_space(12.0);
-                                if ui.button(t!("devices.refresh").to_string()).clicked() {
-                                    if let Err(e) = self.lighting_manager.discover() {
-                                        log::error!("Failed to discover bulbs: {}", e);
-                                        self.error_toast(&t!(
-                                            "error.discover",
-                                            error = e.to_string()
-                                        ));
+                            })
+                            .body(|ui| {
+                                for target in target_ids {
+                                    if let Some(bulb) = bulbs.get(target) {
+                                        let bulb = bulb.clone();
+                                        self.display_device(
+                                            ui,
+                                            &DeviceInfo::Bulb(Box::new(bulb)),
+                                            &mut bulbs,
+                                        );
                                     }
                                 }
                             });
-                        } else {
-                            self.display_device(
-                                ui,
-                                &DeviceInfo::Group(self.lighting_manager.all_bulbs_group.clone()),
-                                &mut bulbs,
-                            );
-                            let (grouped, ungrouped) = {
-                                let sorted_bulbs = self.sort_bulbs(bulbs.values().collect());
-                                let query_lower = self.search_query.to_lowercase();
-                                let filtered_bulbs: Vec<&BulbInfo> = sorted_bulbs
-                                    .into_iter()
-                                    .filter(|bulb| {
-                                        self.search_query.is_empty()
-                                            || bulb
-                                                .name_label()
-                                                .map(|n| n.to_lowercase().contains(&query_lower))
-                                                .unwrap_or(false)
-                                            || bulb
-                                                .group_label()
-                                                .map(|g| g.to_lowercase().contains(&query_lower))
-                                                .unwrap_or(false)
-                                    })
-                                    .collect();
-
-                                let mut grouped: Vec<(crate::device_info::GroupInfo, Vec<u64>)> =
-                                    Vec::new();
-                                let mut ungrouped: Vec<u64> = Vec::new();
-
-                                for bulb in &filtered_bulbs {
-                                    if let Some(group) = bulb.group.data.as_ref() {
-                                        let group_name =
-                                            group.label.cstr().to_str().unwrap_or_default();
-                                        if let Some(entry) = grouped.iter_mut().find(|(g, _)| {
-                                            g.label.cstr().to_str().unwrap_or_default()
-                                                == group_name
-                                        }) {
-                                            entry.1.push(bulb.target);
-                                        } else {
-                                            grouped.push((group.clone(), vec![bulb.target]));
-                                        }
-                                    } else {
-                                        ungrouped.push(bulb.target);
-                                    }
-                                }
-                                (grouped, ungrouped)
-                            };
-
-                            for (group, target_ids) in &grouped {
-                                let group_id =
-                                    ui.make_persistent_id(("group_collapse", group.id()));
-                                egui::collapsing_header::CollapsingState::load_with_default_open(
-                                    ui.ctx(),
-                                    group_id,
-                                    true,
-                                )
-                                .show_header(ui, |ui| {
-                                    self.display_device(
-                                        ui,
-                                        &DeviceInfo::Group(group.clone()),
-                                        &mut bulbs,
-                                    );
-                                })
-                                .body(|ui| {
-                                    for target in target_ids {
-                                        if let Some(bulb) = bulbs.get(target) {
-                                            let bulb = bulb.clone();
-                                            self.display_device(
-                                                ui,
-                                                &DeviceInfo::Bulb(Box::new(bulb)),
-                                                &mut bulbs,
-                                            );
-                                        }
-                                    }
-                                });
-                            }
-                            for target in &ungrouped {
-                                if let Some(bulb) = bulbs.get(target) {
-                                    let bulb = bulb.clone();
-                                    self.display_device(
-                                        ui,
-                                        &DeviceInfo::Bulb(Box::new(bulb)),
-                                        &mut bulbs,
-                                    );
-                                }
+                        }
+                        for target in &ungrouped {
+                            if let Some(bulb) = bulbs.get(target) {
+                                let bulb = bulb.clone();
+                                self.display_device(
+                                    ui,
+                                    &DeviceInfo::Bulb(Box::new(bulb)),
+                                    &mut bulbs,
+                                );
                             }
                         }
                     }

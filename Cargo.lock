@@ -2827,7 +2827,7 @@ dependencies = [
 
 [[package]]
 name = "mantle"
-version = "0.0.20"
+version = "0.0.21"
 dependencies = [
  "anyhow",
  "auto-launch",

@@ -102,7 +102,7 @@ impl UserAction {
                                 brightness: *brightness,
                                 kelvin: *kelvin,
                             },
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                             None,
                         ) {
                             log::error!("Failed to set group color: {}", e);
@@ -131,7 +131,7 @@ impl UserAction {
                         let power = if *power { u16::MAX } else { 0 };
                         if let Err(e) = lifx_manager.set_group_power(
                             &_group_info,
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                             power,
                         ) {
                             log::error!("Failed to set group power: {}", e);
@@ -152,7 +152,7 @@ impl UserAction {
                             &_group_info,
                             HSBKField::Brightness,
                             *brightness,
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                         ) {
                             log::error!("Failed to set group brightness: {}", e);
                         }
@@ -176,7 +176,7 @@ impl UserAction {
                             &_group_info,
                             HSBKField::Saturation,
                             *saturation,
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                         ) {
                             log::error!("Failed to set group saturation: {}", e);
                         }
@@ -200,7 +200,7 @@ impl UserAction {
                             &_group_info,
                             HSBKField::Kelvin,
                             *kelvin,
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                         ) {
                             log::error!("Failed to set group kelvin: {}", e);
                         }
@@ -222,7 +222,7 @@ impl UserAction {
                             &_group_info,
                             HSBKField::Hue,
                             *hue,
-                            &lifx_manager.bulbs.lock().unwrap(),
+                            &lifx_manager.lock_bulbs(),
                         ) {
                             log::error!("Failed to set group hue: {}", e);
                         }
