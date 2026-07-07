@@ -81,42 +81,9 @@ impl Iterator for AngleIter {
     }
 }
 
-pub fn capitalize_first_letter(s: &str) -> String {
-    let mut character_iter = s.chars();
-    match character_iter.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + character_iter.as_str(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn capitalize_first_letter_empty() {
-        assert_eq!(capitalize_first_letter(""), "");
-    }
-
-    #[test]
-    fn capitalize_first_letter_single_char() {
-        assert_eq!(capitalize_first_letter("a"), "A");
-    }
-
-    #[test]
-    fn capitalize_first_letter_already_upper() {
-        assert_eq!(capitalize_first_letter("Hello"), "Hello");
-    }
-
-    #[test]
-    fn capitalize_first_letter_lowercase() {
-        assert_eq!(capitalize_first_letter("hello world"), "Hello world");
-    }
-
-    #[test]
-    fn capitalize_first_letter_unicode() {
-        assert_eq!(capitalize_first_letter("über"), "Über");
-    }
 
     #[test]
     fn angle_iter_zero_length_arc() {

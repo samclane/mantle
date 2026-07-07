@@ -2,7 +2,7 @@ use eframe::egui;
 use lifx_core::HSBK;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use strum_macros::{AsRefStr, EnumIter, VariantNames};
+use strum_macros::EnumIter;
 
 use crate::{
     color::HSBKField,
@@ -15,8 +15,7 @@ use rust_i18n::t;
 
 /// An action that can be performed in the UI
 /// Primarily used for storing shortcut data
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, EnumIter, VariantNames, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, EnumIter)]
 pub enum UserAction {
     Refresh,
     SetBrightness {
@@ -74,7 +73,7 @@ impl UserAction {
                     } else {
                         u16::MAX
                     };
-                    if let Err(e) = lifx_manager.set_power(&&*bulb_info, level) {
+                    if let Err(e) = lifx_manager.set_power(&*bulb_info, level) {
                         log::error!("Failed to set power: {}", e);
                     }
                 }
@@ -110,7 +109,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color(
-                            &&*bulb_info,
+                            &*bulb_info,
                             HSBK {
                                 hue: *hue,
                                 saturation: *saturation,
@@ -138,7 +137,7 @@ impl UserAction {
                         }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        if let Err(e) = lifx_manager.set_power(&&*bulb_info, *power as u16) {
+                        if let Err(e) = lifx_manager.set_power(&*bulb_info, *power as u16) {
                             log::error!("Failed to set power: {}", e);
                         }
                     }
@@ -159,7 +158,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color_field(
-                            &&*bulb_info,
+                            &*bulb_info,
                             HSBKField::Brightness,
                             *brightness,
                         ) {
@@ -183,7 +182,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color_field(
-                            &&*bulb_info,
+                            &*bulb_info,
                             HSBKField::Saturation,
                             *saturation,
                         ) {
@@ -207,7 +206,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) =
-                            lifx_manager.set_color_field(&&*bulb_info, HSBKField::Kelvin, *kelvin)
+                            lifx_manager.set_color_field(&*bulb_info, HSBKField::Kelvin, *kelvin)
                         {
                             log::error!("Failed to set kelvin: {}", e);
                         }
@@ -229,7 +228,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) =
-                            lifx_manager.set_color_field(&&*bulb_info, HSBKField::Hue, *hue)
+                            lifx_manager.set_color_field(&*bulb_info, HSBKField::Hue, *hue)
                         {
                             log::error!("Failed to set hue: {}", e);
                         }
@@ -350,12 +349,6 @@ impl Display for UserAction {
     }
 }
 
-impl From<UserAction> for String {
-    fn from(action: UserAction) -> Self {
-        action.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
@@ -391,12 +384,6 @@ mod tests {
         let mut variants = UserAction::iter();
         assert!(variants.any(|v| v == UserAction::Refresh));
         assert!(variants.any(|v| v == UserAction::TogglePower));
-    }
-
-    #[test]
-    fn test_discriminant_names() {
-        assert_eq!(UserAction::Refresh.as_ref(), "refresh");
-        assert_eq!(UserAction::TogglePower.as_ref(), "toggle_power");
     }
 
     #[test]
@@ -482,14 +469,6 @@ mod tests {
             UserAction::SetScene { scene: s } => assert_eq!(s.name, "Test"),
             _ => panic!("Expected SetScene variant"),
         }
-    }
-
-    #[test]
-    fn from_user_action_to_string_matches_display() {
-        let action = UserAction::SetBrightness { brightness: 42 };
-        let display = format!("{}", action);
-        let string: String = action.into();
-        assert_eq!(display, string);
     }
 
     #[test]

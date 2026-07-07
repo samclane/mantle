@@ -47,12 +47,6 @@ impl TemperatureRange {
     }
 }
 
-impl From<TemperatureRange> for (u16, u16) {
-    fn from(range: TemperatureRange) -> Self {
-        (range.min as u16, range.max as u16)
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Features {
     pub color: Option<bool>,
@@ -76,10 +70,6 @@ impl Features {
             .and_then(|(_, product)| products.get(product))
             .map(|info| info.features.clone())
             .unwrap_or_default()
-    }
-
-    pub fn as_ref(&self) -> Option<Features> {
-        Some(self.clone())
     }
 }
 
@@ -161,16 +151,6 @@ mod tests {
     }
 
     #[test]
-    fn temperature_range_into_tuple() {
-        let range = TemperatureRange {
-            min: 2500,
-            max: 9000,
-        };
-        let tuple: (u16, u16) = range.into();
-        assert_eq!(tuple, (2500, 9000));
-    }
-
-    #[test]
     fn features_get_features_unknown_model_returns_default() {
         let features = Features::get_features(Some(&(0, 999999)));
         assert_eq!(features.color, None);
@@ -181,12 +161,6 @@ mod tests {
     fn features_get_features_none_returns_default() {
         let features = Features::get_features(None);
         assert_eq!(features.color, None);
-    }
-
-    #[test]
-    fn features_as_ref_returns_some() {
-        let features = Features::default();
-        assert!(features.as_ref().is_some());
     }
 
     #[test]

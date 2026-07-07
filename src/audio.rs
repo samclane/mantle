@@ -32,17 +32,7 @@ fn to_real_f32(buffer: &[Complex<f32>]) -> Vec<f32> {
 /// Takes every `factor`-th element from the buffer, making  the size of the output buffer
 /// `buffer.len() / factor`.
 fn subsample(buffer: &[f32], factor: usize) -> Vec<f32> {
-    buffer
-        .iter()
-        .enumerate()
-        .filter_map(|(index, value)| {
-            if index % factor == 0 {
-                Some(*value)
-            } else {
-                None
-            }
-        })
-        .collect()
+    buffer.iter().step_by(factor).copied().collect()
 }
 
 /// Handles creation of audio streams and processing of audio data.
@@ -89,44 +79,6 @@ impl Default for AudioManager {
 }
 
 impl AudioManager {
-    pub fn build_output_stream(
-        &mut self,
-        max_buffer_size: &usize,
-    ) -> Result<(), cpal::BuildStreamError> {
-        let device = self
-            .current_device
-            .as_ref()
-            .ok_or(cpal::BuildStreamError::DeviceNotAvailable)?;
-
-        let config = self
-            .configuration
-            .as_ref()
-            .ok_or(cpal::BuildStreamError::InvalidArgument)?;
-
-        let buffer_clone = Arc::clone(&self.samples_buffer);
-        let max_size = *max_buffer_size;
-
-        let stream = device.build_output_stream(
-            config,
-            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                let mut buffer = buffer_clone.lock().unwrap();
-                buffer.extend_from_slice(data);
-                if buffer.len() > max_size {
-                    let excess = buffer.len() - max_size;
-                    buffer.drain(0..excess);
-                }
-            },
-            move |err| {
-                log::error!("an error occurred on the output audio stream: {}", err);
-            },
-            None,
-        )?;
-
-        let _ = stream.play();
-        self.stream = Some(stream);
-        Ok(())
-    }
-
     pub fn build_input_stream(
         &mut self,
         max_buffer_size: &usize,
@@ -180,13 +132,6 @@ impl AudioManager {
         to_real_f32(&buffer[0..buffer.len() / 2])
     }
 
-    /// Compute the power spectrum of the given samples, using the FFT
-    /// and returning the squared magnitude of each frequency component.
-    pub fn power_spectrum(samples: &[f32]) -> Vec<f32> {
-        let buffer = Self::fft(samples);
-        buffer.iter().map(|value| value.norm_sqr()).collect()
-    }
-
     /// Average power (RMS magnitude) of an already-computed spectrum.
     fn spectrum_power(spectrum: &[Complex<f32>]) -> u16 {
         if spectrum.is_empty() {
@@ -230,48 +175,6 @@ impl AudioManager {
             hue: Self::dominant_hue(&spectrum),
             saturation: u16::MAX,
             brightness: Self::spectrum_power(&spectrum),
-            kelvin: DEFAULT_KELVIN,
-        }
-    }
-
-    /// Convert the given samples to an HSBK color, using the frequency centroid as the hue
-    pub fn freq_to_hue(samples: &[f32]) -> u16 {
-        Self::dominant_hue(&Self::fft(samples))
-    }
-
-    /// Compute the frequency centroid of the given samples, returning an HSBK color
-    /// with the hue set to the centroid frequency.
-    /// The brightness is set to the square root of the total power, and the saturation is set to
-    /// the maximum value.
-    pub fn freq_centroid(samples: &[f32]) -> HSBK {
-        let power_spectrum = AudioManager::power_spectrum(samples);
-
-        let total_power: f32 = power_spectrum.iter().sum();
-        let brightness = (total_power.sqrt().min(u16::MAX as f32)) as u16;
-
-        let sample_rate = AUDIO_BUFFER_DEFAULT;
-        let fft_size = power_spectrum.len() * 2;
-        let bin_size_hz: f32 = (sample_rate / fft_size) as f32;
-
-        let mut weighted_sum = 0.0;
-        let mut mag_sum = 0.0;
-        for (i, mag) in power_spectrum.iter().enumerate() {
-            let freq = i as f32 * bin_size_hz;
-            weighted_sum += freq * mag;
-            mag_sum += mag;
-        }
-        let centroid_freq = if mag_sum > 0.0 {
-            weighted_sum / mag_sum
-        } else {
-            0.0
-        };
-        let max_freq = sample_rate as f32 / 2.0;
-        let hue = ((centroid_freq / max_freq) as u16) * u16::MAX;
-
-        HSBK {
-            hue,
-            saturation: u16::MAX,
-            brightness,
             kelvin: DEFAULT_KELVIN,
         }
     }
@@ -374,14 +277,6 @@ mod tests {
     }
 
     #[test]
-    fn test_power_spectrum_nonnegative() {
-        let samples = vec![0.5; 64];
-        let spectrum = AudioManager::power_spectrum(&samples);
-        // All values in a power spectrum should be nonnegative.
-        assert!(spectrum.iter().all(|&val| val >= 0.0));
-    }
-
-    #[test]
     fn test_power_zero_input() {
         let samples = vec![0.0; 64];
         // For zero input, the power should be zero.
@@ -398,30 +293,10 @@ mod tests {
         // Brightness and hue are u16 fields on HSBK, so they are always valid for the LIFX wire format.
     }
 
-    #[test]
-    fn test_freq_to_hue_on_constant_signal() {
-        // If the input is constant, the FFT should have a dominant spike at index 0,
-        // yielding hue 0.
-        let samples = vec![1.0; 64];
-        let hue = AudioManager::freq_to_hue(&samples);
-        assert_eq!(hue, 0);
-    }
-
-    #[test]
-    fn test_freq_centroid_edge() {
-        // When the power spectrum is zero everywhere, the centroid should be zero.
-        let samples = vec![0.0; 64];
-        let hsbk = AudioManager::freq_centroid(&samples);
-        // hue computed from a zero centroid will be 0.
-        assert_eq!(hsbk.hue, 0);
-        // brightness should be zero as well.
-        assert_eq!(hsbk.brightness, 0);
-    }
-
     // Tests for audio stream construction
 
     #[test]
-    fn test_build_output_stream_no_device() {
+    fn test_build_input_stream_no_device() {
         // Create an AudioManager with no device.
         let mut manager = AudioManager {
             host: cpal::default_host(),
@@ -432,7 +307,7 @@ mod tests {
         };
         // Expect an error when trying to build the stream.
         let max_buffer_size = AUDIO_BUFFER_DEFAULT;
-        let result = manager.build_output_stream(&max_buffer_size);
+        let result = manager.build_input_stream(&max_buffer_size);
         match result {
             Err(BuildStreamError::DeviceNotAvailable) => {}
             Err(err) => panic!("Unexpected error variant: {:?}", err),

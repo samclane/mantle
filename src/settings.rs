@@ -161,16 +161,12 @@ impl MantleApp {
                 .on_hover_text(t!("settings.add_shortcut_hover").to_string())
                 .clicked()
             {
-                if let Some(device) = self.shortcut_manager.new_shortcut.device.clone() {
+                if self.shortcut_manager.new_shortcut.device.is_some() {
                     self.settings
                         .custom_shortcuts
                         .push(self.shortcut_manager.new_shortcut.clone());
-                    self.shortcut_manager.add_shortcut(
-                        self.shortcut_manager.new_shortcut.name.clone(),
-                        self.shortcut_manager.new_shortcut.shortcut.clone(),
-                        self.shortcut_manager.new_shortcut.action.clone(),
-                        device,
-                    );
+                    self.shortcut_manager
+                        .add_shortcut(self.shortcut_manager.new_shortcut.clone());
                     self.shortcut_manager.new_shortcut.name.clear();
                     self.shortcut_manager
                         .new_shortcut
@@ -830,7 +826,7 @@ impl MantleApp {
             self.settings.scenes.push(scene);
             // Clear the new scene input
             self.new_scene.name.clear();
-            self.new_scene.devices().clear();
+            self.new_scene.device_color_pairs.clear();
             self.success_toast(&t!("scenes.saved"));
         }
     }

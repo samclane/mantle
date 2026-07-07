@@ -10,7 +10,6 @@ use std::{
 
 use crate::{
     audio::AudioManager,
-    capitalize_first_letter,
     color::{default_hsbk, DeltaColor},
     device_info::DeviceInfo,
     display_color_circle,
@@ -19,7 +18,7 @@ use crate::{
     scenes::Scene,
     screencap::{RegionCaptureTarget, ScreenSubregion},
     settings::Settings,
-    shortcut::{KeyboardShortcutAction, ShortcutManager},
+    shortcut::ShortcutManager,
     toggle_button,
     ui::{
         color_wheel, handle_audio, handle_eyedropper, handle_screencap, hsbk_sliders,
@@ -196,7 +195,7 @@ impl MantleApp {
         let _ = menu.append(&toggle_item);
         let _ = menu.append(&quit_item);
 
-        let icon_data = image::load_from_memory(ICON)
+        let icon_data = xcap::image::load_from_memory(ICON)
             .map(|img| {
                 let rgba = img.to_rgba8();
                 let (w, h) = rgba.dimensions();
@@ -287,33 +286,14 @@ impl MantleApp {
                 eframe::get_value::<MantleApp>(storage, eframe::APP_KEY).unwrap_or_default();
             rust_i18n::set_locale(&app.settings.locale);
             Self::apply_network_debug_setting(app.settings.network_debug);
-            let failures: Vec<KeyboardShortcutAction> = app
-                .settings
-                .custom_shortcuts
-                .clone()
-                .into_iter()
-                .filter_map(|shortcut| {
-                    app.shortcut_manager
-                        .add_action(shortcut.clone())
-                        .err()
-                        .map(|e| {
-                            log::error!("Failed to add shortcut action: {}", e);
-                            shortcut
-                        })
-                })
-                .collect();
+            for shortcut in app.settings.custom_shortcuts.clone() {
+                app.shortcut_manager.add_shortcut(shortcut);
+            }
 
             app.audio_manager
                 .build_input_stream(&app.settings.audio_buffer_size)
                 .unwrap();
 
-            if !failures.is_empty() {
-                app.error_toast(&t!(
-                    "error.shortcut_add_failed",
-                    count = failures.len(),
-                    details = format!("{:?}", failures)
-                ));
-            }
             app.sync_auto_launch_state();
             app.setup_tray_icon(&cc.egui_ctx);
             return app;
@@ -457,7 +437,7 @@ impl MantleApp {
                                 if let Ok(cstr) = std::ffi::CString::new(self.rename_buffer.clone())
                                 {
                                     let label = lifx_core::LifxString::new(&cstr);
-                                    if let Err(e) = self.lighting_manager.set_label(&&**bulb, label)
+                                    if let Err(e) = self.lighting_manager.set_label(&**bulb, label)
                                     {
                                         log::error!("Failed to rename device: {}", e);
                                     }
@@ -614,7 +594,7 @@ impl MantleApp {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
                                 if let Err(e) =
-                                    self.lighting_manager.set_infrared(&&**bulb, ir_brightness)
+                                    self.lighting_manager.set_infrared(&**bulb, ir_brightness)
                                 {
                                     log::error!("Error setting infrared: {}", e);
                                     self.error_toast(&t!(
@@ -705,7 +685,7 @@ impl MantleApp {
                                             ApplicationRequest::NoApply
                                         };
                                         if let Err(e) = self.lighting_manager.set_color_zones(
-                                            &&**bulb, i as u8, i as u8, zone_color, duration, apply,
+                                            &**bulb, i as u8, i as u8, zone_color, duration, apply,
                                         ) {
                                             log::error!("Error setting gradient zone: {}", e);
                                             break;
@@ -787,7 +767,7 @@ impl MantleApp {
                                         );
                                     }
                                     if let Err(e) = self.lighting_manager.set_extended_color_zones(
-                                        &&**bulb, zones, &updates, duration,
+                                        &**bulb, zones, &updates, duration,
                                     ) {
                                         log::error!("Error setting matrix gradient: {}", e);
                                     } else {
@@ -816,7 +796,7 @@ impl MantleApp {
                                         .map(|&idx| (idx, after_color.next))
                                         .collect();
                                     if let Err(e) = self.lighting_manager.set_extended_color_zones(
-                                        &&**bulb, zones, &updates, duration,
+                                        &**bulb, zones, &updates, duration,
                                     ) {
                                         log::error!("Error setting matrix color: {}", e);
                                         self.error_toast(&t!(
@@ -835,7 +815,7 @@ impl MantleApp {
                                         ApplicationRequest::NoApply
                                     };
                                     if let Err(e) = self.lighting_manager.set_color_zones(
-                                        &&**bulb,
+                                        &**bulb,
                                         *start as u8,
                                         *end as u8,
                                         after_color.next,
@@ -852,7 +832,7 @@ impl MantleApp {
                                 }
                             } else {
                                 if let Err(e) = self.lighting_manager.set_color(
-                                    &&**bulb,
+                                    &**bulb,
                                     after_color.next,
                                     after_color.duration,
                                 ) {
@@ -1398,7 +1378,7 @@ impl MantleApp {
                 .open(&mut self.show_about)
                 .resizable([true, false])
                 .show(ctx, |ui| {
-                    ui.heading(capitalize_first_letter(env!("CARGO_PKG_NAME")));
+                    ui.heading("Mantle");
                     ui.add_space(8.0);
                     ui.label(env!("CARGO_PKG_DESCRIPTION"));
                     ui.label(t!("about.version", version = env!("CARGO_PKG_VERSION")).to_string());

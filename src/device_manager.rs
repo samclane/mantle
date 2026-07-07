@@ -4,9 +4,7 @@ use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
 use crate::DeviceColor;
 use get_if_addrs::{get_if_addrs, IfAddr, Ifv4Addr};
-use lifx_core::{
-    get_product_info, ApplicationRequest, BuildOptions, Message, RawMessage, Service, HSBK,
-};
+use lifx_core::{ApplicationRequest, BuildOptions, Message, RawMessage, Service, HSBK};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -84,17 +82,12 @@ impl LifxManager {
             } => {
                 bulb.model.update((vendor, product));
 
-                let (is_matrix, is_chain, is_multizone) =
-                    if let Some(info) = get_product_info(vendor, product) {
-                        (info.matrix, info.chain, info.multizone)
-                    } else {
-                        let f = Features::get_features(Some(&(vendor, product)));
-                        (
-                            f.matrix == Some(true),
-                            f.chain == Some(true),
-                            f.multizone == Some(true),
-                        )
-                    };
+                let f = Features::get_features(Some(&(vendor, product)));
+                let (is_matrix, is_chain, is_multizone) = (
+                    f.matrix == Some(true),
+                    f.chain == Some(true),
+                    f.multizone == Some(true),
+                );
 
                 if is_matrix && !is_chain {
                     bulb.color = DeviceColor::Matrix(RefreshableData::empty(
@@ -365,7 +358,7 @@ impl LifxManager {
     }
 
     /// Send a message to a specific bulb.
-    fn send_message(&self, bulb: &&BulbInfo, message: Message) -> Result<usize, std::io::Error> {
+    fn send_message(&self, bulb: &BulbInfo, message: Message) -> Result<usize, std::io::Error> {
         let target = bulb.addr;
         let opts = BuildOptions {
             target: Some(bulb.target),
@@ -388,7 +381,7 @@ impl LifxManager {
     }
 
     /// Set the power level of a specific bulb.
-    pub fn set_power(&self, bulb: &&BulbInfo, level: u16) -> Result<usize, std::io::Error> {
+    pub fn set_power(&self, bulb: &BulbInfo, level: u16) -> Result<usize, std::io::Error> {
         self.send_message(bulb, Message::LightSetPower { level, duration: 0 })
     }
 
@@ -400,13 +393,13 @@ impl LifxManager {
         level: u16,
     ) -> Result<usize, std::io::Error> {
         let bulbs: Vec<&BulbInfo> = group.get_bulbs(bulbs);
-        bulbs.into_iter().map(|b| self.set_power(&b, level)).sum()
+        bulbs.into_iter().map(|b| self.set_power(b, level)).sum()
     }
 
     /// Set the color of specific zones on a multizone device.
     pub fn set_color_zones(
         &self,
-        bulb: &&BulbInfo,
+        bulb: &BulbInfo,
         start_index: u8,
         end_index: u8,
         color: HSBK,
@@ -430,7 +423,7 @@ impl LifxManager {
     /// present in the map keep their current color (taken from `current`).
     pub fn set_extended_color_zones(
         &self,
-        bulb: &&BulbInfo,
+        bulb: &BulbInfo,
         current: &[Option<HSBK>],
         updates: &HashMap<usize, HSBK>,
         duration: u32,
@@ -464,7 +457,7 @@ impl LifxManager {
     /// Set the color of a specific bulb.
     pub fn set_color(
         &self,
-        bulb: &&BulbInfo,
+        bulb: &BulbInfo,
         color: HSBK,
         duration: Option<u32>,
     ) -> Result<usize, std::io::Error> {
@@ -503,7 +496,7 @@ impl LifxManager {
         let mut total = 0;
         let bulbs = group.get_bulbs(bulbs);
         for bulb in bulbs {
-            total += self.set_color(&bulb, color, duration)?;
+            total += self.set_color(bulb, color, duration)?;
         }
         Ok(total)
     }
@@ -548,7 +541,7 @@ impl LifxManager {
     ) -> Result<usize, std::io::Error> {
         let bulbs = self.lock_bulbs();
         if let Some(bulb) = bulbs.get(&device_id) {
-            return self.set_color(&bulb, avg_color, None);
+            return self.set_color(bulb, avg_color, None);
         }
         for bulb in bulbs.values() {
             if let Some(group) = &bulb.group.data {
@@ -570,7 +563,7 @@ impl LifxManager {
             } else {
                 u16::MAX
             };
-            total += self.set_power(&bulb, pwr)?;
+            total += self.set_power(bulb, pwr)?;
         }
         Ok(total)
     }
@@ -578,7 +571,7 @@ impl LifxManager {
     /// Set a specific color field of a bulb.
     pub fn set_color_field(
         &self,
-        bulb: &&BulbInfo,
+        bulb: &BulbInfo,
         field: HSBKField,
         value: u16,
     ) -> Result<usize, std::io::Error> {
@@ -607,21 +600,21 @@ impl LifxManager {
             } else {
                 u16::MAX
             };
-            let _ = self.set_power(&bulb, pwr);
+            let _ = self.set_power(bulb, pwr);
         }
     }
 
     /// Set the label (name) of a specific bulb.
     pub fn set_label(
         &self,
-        bulb: &&BulbInfo,
+        bulb: &BulbInfo,
         label: lifx_core::LifxString,
     ) -> Result<usize, std::io::Error> {
         self.send_message(bulb, Message::SetLabel { label })
     }
 
     /// Set the infrared brightness of a specific bulb.
-    pub fn set_infrared(&self, bulb: &&BulbInfo, brightness: u16) -> Result<usize, std::io::Error> {
+    pub fn set_infrared(&self, bulb: &BulbInfo, brightness: u16) -> Result<usize, std::io::Error> {
         self.send_message(bulb, Message::LightSetInfrared { brightness })
     }
 
@@ -635,7 +628,7 @@ impl LifxManager {
         let mut total = 0;
         for bulb in group.get_bulbs(bulbs) {
             if bulb.features.infrared == Some(true) {
-                total += self.set_infrared(&bulb, brightness)?;
+                total += self.set_infrared(bulb, brightness)?;
             }
         }
         Ok(total)
@@ -652,7 +645,7 @@ impl LifxManager {
         let mut total = 0;
         let bulbs = group_info.get_bulbs(bulbs);
         for bulb in bulbs {
-            total += self.set_color_field(&bulb, field, value)?;
+            total += self.set_color_field(bulb, field, value)?;
         }
         Ok(total)
     }

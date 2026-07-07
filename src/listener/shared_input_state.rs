@@ -1,7 +1,6 @@
 use super::input_item::InputItem;
 use super::input_listener::BackgroundCallback;
 use rdev::{Button, Event, Key};
-use std::time::Instant;
 use std::{collections::BTreeSet, sync::Mutex};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -12,7 +11,6 @@ pub struct MousePosition {
 
 pub struct SharedInputState {
     pub last_mouse_position: Mutex<Option<MousePosition>>,
-    pub last_click_time: Mutex<Option<Instant>>,
     pub keys_pressed: Mutex<BTreeSet<InputItem>>,
     pub callbacks: Mutex<Vec<BackgroundCallback>>,
 }
@@ -21,7 +19,6 @@ impl SharedInputState {
     pub fn new() -> Self {
         SharedInputState {
             last_mouse_position: Mutex::new(None),
-            last_click_time: Mutex::new(None),
             keys_pressed: Mutex::new(BTreeSet::new()),
             callbacks: Mutex::new(Vec::new()),
         }
@@ -53,12 +50,6 @@ impl SharedInputState {
 
     pub fn update_button_press(&self, button: Button) {
         self.update_input_key_press(InputItem::Button(button));
-
-        let mut time = self
-            .last_click_time
-            .lock()
-            .expect("Failed to lock last_click_time mutex");
-        *time = Some(Instant::now());
     }
 
     pub fn update_button_release(&self, button: Button) {

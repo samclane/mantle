@@ -9,7 +9,6 @@ pub use widgets::*;
 use crate::app::{ICON, MAIN_WINDOW_SIZE, MIN_WINDOW_SIZE};
 
 use eframe::egui;
-use image::GenericImageView;
 
 pub fn setup_eframe_options() -> eframe::NativeOptions {
     let icon = load_icon(ICON);
@@ -25,7 +24,7 @@ pub fn setup_eframe_options() -> eframe::NativeOptions {
 }
 
 pub fn load_icon(icon: &[u8]) -> egui::IconData {
-    let icon = image::load_from_memory(icon).expect("Failed to load icon");
+    let icon = xcap::image::load_from_memory(icon).expect("Failed to load icon");
     egui::IconData {
         rgba: icon.to_rgba8().into_raw(),
         width: icon.width(),

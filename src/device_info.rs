@@ -1,11 +1,6 @@
 use crate::products::Features;
 use crate::refreshable_data::RefreshableData;
-use crate::serializers::{
-    deserialize_instant, deserialize_lifx_string, serialize_instant, serialize_lifx_string,
-    LifxIdentDef,
-};
-use crate::HSBK32;
-use lifx_core::{get_product_info, BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
+use lifx_core::{BuildOptions, LifxIdent, LifxString, Message, RawMessage, HSBK};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,15 +12,40 @@ use std::time::{Duration, Instant, SystemTime};
 const HOUR: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(from = "GroupIdentity", into = "GroupIdentity")]
 pub struct GroupInfo {
-    #[serde(with = "LifxIdentDef")]
     pub group: LifxIdent,
-    #[serde(
-        serialize_with = "serialize_lifx_string",
-        deserialize_with = "deserialize_lifx_string"
-    )]
     pub label: LifxString,
     pub updated_at: u64,
+}
+
+/// Plain-serde mirror of [`GroupInfo`] so the foreign `LifxIdent`/`LifxString`
+/// types don't need custom serializers.
+#[derive(Serialize, Deserialize)]
+struct GroupIdentity {
+    group: [u8; 16],
+    label: String,
+    updated_at: u64,
+}
+
+impl From<GroupInfo> for GroupIdentity {
+    fn from(g: GroupInfo) -> Self {
+        GroupIdentity {
+            group: g.group.0,
+            label: g.label.to_string(),
+            updated_at: g.updated_at,
+        }
+    }
+}
+
+impl From<GroupIdentity> for GroupInfo {
+    fn from(g: GroupIdentity) -> Self {
+        GroupInfo {
+            group: LifxIdent(g.group),
+            label: LifxString::new(&CString::new(g.label).unwrap_or_default()),
+            updated_at: g.updated_at,
+        }
+    }
 }
 
 impl PartialEq for GroupInfo {
@@ -34,12 +54,11 @@ impl PartialEq for GroupInfo {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+// ponytail: persistence keeps only bulb identity; live state (colors, power,
+// firmware, refresh timers) is rediscovered from the network on startup.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(from = "BulbIdentity", into = "BulbIdentity")]
 pub struct BulbInfo {
-    #[serde(
-        serialize_with = "serialize_instant",
-        deserialize_with = "deserialize_instant"
-    )]
     pub last_seen: Instant,
     /// If the source is non-zero, then the LIFX device with send a unicast message to the IP
     /// address/port of the client that sent the originating message.  If zero, then the LIFX
@@ -59,24 +78,32 @@ pub struct BulbInfo {
     pub infrared: RefreshableData<u16>,
 }
 
-impl Clone for BulbInfo {
-    fn clone(&self) -> Self {
-        BulbInfo {
-            last_seen: self.last_seen,
-            source: self.source,
-            target: self.target,
-            addr: self.addr,
-            name: self.name.clone(),
-            model: self.model.clone(),
-            location: self.location.clone(),
-            host_firmware: self.host_firmware.clone(),
-            wifi_firmware: self.wifi_firmware.clone(),
-            power_level: self.power_level.clone(),
-            color: self.color.clone(),
-            features: self.features.clone(),
-            group: self.group.clone(),
-            infrared: self.infrared.clone(),
+#[derive(Serialize, Deserialize)]
+struct BulbIdentity {
+    source: u32,
+    target: u64,
+    addr: SocketAddr,
+    name: Option<String>,
+}
+
+impl From<BulbInfo> for BulbIdentity {
+    fn from(b: BulbInfo) -> Self {
+        BulbIdentity {
+            source: b.source,
+            target: b.target,
+            addr: b.addr,
+            name: b.name_label(),
         }
+    }
+}
+
+impl From<BulbIdentity> for BulbInfo {
+    fn from(id: BulbIdentity) -> Self {
+        let mut bulb = BulbInfo::new(id.source, id.target, id.addr);
+        if let Some(name) = id.name {
+            bulb.name.update(CString::new(name).unwrap_or_default());
+        }
+        bulb
     }
 }
 
@@ -95,67 +122,6 @@ pub enum DeviceColor {
     /// 2D matrix of individually-addressable LEDs (e.g. Candle, Tile, Ceiling).
     /// Uses the extended multizone protocol (messages 510–512).
     Matrix(RefreshableData<Vec<Option<HSBK>>>),
-}
-
-impl Serialize for DeviceColor {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        match self {
-            DeviceColor::Unknown => serializer.serialize_none(),
-            DeviceColor::Single(data) => {
-                serializer.serialize_some(&HSBK32::from(data.data.unwrap()))
-            }
-            DeviceColor::Multi(data) | DeviceColor::Matrix(data) => {
-                let serialized_data: Option<Vec<Option<HSBK32>>> = data
-                    .data
-                    .as_ref()
-                    .map(|vec| vec.iter().map(|opt| opt.map(HSBK32::from)).collect());
-                serializer.serialize_some(&serialized_data)
-            }
-        }
-    }
-}
-
-/// Mirrors the serialization format: Unknown → None, Single → Some(HSBK32),
-/// Multi → Some(Option<Vec<Option<HSBK32>>>).
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum DeviceColorData {
-    Multi(Option<Vec<Option<HSBK32>>>),
-    Single(HSBK32),
-}
-
-impl<'de> Deserialize<'de> for DeviceColor {
-    fn deserialize<D>(deserializer: D) -> Result<DeviceColor, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let color_zones_msg = Message::GetColorZones {
-            start_index: 0,
-            end_index: u8::MAX,
-        };
-
-        match Option::<DeviceColorData>::deserialize(deserializer)? {
-            None => Ok(DeviceColor::Unknown),
-            Some(DeviceColorData::Single(hsbk32)) => Ok(DeviceColor::Single(RefreshableData::new(
-                HSBK::from(hsbk32),
-                Duration::from_secs(60),
-                color_zones_msg,
-            ))),
-            Some(DeviceColorData::Multi(zones)) => {
-                let hsbk_zones =
-                    zones.map(|v| v.into_iter().map(|opt| opt.map(HSBK::from)).collect());
-                Ok(DeviceColor::Multi(RefreshableData {
-                    data: hsbk_zones,
-                    max_age: Duration::from_secs(60),
-                    last_updated: Instant::now(),
-                    refresh_msg: color_zones_msg,
-                }))
-            }
-        }
-    }
 }
 
 /// Wrapper around DeviceInfo to allow us to treat bulbs and groups of bulbs the same
@@ -420,8 +386,8 @@ impl std::fmt::Debug for BulbInfo {
             write!(f, "/{}", location.to_string_lossy())?;
         }
         if let Some((vendor, product)) = self.model.as_ref() {
-            if let Some(info) = get_product_info(*vendor, *product) {
-                write!(f, " - {} ", info.name)?;
+            if let Some(name) = crate::products::get_product_name(self.model.as_ref()) {
+                write!(f, " - {} ", name)?;
             } else {
                 write!(
                     f,
@@ -472,9 +438,7 @@ impl std::fmt::Debug for BulbInfo {
                 write!(f, "  Powered Off")?;
             }
         }
-        if let Some(features) = self.features.as_ref() {
-            write!(f, "  Features: {:?}", features)?;
-        }
+        write!(f, "  Features: {:?}", self.features)?;
         write!(f, ")")
     }
 }

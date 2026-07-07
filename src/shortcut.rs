@@ -117,34 +117,11 @@ impl ShortcutManager {
         }
     }
 
-    pub fn add_action<'a>(
-        &'a mut self,
-        action: KeyboardShortcutAction,
-    ) -> Result<(), Box<dyn std::error::Error + 'a>> {
-        let mut shortcuts = self.shortcuts.lock()?;
-        shortcuts.push(action);
-        Ok(())
-    }
-
-    pub fn add_shortcut(
-        &self,
-        name: String,
-        shortcut: KeyboardShortcut,
-        action: UserAction,
-        device: DeviceInfo,
-    ) {
-        let keyboard_shortcut_callback = KeyboardShortcutAction {
-            shortcut: shortcut.clone(),
-            action,
-            device: Some(device),
-            name,
-        };
-
-        if let Ok(mut shortcuts) = self.shortcuts.lock() {
-            shortcuts.push(keyboard_shortcut_callback);
-        } else {
-            log::error!("Failed to lock shortcuts mutex");
-        }
+    pub fn add_shortcut(&self, action: KeyboardShortcutAction) {
+        self.shortcuts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(action);
     }
 
     /// Start the shortcut manager's input listener thread
@@ -341,12 +318,12 @@ mod tests {
             updated_at: 0u64,
         });
 
-        shortcut_manager.add_shortcut(
-            "TestAction".to_string(),
-            shortcut.clone(),
-            UserAction::Refresh,
-            device.clone(),
-        );
+        shortcut_manager.add_shortcut(KeyboardShortcutAction {
+            shortcut: shortcut.clone(),
+            action: UserAction::Refresh,
+            device: Some(device.clone()),
+            name: "TestAction".to_string(),
+        });
         assert_eq!(shortcut_manager.shortcuts.lock().unwrap().len(), 1);
     }
 
@@ -363,19 +340,13 @@ mod tests {
             updated_at: 0u64,
         });
 
-        shortcut_manager.add_shortcut(
-            "TestAction".to_string(),
-            shortcut.clone(),
-            UserAction::Refresh,
-            device.clone(),
-        );
-
         let shortcut_action = KeyboardShortcutAction {
             shortcut: shortcut.clone(),
             action: UserAction::Refresh,
             device: Some(device.clone()),
             name: "TestAction".to_string(),
         };
+        shortcut_manager.add_shortcut(shortcut_action.clone());
 
         shortcut_manager.remove_shortcut(shortcut_action);
         assert_eq!(shortcut_manager.shortcuts.lock().unwrap().len(), 0);
@@ -527,19 +498,5 @@ mod tests {
         let manager = ShortcutManager::default();
         assert!(manager.shortcuts.lock().unwrap().is_empty());
         assert!(manager.active_shortcuts.lock().unwrap().is_empty());
-    }
-
-    #[test]
-    fn shortcut_manager_add_action() {
-        let mut manager = ShortcutManager::default();
-        let keys: BTreeSet<_> = vec![InputItem::Key(Key::KeyB)].into_iter().collect();
-        let action = KeyboardShortcutAction {
-            shortcut: KeyboardShortcut::new(InputAction::from(keys), "B".to_string()),
-            action: UserAction::TogglePower,
-            device: Some(make_group_device()),
-            name: "Toggle".to_string(),
-        };
-        manager.add_action(action).unwrap();
-        assert_eq!(manager.shortcuts.lock().unwrap().len(), 1);
     }
 }

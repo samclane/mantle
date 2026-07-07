@@ -6,7 +6,6 @@ use rdev::{listen, Button, Event, EventType, Key};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
-use std::time::Instant;
 
 pub type BackgroundCallback = Box<dyn Fn(Event) + Send>;
 
@@ -29,15 +28,6 @@ impl InputListener {
             .lock()
             .expect("Failed to lock last_mouse_position mutex");
         *pos
-    }
-
-    pub fn get_last_click_time(&self) -> Option<Instant> {
-        let time = self
-            .state
-            .last_click_time
-            .lock()
-            .expect("Failed to lock last_click_time mutex");
-        *time
     }
 
     pub fn is_input_key_pressed(&self, input_key: InputItem) -> bool {

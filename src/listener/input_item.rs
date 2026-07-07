@@ -17,25 +17,6 @@ impl Display for InputItem {
     }
 }
 
-#[derive(Debug)]
-pub enum InputItemParseError {
-    InvalidInput(String),
-}
-
-impl Display for InputItemParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(
-            f,
-            "{}",
-            match self {
-                InputItemParseError::InvalidInput(s) => s,
-            }
-        )
-    }
-}
-
-impl std::error::Error for InputItemParseError {}
-
 impl PartialOrd for InputItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))

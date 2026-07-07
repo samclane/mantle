@@ -4,7 +4,7 @@ mod tests {
         collections::BTreeSet,
         hash::{Hash, Hasher},
         sync::{Arc, Mutex},
-        time::{Duration, SystemTime},
+        time::SystemTime,
     };
 
     use eframe::egui;
@@ -247,17 +247,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shared_input_state_last_click_time() {
-        let state = SharedInputState::new();
-
-        state.update_button_press(Button::Left);
-        {
-            let last_click_time = state.last_click_time.lock().unwrap();
-            assert!(last_click_time.is_some());
-        }
-    }
-
-    #[test]
     fn test_shared_input_state_execute_callbacks() {
         let state = SharedInputState::new();
 
@@ -333,16 +322,6 @@ mod tests {
     }
 
     #[test]
-    fn test_input_listener_get_last_click_time() {
-        let listener = InputListener::new();
-
-        listener.state.update_button_press(Button::Left);
-
-        let last_click_time = listener.get_last_click_time();
-        assert!(last_click_time.is_some());
-    }
-
-    #[test]
     fn test_input_listener_add_callback() {
         let listener = InputListener::new();
 
@@ -374,18 +353,5 @@ mod tests {
 
         assert_eq!(pos1, pos2);
         assert_ne!(pos1, pos3);
-    }
-
-    #[test]
-    fn test_last_click_time_update() {
-        let state = SharedInputState::new();
-
-        state.update_button_press(Button::Left);
-        let time1 = state.last_click_time.lock().unwrap().unwrap();
-        std::thread::sleep(Duration::from_millis(10));
-        state.update_button_press(Button::Right);
-        let time2 = state.last_click_time.lock().unwrap().unwrap();
-
-        assert!(time2 > time1);
     }
 }
