@@ -771,7 +771,7 @@ pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32
     painter.circle_stroke(
         center,
         radius,
-        Stroke::new(1.5, Color32::from_rgb(60, 60, 80)),
+        Stroke::new(1.5_f32, Color32::from_rgb(60, 60, 80)),
     );
 
     if response.clicked() || response.dragged() {
