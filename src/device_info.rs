@@ -493,7 +493,6 @@ mod tests {
     use lifx_core::{LifxIdent, LifxString, HSBK};
     use std::ffi::CString;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::u8;
 
     #[test]
     fn test_bulbinfo_new() {
@@ -622,7 +621,7 @@ mod tests {
     fn test_groupinfo_get_bulbs() {
         let ident = LifxIdent([1u8; 16]);
         let label = LifxString::new(&CString::new("TestGroup").unwrap());
-        let group = GroupInfo::new(ident.clone(), label);
+        let group = GroupInfo::new(ident, label);
 
         let bulb1 = BulbInfo::new(
             1,
@@ -713,7 +712,7 @@ mod tests {
             brightness: 7000,
             kelvin: 8000,
         });
-        let data = Some(vec![hsbk1.clone(), hsbk2.clone()]);
+        let data = Some(vec![hsbk1, hsbk2]);
 
         let color = extract_primary_color(data.as_ref());
         assert!(color.is_some());
