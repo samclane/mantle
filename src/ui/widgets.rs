@@ -791,7 +791,7 @@ pub fn color_wheel(ui: &mut Ui, hue: &mut u16, saturation: &mut u16, radius: f32
     let current_r = *saturation as f32 / 65535.0 * radius;
     let indicator_pos = center + Vec2::new(current_angle.cos(), current_angle.sin()) * current_r;
     painter.circle_filled(indicator_pos, 5.0, Color32::WHITE);
-    painter.circle_stroke(indicator_pos, 5.0, Stroke::new(1.5, Color32::BLACK));
+    painter.circle_stroke(indicator_pos, 5.0_f32, Stroke::new(1.5_f32, Color32::BLACK));
 
     changed
 }
@@ -871,7 +871,7 @@ pub fn rgb_input(
         painter.rect_stroke(
             swatch_resp.rect,
             rounding,
-            Stroke::new(1.0, Color32::from_rgb(60, 60, 80)),
+            Stroke::new(1.0_f32, Color32::from_rgb(60, 60, 80)),
         );
 
         let hex = &mut format!("#{:02X}{:02X}{:02X}", r, g, b);

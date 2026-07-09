@@ -675,7 +675,7 @@ impl MantleApp {
                         painter.circle_stroke(
                             center,
                             radius,
-                            egui::Stroke::new(1.0, ui.visuals().text_color()),
+                            egui::Stroke::new(1.0_f32, ui.visuals().text_color()),
                         );
 
                         let prefix = match device {

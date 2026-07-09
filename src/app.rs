@@ -362,16 +362,16 @@ impl MantleApp {
         visuals.menu_rounding = egui::Rounding::same(8.0);
 
         visuals.selection.bg_fill = Color32::from_rgb(180, 120, 30);
-        visuals.selection.stroke = Stroke::new(1.0, Color32::from_rgb(220, 160, 50));
+        visuals.selection.stroke = Stroke::new(1.0_f32, Color32::from_rgb(220, 160, 50));
 
         visuals.widgets.inactive.bg_fill = Color32::from_rgb(40, 40, 55);
         visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(35, 35, 48);
         visuals.widgets.hovered.bg_fill = Color32::from_rgb(50, 50, 68);
         visuals.widgets.active.bg_fill = Color32::from_rgb(60, 60, 80);
 
-        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(55, 55, 75));
-        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(100, 100, 140));
-        visuals.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_rgb(180, 120, 30));
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(55, 55, 75));
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(100, 100, 140));
+        visuals.widgets.active.bg_stroke = Stroke::new(1.5_f32, Color32::from_rgb(180, 120, 30));
 
         ctx.set_visuals(visuals);
 
@@ -833,7 +833,7 @@ impl MantleApp {
                                 }
                             } else {
                                 if let Err(e) = self.lighting_manager.set_color(
-                                    &**bulb,
+                                    bulb,
                                     after_color.next,
                                     after_color.duration,
                                 ) {
@@ -1030,7 +1030,7 @@ impl MantleApp {
                 let rounding = egui::Rounding::same(3.0);
                 painter.rect_filled(resp.rect, rounding, swatch_color);
                 if resp.hovered() {
-                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5, Color32::WHITE));
+                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5_f32, Color32::WHITE));
                 }
                 if resp.clicked() {
                     hue = preset.hue;
@@ -1051,10 +1051,10 @@ impl MantleApp {
                 painter.rect_stroke(
                     resp.rect.shrink(1.0),
                     egui::Rounding::same(2.0),
-                    Stroke::new(0.5, Color32::from_white_alpha(60)),
+                    Stroke::new(0.5_f32, Color32::from_white_alpha(60)),
                 );
                 if resp.hovered() {
-                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5, Color32::WHITE));
+                    painter.rect_stroke(resp.rect, rounding, Stroke::new(1.5_f32, Color32::WHITE));
                 }
                 if resp.clicked() {
                     hue = preset_hsbk.hue;

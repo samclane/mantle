@@ -392,7 +392,7 @@ fn render_subregion_preview(
         outer_rect,
         6.0,
         Color32::from_rgb(16, 16, 22),
-        Stroke::new(1.5, Color32::from_rgb(100, 100, 130)),
+        Stroke::new(1.5_f32, Color32::from_rgb(100, 100, 130)),
     );
 
     let preview_to_global = |pos: Pos2| -> (i32, i32) {
@@ -418,13 +418,18 @@ fn render_subregion_preview(
         if let Some(tex) = textures.get(&monitor.id()) {
             painter.image(tex.id(), mon_rect, uv, Color32::WHITE);
         } else {
-            painter.rect(mon_rect, 4.0, Color32::from_rgb(30, 30, 42), Stroke::NONE);
+            painter.rect(
+                mon_rect,
+                4.0_f32,
+                Color32::from_rgb(30, 30, 42),
+                Stroke::NONE,
+            );
         }
 
         painter.rect_stroke(
             mon_rect,
-            4.0,
-            Stroke::new(1.0, Color32::from_rgb(55, 55, 75)),
+            4.0_f32,
+            Stroke::new(1.0_f32, Color32::from_rgb(55, 55, 75)),
         );
     }
 
