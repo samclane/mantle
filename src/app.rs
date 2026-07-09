@@ -437,8 +437,7 @@ impl MantleApp {
                                 if let Ok(cstr) = std::ffi::CString::new(self.rename_buffer.clone())
                                 {
                                     let label = lifx_core::LifxString::new(&cstr);
-                                    if let Err(e) = self.lighting_manager.set_label(&**bulb, label)
-                                    {
+                                    if let Err(e) = self.lighting_manager.set_label(bulb, label) {
                                         log::error!("Failed to rename device: {}", e);
                                     }
                                 }
@@ -594,7 +593,7 @@ impl MantleApp {
                         match device {
                             DeviceInfo::Bulb(bulb) => {
                                 if let Err(e) =
-                                    self.lighting_manager.set_infrared(&**bulb, ir_brightness)
+                                    self.lighting_manager.set_infrared(bulb, ir_brightness)
                                 {
                                     log::error!("Error setting infrared: {}", e);
                                     self.error_toast(&t!(
@@ -685,7 +684,7 @@ impl MantleApp {
                                             ApplicationRequest::NoApply
                                         };
                                         if let Err(e) = self.lighting_manager.set_color_zones(
-                                            &**bulb, i as u8, i as u8, zone_color, duration, apply,
+                                            bulb, i as u8, i as u8, zone_color, duration, apply,
                                         ) {
                                             log::error!("Error setting gradient zone: {}", e);
                                             break;
@@ -766,9 +765,10 @@ impl MantleApp {
                                             },
                                         );
                                     }
-                                    if let Err(e) = self.lighting_manager.set_extended_color_zones(
-                                        &**bulb, zones, &updates, duration,
-                                    ) {
+                                    if let Err(e) = self
+                                        .lighting_manager
+                                        .set_extended_color_zones(bulb, zones, &updates, duration)
+                                    {
                                         log::error!("Error setting matrix gradient: {}", e);
                                     } else {
                                         self.success_toast(&t!("controls.gradient_applied"));
@@ -795,9 +795,10 @@ impl MantleApp {
                                         .iter()
                                         .map(|&idx| (idx, after_color.next))
                                         .collect();
-                                    if let Err(e) = self.lighting_manager.set_extended_color_zones(
-                                        &**bulb, zones, &updates, duration,
-                                    ) {
+                                    if let Err(e) = self
+                                        .lighting_manager
+                                        .set_extended_color_zones(bulb, zones, &updates, duration)
+                                    {
                                         log::error!("Error setting matrix color: {}", e);
                                         self.error_toast(&t!(
                                             "error.matrix_color",
@@ -815,7 +816,7 @@ impl MantleApp {
                                         ApplicationRequest::NoApply
                                     };
                                     if let Err(e) = self.lighting_manager.set_color_zones(
-                                        &**bulb,
+                                        bulb,
                                         *start as u8,
                                         *end as u8,
                                         after_color.next,

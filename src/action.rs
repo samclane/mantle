@@ -73,7 +73,7 @@ impl UserAction {
                     } else {
                         u16::MAX
                     };
-                    if let Err(e) = lifx_manager.set_power(&*bulb_info, level) {
+                    if let Err(e) = lifx_manager.set_power(&bulb_info, level) {
                         log::error!("Failed to set power: {}", e);
                     }
                 }
@@ -109,7 +109,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color(
-                            &*bulb_info,
+                            &bulb_info,
                             HSBK {
                                 hue: *hue,
                                 saturation: *saturation,
@@ -137,7 +137,7 @@ impl UserAction {
                         }
                     }
                     DeviceInfo::Bulb(bulb_info) => {
-                        if let Err(e) = lifx_manager.set_power(&*bulb_info, *power as u16) {
+                        if let Err(e) = lifx_manager.set_power(&bulb_info, *power as u16) {
                             log::error!("Failed to set power: {}", e);
                         }
                     }
@@ -158,7 +158,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color_field(
-                            &*bulb_info,
+                            &bulb_info,
                             HSBKField::Brightness,
                             *brightness,
                         ) {
@@ -182,7 +182,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) = lifx_manager.set_color_field(
-                            &*bulb_info,
+                            &bulb_info,
                             HSBKField::Saturation,
                             *saturation,
                         ) {
@@ -206,7 +206,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) =
-                            lifx_manager.set_color_field(&*bulb_info, HSBKField::Kelvin, *kelvin)
+                            lifx_manager.set_color_field(&bulb_info, HSBKField::Kelvin, *kelvin)
                         {
                             log::error!("Failed to set kelvin: {}", e);
                         }
@@ -228,7 +228,7 @@ impl UserAction {
                     }
                     DeviceInfo::Bulb(bulb_info) => {
                         if let Err(e) =
-                            lifx_manager.set_color_field(&*bulb_info, HSBKField::Hue, *hue)
+                            lifx_manager.set_color_field(&bulb_info, HSBKField::Hue, *hue)
                         {
                             log::error!("Failed to set hue: {}", e);
                         }

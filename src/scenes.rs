@@ -50,7 +50,7 @@ impl Scene {
             let color = HSBK::from(*color);
             match device {
                 DeviceInfo::Bulb(bulb) => {
-                    if let Err(err) = lifx_manager.set_color(&**bulb, color, None) {
+                    if let Err(err) = lifx_manager.set_color(bulb, color, None) {
                         errors
                             .push(t!("error.bulb_color", error = format!("{:?}", err)).to_string());
                     }
