@@ -301,7 +301,9 @@ impl LifxManager {
     pub fn discover(&mut self) -> Result<usize, anyhow::Error> {
         log::debug!("Doing discovery");
         crate::net_log!("discover.start");
-        let mut count = 0;
+        // Set up front so a failed pass is throttled like a successful one
+        // instead of being retried every frame.
+        self.last_discovery = Instant::now();
 
         let opts = BuildOptions {
             source: self.source,
@@ -310,29 +312,16 @@ impl LifxManager {
         let rawmsg = RawMessage::build(&opts, Message::GetService)?;
         let bytes = rawmsg.pack()?;
 
-        for addr in get_if_addrs()? {
-            if let IfAddr::V4(Ifv4Addr {
-                broadcast: Some(bcast),
-                ..
-            }) = addr.addr
-            {
-                if addr.ip().is_loopback() {
-                    continue;
-                }
-                let addr = SocketAddr::new(IpAddr::V4(bcast), 56700);
-                log::debug!("Discovering bulbs on LAN {:?}", addr);
-                let send_res = self.socket.send_to(&bytes, addr);
-                crate::net_log!(
-                    "discover.send",
-                    "broadcast" => addr.to_string(),
-                    "result" => format!("{:?}", send_res),
-                );
-                send_res?;
-                count += 1;
-            }
-        }
-
-        self.last_discovery = Instant::now();
+        let addrs = get_if_addrs()?
+            .into_iter()
+            .filter_map(|addr| match addr.addr {
+                IfAddr::V4(Ifv4Addr {
+                    broadcast: Some(bcast),
+                    ..
+                }) if !addr.ip().is_loopback() => Some(SocketAddr::new(IpAddr::V4(bcast), 56700)),
+                _ => None,
+            });
+        let count = broadcast(&bytes, addrs, |b, a| self.socket.send_to(b, a));
         crate::net_log!("discover.done", "broadcasts_sent" => count);
 
         Ok(count)
@@ -651,6 +640,32 @@ impl LifxManager {
     }
 }
 
+/// Send `bytes` to each broadcast address, logging failures instead of
+/// aborting so one unreachable interface (e.g. a virtual adapter returning
+/// Windows error 10065) doesn't block discovery on the others. Returns the
+/// number of successful sends.
+fn broadcast(
+    bytes: &[u8],
+    addrs: impl IntoIterator<Item = SocketAddr>,
+    mut send: impl FnMut(&[u8], SocketAddr) -> std::io::Result<usize>,
+) -> usize {
+    let mut count = 0;
+    for addr in addrs {
+        log::debug!("Discovering bulbs on LAN {:?}", addr);
+        let send_res = send(bytes, addr);
+        crate::net_log!(
+            "discover.send",
+            "broadcast" => addr.to_string(),
+            "result" => format!("{:?}", send_res),
+        );
+        match send_res {
+            Ok(_) => count += 1,
+            Err(e) => log::warn!("Discovery broadcast to {} failed: {}", addr, e),
+        }
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,6 +687,24 @@ mod tests {
 
     fn raw(msg: Message) -> RawMessage {
         RawMessage::build(&BuildOptions::default(), msg).expect("failed to build message")
+    }
+
+    /// Issue #17: one unreachable interface must not stop broadcasts on the rest.
+    #[test]
+    fn broadcast_continues_after_send_error() {
+        let bad = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 255)), 56700);
+        let good = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 255)), 56700);
+        let mut sent = Vec::new();
+        let count = broadcast(b"x", [bad, good], |b, a| {
+            sent.push(a);
+            if a == bad {
+                Err(std::io::Error::other("host unreachable"))
+            } else {
+                Ok(b.len())
+            }
+        });
+        assert_eq!(sent, vec![bad, good]);
+        assert_eq!(count, 1);
     }
 
     /// A `StateZone` whose `index` lands past `count` must not panic: a panic
