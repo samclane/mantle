@@ -159,22 +159,20 @@ impl From<RGB8> for Color32 {
 /// Convert a scalar Kelvin temperature to an RGB color.
 pub fn kelvin_to_rgb(temperature: u16) -> RGB8 {
     let percentage_temperature = temperature / 100;
-    let red;
-    let green;
-
-    if percentage_temperature <= 66 {
-        red = 255.;
-        green = (99.4708025861 * (percentage_temperature as f64 + 0.0000000001).ln()
+    let (red, green) = if percentage_temperature <= 66 {
+        let green = (99.4708025861 * (percentage_temperature as f64 + 0.0000000001).ln()
             - 161.1195681661)
             .clamp(0.0, 255.0);
+        (255., green)
     } else {
-        red = 329.698727466
+        let red = 329.698727466
             * ((percentage_temperature - 60) as f64)
                 .powf(-0.1332047592)
                 .clamp(0.0, 255.0);
-        green = (288.1221695283 * ((percentage_temperature - 60) as f64).powf(-0.0755148492))
+        let green = (288.1221695283 * ((percentage_temperature - 60) as f64).powf(-0.0755148492))
             .clamp(0.0, 255.0);
-    }
+        (red, green)
+    };
 
     let blue = if percentage_temperature >= 66 {
         255.0
