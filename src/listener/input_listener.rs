@@ -78,6 +78,11 @@ impl InputListener {
         let state = Arc::clone(&self.state);
 
         spawn(move || {
+            // We're off the main thread: have rdev hop to the main queue for
+            // keyboard-layout lookups, which macOS 26 asserts on (#19).
+            #[cfg(target_os = "macos")]
+            rdev::set_is_main_thread(false);
+
             if let Err(e) = listen(move |event| {
                 match event.event_type {
                     EventType::MouseMove { x, y } => {

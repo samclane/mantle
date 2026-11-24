@@ -28,7 +28,8 @@ log4rs = "1.4.0"
 xcap = "0.0.12"
 puffin = { "version" = "0.19.1", optional = true }
 puffin_http = { "version" = "0.16.1",  optional = true }
-rdev = { version = "0.5.3", features = [ "serialize"] }
+# Git main for set_is_main_thread (#19); unreleased on crates.io as of 0.5.3.
+rdev = { git = "https://github.com/Narsil/rdev", rev = "b7e201bf80be7b9632207366f277d29fe732b9c1", features = ["serialize"] }
 egui-toast = "0.16.0"
 epaint = { version = "0.30.0" }
 cpal = "0.15.3"
@@ -44,6 +45,10 @@ auto-launch = "0.6.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+
+[[test]]
+name = "macos_keypress"
+harness = false
 
 [features]
 puffin = ["dep:puffin", "dep:puffin_http"]
